@@ -147,6 +147,35 @@ private object DoMoveTask( object inputParams )
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound:" + nameKey;
 
+    // ─── Проверка прав на перемещение ────────────────────────────
+    // Двигать может: исполнитель, создатель или админ
+    var currentUser = Service.GetCurrentUser();
+    var curRole     = GetUserRole( currentUser );
+    if( curRole != "admin" )
+    {
+        bool isOwner = false;
+        try
+        {
+            var assignee = task.GetUser( "Assignee" );
+            if( assignee != null && currentUser != null && assignee.Id == currentUser.Id )
+                isOwner = true;
+        }
+        catch { }
+        if( !isOwner )
+        {
+            try
+            {
+                var creatorKey = task.GetString( "Creator" ) ?? "";
+                var curKey = !string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.NameKey
+                           : !string.IsNullOrEmpty( currentUser.AccountId ) ? currentUser.AccountId
+                           : currentUser.Id.ToString();
+                if( creatorKey == curKey ) isOwner = true;
+            }
+            catch { }
+        }
+        if( !isOwner ) return "ERROR:NotOwner";
+    }
+
     int oldStatus = GetStatusIndex( task );
 
     // Устанавливаем новый статус через NamedValue (KanbanStatus — Enumeration)
@@ -644,7 +673,7 @@ private object BuildCardData( InfoObject task, int status )
 // Ролевая иерархия (шаг 05)
 // ═══════════════════════════════════════════════════════════════════════
 
-// ─── Роли: NameKey должностей (Comission) ────────────────────────────
+// ─── Роли: NameKey должностей (Commission) ────────────────────────────
 
 private static readonly string[] ADMIN_POS = {
     "genKonstr",             // Генеральный конструктор
@@ -681,7 +710,7 @@ private string GetUserRole( User user )
 {
     try
     {
-        var posNv = user.GetNamedValue( "Comission" );
+        var posNv = user.GetNamedValue( "Commission" );
         if( posNv == null ) return "regular";
 
         var key  = posNv.NameKey  ?? "";
