@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>kanban.js — Клиентская логика</title>
+    <link rel="stylesheet" href="kanban-docs-theme.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-top">
+                <div>
+                    <h1>kanban.js — Клиентская логика</h1>
+                    <p>Документ по проекту канбан-доски.</p>
+                </div>
+                <div class="badge">Client Logic</div>
+            </div>
+            <div class="hero-meta">
+                <div class="badge">Источник: 03_KANBAN_JS_CLIENT_LOGIC.md</div>
+                <div class="badge">Каталог: docs/kanban-docs/HTML</div>
+            </div>
+        </header>
+
+        <div class="doc-layout">
+            <aside class="nav-card side-nav">
+                <h2>Оглавление</h2>
+                <div class="doc-nav">
+                    <a href="index.html">Индекс документации</a>
+                    <a class="" href="00_PROJECT_OVERVIEW.html">Канбан-доска — Общий обзор проекта</a>
+<a class="" href="01_KanbanScreen_SERVER_SCRIPT.html">KanbanScreen — Серверный скрипт экрана</a>
+<a class="" href="02_KanbanTask_TEMPLATE_SCRIPT.html">KanbanTask — Скрипт шаблона задачи</a>
+<a class="active" href="03_KANBAN_JS_CLIENT_LOGIC.html">kanban.js — Клиентская логика</a>
+<a class="" href="04_KANBAN_CSS_STYLES.html">kanban.css — Стили канбан-доски</a>
+<a class="" href="05_KANBAN_HTML_MARKUP.html">KanbanBoard_HTML — Разметка канбан-доски</a>
+                </div>
+            </aside>
+
+            <article class="article-card">
+<h1 id="kanban.js">kanban.js — Клиентская логика</h1>
+<p><strong>Файл:</strong> <code>kanban.js</code>
+<strong>Тип:</strong> Vanilla JavaScript (IIFE, без фреймворков)</p>
+<h2 id="section">Назначение</h2>
+<p>Клиентский скрипт канбан-доски. Реализует всю интерактивность:</p>
+<ul>
+<li>Drag &amp; Drop задач между колонками</li>
+<li>Модальное окно карточки задачи (просмотр/редактирование)</li>
+<li>Панель создания задачи</li>
+<li>Календарь выбора даты</li>
+<li>Чат (комментарии)</li>
+<li>Вложения (поиск и привязка объектов PLM)</li>
+<li>Фильтры и иерархия подразделений</li>
+<li>Отчёт по задачам</li>
+</ul>
+<h2 id="section-1">Архитектура</h2>
+<p>Весь код обёрнут в IIFE <code>(function() { ... })()</code> — нет глобальных переменных.
+Функции вызываются из HTML через <code>onclick</code> атрибуты.</p>
+<h2 id="section-2">Основные модули</h2>
+<h3 id="board-adjust">1. Board Adjust — Подстройка высоты доски</h3>
+<pre><code class="language-javascript">function boardAdjust()
+</code></pre>
+<p>Переключает CSS-класс <code>panel-open</code> на <code>#kb-board</code> при открытии/закрытии панели создания.</p>
+<h3 id="section-3">2. Календарь (универсальный)</h3>
+<p><strong>Переменные состояния:</strong></p>
+<ul>
+<li><code>_calYear</code>, <code>_calMonth</code> — текущий отображаемый месяц</li>
+<li><code>_calTargetId</code> — ID input-поля, куда записывается выбранная дата</li>
+<li><code>_MN</code> — массив русских названий месяцев</li>
+</ul>
+<p><strong>Функции:</strong></p>
+<pre><code class="language-javascript">function calOpen(inputId)     // Открыть календарь для конкретного input
+function calRender()          // Отрисовать сетку дней
+function calPrev() / calNext() // Навигация по месяцам
+function calPick(d)           // Выбрать дату → записать в _calTargetId
+function calClose()           // Закрыть календарь
+</code></pre>
+<p>Календарь используется в двух местах:</p>
+<ul>
+<li>Панель создания задачи (<code>kb-new-duedate</code>)</li>
+<li>Модальное окно редактирования (<code>kb-modal-duedate</code>)</li>
+</ul>
+<h3 id="drag-drop">3. Drag &amp; Drop</h3>
+<p><strong>Переменные:</strong></p>
+<ul>
+<li><code>_dragCard</code> — перетаскиваемый DOM-элемент</li>
+<li><code>_dragSourceCol</code> — исходная колонка</li>
+</ul>
+<p><strong>Функции:</strong></p>
+<pre><code class="language-javascript">function dragStart(ev)        // Начало перетаскивания — сохраняет taskId
+function allowDrop(ev)        // Разрешает drop (preventDefault)
+function dropCard(ev)         // Обработка drop:
+                              //   1. Определяет целевую колонку
+                              //   2. Перемещает DOM-элемент
+                              //   3. Отправляет AJAX moveTask
+                              //   4. Обновляет счётчики колонок
+</code></pre>
+<p><strong>Логика drop:</strong></p>
+<ul>
+<li>Карточка вставляется в начало целевой колонки</li>
+<li>Если перемещение в колонку «Готово» (status=3) — добавляется дата завершения</li>
+<li>Если из «Готово» — дата завершения убирается</li>
+<li>Счётчики <code>(N)</code> в заголовках колонок обновляются</li>
+</ul>
+<h3 id="section-4">4. Модальное окно карточки</h3>
+<p><strong>Функции:</strong></p>
+<pre><code class="language-javascript">function openCard(taskId)     // Открыть модалку:
+                              //   1. AJAX getCard → заполнить поля
+                              //   2. Загрузить комментарии
+                              //   3. Загрузить вложения
+                              //   4. Загрузить историю
+function closeCard()          // Закрыть модалку
+function saveCard()           // Сохранить изменения (AJAX saveCard)
+function deleteCard()         // Удалить задачу (AJAX deleteCard + confirm)
+</code></pre>
+<p><strong>Вкладки модалки:</strong></p>
+<pre><code class="language-javascript">function switchTab(tabName)   // Переключение: 'comments', 'attachments', 'history'
+</code></pre>
+<h3 id="section-5">5. Комментарии (чат)</h3>
+<pre><code class="language-javascript">function loadComments(taskId)       // Загрузить список комментариев
+function sendComment()              // Отправить новый комментарий
+function deleteComment(commentId)   // Удалить комментарий (с confirm)
+function renderComments(comments)   // Отрисовать список в DOM
+</code></pre>
+<p><strong>Формат отображения:</strong></p>
+<ul>
+<li>Аватар с инициалами (цветной кружок)</li>
+<li>Имя автора + время</li>
+<li>Текст комментария</li>
+<li>Кнопка удаления (только для своих)</li>
+</ul>
+<h3 id="section-6">6. Вложения</h3>
+<pre><code class="language-javascript">function loadAttachments(taskId)          // Загрузить список вложений
+function searchObjects(query)             // Поиск объектов PLM (AJAX searchObjects)
+function addAttachment(objectId)          // Привязать объект
+function removeAttachment(attachmentId)   // Отвязать объект
+function renderAttachments(attachments)   // Отрисовать список
+function renderSearchResults(results)     // Отрисовать результаты поиска
+</code></pre>
+<h3 id="section-7">7. Панель создания задачи</h3>
+<pre><code class="language-javascript">function toggleCreatePanel()    // Показать/скрыть панель создания
+function createTask()           // Создать задачу (AJAX createTask)
+function createGroupTasks()     // Групповое создание (AJAX createGroupTasks)
+function resetCreateForm()      // Очистить форму
+</code></pre>
+<p><strong>Поля формы создания:</strong></p>
+<ul>
+<li><code>kb-new-title</code> — название</li>
+<li><code>kb-new-details</code> — описание</li>
+<li><code>kb-new-priority</code> — приоритет (select)</li>
+<li><code>kb-new-duedate</code> — срок (через календарь)</li>
+<li><code>kb-new-assignee</code> — исполнитель (select, только для руководителей)</li>
+</ul>
+<h3 id="section-8">8. Фильтры и иерархия</h3>
+<pre><code class="language-javascript">function toggleMode(mode)           // Переключение «Мои задачи» / «Все задачи»
+function loadHierarchy()            // Загрузить дерево подразделений
+function filterByDepartment(id)     // Фильтр по отделению
+function filterBySector(id)         // Фильтр по сектору
+function filterByUser(id)           // Фильтр по сотруднику
+function reloadBoard()              // Перезагрузить доску с текущими фильтрами
+function renderBoard(data)          // Отрисовать все колонки из JSON
+</code></pre>
+<h3 id="section-9">9. Отчёт</h3>
+<pre><code class="language-javascript">function openReport()               // Открыть модалку отчёта
+function loadReport(period)         // Загрузить данные (AJAX getReport)
+function renderReport(data)         // Отрисовать таблицу отчёта
+function closeReport()              // Закрыть модалку
+</code></pre>
+<h2 id="ajax">AJAX-обёртка</h2>
+<pre><code class="language-javascript">function ajax(action, params, callback)
+</code></pre>
+<ul>
+<li>Формирует POST-запрос к текущему URL с <code>ajaxAction</code> параметром</li>
+<li>Парсит JSON-ответ</li>
+<li>Вызывает callback с результатом</li>
+<li>При ошибке показывает alert</li>
+</ul>
+<h2 id="section-10">Утилиты</h2>
+<pre><code class="language-javascript">function escapeHtml(str)            // Экранирование HTML-спецсимволов
+function formatDate(dateStr)        // Форматирование даты
+function updateColumnCounts()       // Пересчёт счётчиков в заголовках колонок
+function getStatusName(status)      // Числовой статус → русское название
+function getPriorityBadge(priority) // Приоритет → HTML-бейдж с цветом
+</code></pre>
+<h2 id="iife">Глобальные переменные (внутри IIFE)</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Переменная</th>
+<th>Тип</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>_calYear</code></td>
+<td>int</td>
+<td>Год в календаре</td>
+</tr>
+<tr>
+<td><code>_calMonth</code></td>
+<td>int</td>
+<td>Месяц в календаре (0-11)</td>
+</tr>
+<tr>
+<td><code>_calTargetId</code></td>
+<td>string</td>
+<td>ID целевого input для даты</td>
+</tr>
+<tr>
+<td><code>_MN</code></td>
+<td>array</td>
+<td>Русские названия месяцев</td>
+</tr>
+<tr>
+<td><code>_dragCard</code></td>
+<td>Element</td>
+<td>Перетаскиваемая карточка</td>
+</tr>
+<tr>
+<td><code>_dragSourceCol</code></td>
+<td>string</td>
+<td>ID исходной колонки</td>
+</tr>
+<tr>
+<td><code>_currentTaskId</code></td>
+<td>string</td>
+<td>ID открытой задачи в модалке</td>
+</tr>
+<tr>
+<td><code>_currentTab</code></td>
+<td>string</td>
+<td>Активная вкладка модалки</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="html">Привязка к HTML</h2>
+<p>Функции экспортируются в <code>window</code> для вызова из <code>onclick</code>:</p>
+<pre><code class="language-javascript">window.calOpen = calOpen;
+window.calPick = calPick;
+// ... и т.д.
+</code></pre>
+
+            </article>
+        </div>
+    </div>
+</body>
+</html>

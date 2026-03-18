@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KanbanScreen — Серверный скрипт экрана</title>
+    <link rel="stylesheet" href="kanban-docs-theme.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-top">
+                <div>
+                    <h1>KanbanScreen — Серверный скрипт экрана</h1>
+                    <p>Документ по проекту канбан-доски.</p>
+                </div>
+                <div class="badge">Server Script</div>
+            </div>
+            <div class="hero-meta">
+                <div class="badge">Источник: 01_KanbanScreen_SERVER_SCRIPT.md</div>
+                <div class="badge">Каталог: docs/kanban-docs/HTML</div>
+            </div>
+        </header>
+
+        <div class="doc-layout">
+            <aside class="nav-card side-nav">
+                <h2>Оглавление</h2>
+                <div class="doc-nav">
+                    <a href="index.html">Индекс документации</a>
+                    <a class="" href="00_PROJECT_OVERVIEW.html">Канбан-доска — Общий обзор проекта</a>
+<a class="active" href="01_KanbanScreen_SERVER_SCRIPT.html">KanbanScreen — Серверный скрипт экрана</a>
+<a class="" href="02_KanbanTask_TEMPLATE_SCRIPT.html">KanbanTask — Скрипт шаблона задачи</a>
+<a class="" href="03_KANBAN_JS_CLIENT_LOGIC.html">kanban.js — Клиентская логика</a>
+<a class="" href="04_KANBAN_CSS_STYLES.html">kanban.css — Стили канбан-доски</a>
+<a class="" href="05_KANBAN_HTML_MARKUP.html">KanbanBoard_HTML — Разметка канбан-доски</a>
+                </div>
+            </aside>
+
+            <article class="article-card">
+<h1 id="kanbanscreen">KanbanScreen — Серверный скрипт экрана</h1>
+<p><strong>Файл:</strong> <code>SOYUZ_UPLOAD_KanbanScreen_script.cs</code>
+<strong>Тип:</strong> C# серверный скрипт экрана PLM</p>
+<h2 id="section">Назначение</h2>
+<p>Главный серверный скрипт канбан-доски. Отвечает за:</p>
+<ul>
+<li>Первичную загрузку задач и распределение по колонкам</li>
+<li>Определение роли пользователя и уровня доступа</li>
+<li>Обработку всех AJAX-запросов от клиента (создание, перемещение, удаление задач, отчёт, иерархия)</li>
+</ul>
+<h2 id="section-1">Структура скрипта</h2>
+<h3 id="section-2">1. Инициализация и определение роли</h3>
+<pre><code class="language-csharp">// Определение роли текущего пользователя
+var currentUser = Context.CurrentUser;
+var roles = currentUser.Roles;
+
+// Иерархия ролей (от высшей к низшей):
+// КанбанНачОтдела → КанбанНачОтделения → КанбанНачСектора → обычный пользователь
+var isHead = roles.Contains(&quot;КанбанНачОтдела&quot;);
+var isDeptHead = roles.Contains(&quot;КанбанНачОтделения&quot;);
+var isSectorHead = roles.Contains(&quot;КанбанНачСектора&quot;);
+var isManager = isHead || isDeptHead || isSectorHead;
+</code></pre>
+<p>Роль определяет:</p>
+<ul>
+<li>Видимость кнопки «Все задачи» и панели иерархии</li>
+<li>Набор доступных фильтров (отделение/сектор/сотрудник)</li>
+<li>Возможность назначать задачи другим пользователям</li>
+</ul>
+<h3 id="section-3">2. Загрузка задач (первичный рендер)</h3>
+<p>При первичной загрузке страницы скрипт:</p>
+<ol>
+<li>Получает все задачи шаблона <code>KanbanTask</code> через PLM API</li>
+<li>Фильтрует по текущему пользователю (режим «Мои задачи»)</li>
+<li>Сортирует: сверхсрочные → по дате создания (новые сверху)</li>
+<li>Распределяет по 4 коллекциям: <code>col_0</code>, <code>col_1</code>, <code>col_2</code>, <code>col_3</code></li>
+<li>Для каждой задачи формирует объект с полями для шаблона</li>
+</ol>
+<p><strong>Поля объекта задачи для шаблона:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Поле</th>
+<th>Тип</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>Идентификатор объекта задачи</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>Название задачи</td>
+</tr>
+<tr>
+<td><code>details</code></td>
+<td>string</td>
+<td>Описание (обрезается до 100 символов)</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td>string</td>
+<td>Приоритет: <code>low</code>, <code>medium</code>, <code>high</code>, <code>urgent</code></td>
+</tr>
+<tr>
+<td><code>dueDate</code></td>
+<td>string</td>
+<td>Срок в формате <code>ДД.ММ.ГГГГ</code></td>
+</tr>
+<tr>
+<td><code>completedDate</code></td>
+<td>string</td>
+<td>Дата завершения (только для колонки «Готово»)</td>
+</tr>
+<tr>
+<td><code>assigneeName</code></td>
+<td>string</td>
+<td>ФИО исполнителя</td>
+</tr>
+<tr>
+<td><code>initials</code></td>
+<td>string</td>
+<td>Инициалы для аватара (напр. «ИП»)</td>
+</tr>
+<tr>
+<td><code>isOwner</code></td>
+<td>string</td>
+<td><code>&quot;true&quot;</code> если текущий пользователь — создатель</td>
+</tr>
+<tr>
+<td><code>attachmentCount</code></td>
+<td>int</td>
+<td>Количество вложений</td>
+</tr>
+<tr>
+<td><code>commentCount</code></td>
+<td>int</td>
+<td>Количество комментариев</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="ajax">3. AJAX-обработчики</h3>
+<p>Все AJAX-запросы приходят с параметром <code>ajaxAction</code>. Скрипт возвращает JSON.</p>
+<h4 id="movetask"><code>moveTask</code> — Перемещение задачи</h4>
+<pre><code>Параметры: taskId, newStatus
+Действие: Меняет атрибут статуса задачи. Если newStatus=3 → ставит дату завершения.
+Ответ: { &quot;ok&quot;: true }
+</code></pre>
+<h4 id="deletetask"><code>deleteTask</code> — Удаление задачи</h4>
+<pre><code>Параметры: taskId
+Действие: Удаляет объект задачи из PLM (только если пользователь — создатель или руководитель).
+Ответ: { &quot;ok&quot;: true }
+</code></pre>
+<h4 id="createtask"><code>createTask</code> — Создание задачи</h4>
+<pre><code>Параметры: title, details, status, priority, dueDate, assigneeId, attachments (JSON)
+Действие: Создаёт новый объект KanbanTask, заполняет атрибуты, привязывает вложения.
+Ответ: { &quot;ok&quot;: true, &quot;id&quot;: &quot;&lt;новый_id&gt;&quot; }
+</code></pre>
+<h4 id="creategrouptasks"><code>createGroupTasks</code> — Групповое создание</h4>
+<pre><code>Параметры: title, details, status, priority, dueDate, userIds (JSON-массив), attachments (JSON)
+Действие: Создаёт отдельную задачу для каждого пользователя из списка.
+Ответ: { &quot;ok&quot;: true, &quot;count&quot;: N }
+</code></pre>
+<h4 id="gethierarchy"><code>getHierarchy</code> — Получение иерархии</h4>
+<pre><code>Параметры: нет
+Действие: Возвращает структуру отделений/секторов для текущего руководителя.
+Ответ: { &quot;departments&quot;: [...], &quot;sectors&quot;: [...], &quot;role&quot;: &quot;...&quot; }
+</code></pre>
+<h4 id="getusers"><code>getUsers</code> — Получение списка пользователей</h4>
+<pre><code>Параметры: deptId (опц.), sectorId (опц.)
+Действие: Возвращает список пользователей с фильтрацией по подразделению.
+Ответ: { &quot;users&quot;: [{ &quot;id&quot;: &quot;...&quot;, &quot;name&quot;: &quot;...&quot;, &quot;sectorName&quot;: &quot;...&quot; }, ...] }
+</code></pre>
+<h4 id="loadboard"><code>loadBoard</code> — Перезагрузка доски</h4>
+<pre><code>Параметры: mode (&quot;my&quot;/&quot;all&quot;), deptId (опц.), sectorId (опц.), userId (опц.)
+Действие: Возвращает задачи с учётом фильтров для динамической перезагрузки.
+Ответ: { &quot;col_0&quot;: [...], &quot;col_1&quot;: [...], &quot;col_2&quot;: [...], &quot;col_3&quot;: [...] }
+</code></pre>
+<h4 id="getreport"><code>getReport</code> — Данные отчёта</h4>
+<pre><code>Параметры: period (&quot;week&quot;/&quot;month&quot;/&quot;quarter&quot;/&quot;all&quot;), scope (опц.)
+Действие: Агрегирует статистику по задачам за период.
+Ответ: { &quot;summary&quot;: {...}, &quot;rows&quot;: [...] }
+</code></pre>
+<h4 id="searchobjects-plm"><code>searchObjects</code> — Поиск объектов PLM</h4>
+<pre><code>Параметры: query (строка поиска)
+Действие: Ищет объекты PLM по имени для привязки как вложения.
+Ответ: { &quot;results&quot;: [{ &quot;id&quot;: &quot;...&quot;, &quot;name&quot;: &quot;...&quot;, &quot;template&quot;: &quot;...&quot; }, ...] }
+</code></pre>
+<h3 id="section-4">4. Вспомогательные методы</h3>
+<ul>
+<li><strong><code>GetInitials(name)</code></strong> — извлекает инициалы из ФИО (напр. «Иванов Пётр» → «ИП»)</li>
+<li><strong><code>FormatDate(date)</code></strong> — форматирует дату в <code>ДД.ММ.ГГГГ</code></li>
+<li><strong><code>IsOverdue(task)</code></strong> — проверяет просроченность задачи</li>
+<li><strong><code>GetTasksForUser(userId)</code></strong> — получает задачи конкретного пользователя</li>
+<li><strong><code>GetTasksForScope(deptId, sectorId)</code></strong> — получает задачи по подразделению</li>
+<li><strong><code>BuildTaskObject(task)</code></strong> — формирует объект задачи для JSON/шаблона</li>
+</ul>
+<h3 id="scriban">5. Переменные шаблона (Scriban)</h3>
+<p>Скрипт передаёт в HTML-шаблон следующие переменные:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Переменная</th>
+<th>Тип</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>col_0</code></td>
+<td>array</td>
+<td>Задачи колонки «Надо сделать»</td>
+</tr>
+<tr>
+<td><code>col_1</code></td>
+<td>array</td>
+<td>Задачи колонки «В работе»</td>
+</tr>
+<tr>
+<td><code>col_2</code></td>
+<td>array</td>
+<td>Задачи колонки «Ожидание»</td>
+</tr>
+<tr>
+<td><code>col_3</code></td>
+<td>array</td>
+<td>Задачи колонки «Готово»</td>
+</tr>
+<tr>
+<td><code>current_user_id</code></td>
+<td>string</td>
+<td>ID текущего пользователя</td>
+</tr>
+<tr>
+<td><code>current_user_name</code></td>
+<td>string</td>
+<td>Имя текущего пользователя</td>
+</tr>
+<tr>
+<td><code>is_manager</code></td>
+<td>bool</td>
+<td>Является ли руководителем</td>
+</tr>
+<tr>
+<td><code>user_role</code></td>
+<td>string</td>
+<td>Роль: <code>head</code>, <code>deptHead</code>, <code>sectorHead</code>, <code>user</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="section-5">Безопасность</h2>
+<ul>
+<li>Удаление задачи разрешено только создателю или руководителю</li>
+<li>Перемещение задачи разрешено только исполнителю или руководителю</li>
+<li>Фильтры иерархии ограничены ролью пользователя (начальник сектора не видит чужие отделения)</li>
+<li>Все входные параметры валидируются на сервере</li>
+</ul>
+
+            </article>
+        </div>
+    </div>
+</body>
+</html>

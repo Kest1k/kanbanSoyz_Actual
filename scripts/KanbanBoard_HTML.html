@@ -1,0 +1,522 @@
+﻿{% extends Layouts\Navigation %}
+
+{% block js %}
+<base href="pmsz-plm:127.0.0.1[b0a7599a]:4450/C.26/" />
+<link rel="stylesheet" href="CSS/kanban.css">
+{% endblock %}
+
+{% block navigationTitle %}
+<div class="navbar-brand collapse navbar-collapse" style="margin-left: 25px">Канбан-доска</div>
+<ul class="nav navbar-nav">
+    <li><a href="#" onclick="showCreateTask(); return false;"><i class="fa fa-plus fa-fw"></i> Новая задача</a></li>
+    <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a></li>
+    <li><a href="#" onclick="openReport(); return false;"><i class="fa fa-bar-chart fa-fw"></i> Отчёт</a></li>
+</ul>
+<!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
+<div id="kb-hier-panel" style="display:none; float:left; margin-left:16px; margin-top:8px;">
+    <button type="button" id="kb-btn-my" onclick="kbSetMyMode()" style="padding:5px 12px; font-size:12px; font-weight:600;
+                     height:30px; border:1px solid #4a6fa5; border-radius:6px;
+                     background:#4a6fa5; color:#fff; cursor:pointer;
+                     margin-right:8px; vertical-align:middle;">
+        Мои задачи
+    </button>
+    <button type="button" id="kb-btn-all" onclick="kbSetAllMode()" style="display:none; padding:5px 12px; font-size:12px; font-weight:normal;
+                     height:30px; border:1px solid #d1d5db; border-radius:6px;
+                     background:#fff; color:#374151; cursor:pointer;
+                     margin-right:8px; vertical-align:middle;">
+        Все задачи
+    </button>
+    <span id="kb-hier-label" style="display:none;
+            font-size:12px; color:#cce; margin-right:6px; vertical-align:middle;">
+        Вид:
+    </span>
+    <select id="kb-sel-dept" class="kb-hier-select" onchange="kbOnDeptChange()" style="display:none;
+              width:auto; margin-right:4px; vertical-align:middle;">
+    </select>
+    <select id="kb-sel-sector" class="kb-hier-select" onchange="kbOnSectorChange()" style="display:none;
+              width:auto; margin-right:4px; vertical-align:middle;">
+    </select>
+    <select id="kb-sel-user" class="kb-hier-select" onchange="kbOnUserChange()" style="display:none;
+              width:auto; min-width:160px; vertical-align:middle;">
+    </select>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Create panel -->
+<div class="kb-create-panel" id="kb-create-panel">
+    <table style="border-collapse:separate;border-spacing:6px 0;width:auto;">
+        <tr>
+            <td>
+                <label style="font-size:11px;display:block;margin-bottom:2px;">Название *</label>
+                <input type="text" id="kb-new-title" class="form-control input-sm" style="width:220px;height:30px;"
+                    placeholder="Введите название задачи..." />
+            </td>
+            <td>
+                <label style="font-size:11px;display:block;margin-bottom:2px;">Колонка</label>
+                <select id="kb-new-status" class="form-control input-sm" style="width:auto;height:30px;">
+                    <option value="0" selected="selected">Надо сделать</option>
+                    <option value="1">В работе</option>
+                    <option value="2">Ожидание</option>
+                    <option value="3">Готово</option>
+                </select>
+            </td>
+            <td>
+                <label style="font-size:11px;display:block;margin-bottom:2px;">Приоритет</label>
+                <select id="kb-new-priority" class="form-control input-sm" style="width:auto;height:30px;"
+                    onchange="kbOnPriorityChange()">
+                    <option value="low">Низкий</option>
+                    <option value="medium" selected="selected">Средний</option>
+                    <option value="high">Высокий</option>
+                    <option value="urgent">Сверхсрочная</option>
+                </select>
+            </td>
+            <td>
+                <label style="font-size:11px;display:block;margin-bottom:2px;">Срок</label>
+                <div class="kb-date-wrap">
+                    <input type="text" id="kb-new-duedate" class="form-control input-sm"
+                        style="width:132px;height:30px;padding-right:30px;" placeholder="ДД.ММ.ГГГГ" />
+                    <button type="button" class="kb-date-btn" onclick="calToggle()" title="Выбрать дату">
+                        <i class="fa fa-calendar"></i>
+                    </button>
+                    <div id="kb-cal" class="kb-cal"></div>
+                </div>
+            </td>
+            <td style="vertical-align:bottom;padding-bottom:0;white-space:nowrap;">
+                <button class="btn btn-primary btn-sm" onclick="doCreateTask()" style="height:30px;line-height:18px;">Создать</button>
+                <button class="btn btn-default btn-sm" onclick="hideCreateTask()"
+                    style="margin-left:3px;height:30px;line-height:18px;">Отмена</button>
+            </td>
+        </tr>
+        <tr id="kb-crt-assignee-row" style="display:none;">
+            <td colspan="5" style="padding-top:5px;">
+                <!-- Переключатель режима: Одному / Нескольким -->
+                <label style="font-size:11px;cursor:pointer;margin-right:4px;vertical-align:middle;">
+                    <input type="radio" name="kb-crt-mode" id="kb-crt-mode-one" value="one" checked
+                        onchange="kbOnModeChange()" style="margin-right:3px;vertical-align:middle;">
+                    <span style="vertical-align:middle;">Одному</span>
+                </label>
+                <label style="font-size:11px;cursor:pointer;margin-right:14px;vertical-align:middle;">
+                    <input type="radio" name="kb-crt-mode" id="kb-crt-mode-group" value="group"
+                        onchange="kbOnModeChange()" style="margin-right:3px;vertical-align:middle;">
+                    <span style="vertical-align:middle;">Нескольким</span>
+                </label>
+                <!-- Одиночный режим -->
+                <span id="kb-crt-single-wrap">
+                    <label
+                        style="font-size:11px;display:inline-block;margin-right:12px;vertical-align:middle;cursor:pointer;">
+                        <input type="checkbox" id="kb-crt-self" checked onchange="kbOnSelfChange()"
+                            style="margin-right:4px;vertical-align:middle;">
+                        <span style="vertical-align:middle;font-weight:600;">Сам себе</span>
+                    </label>
+                    <span id="kb-crt-dept-wrap" style="display:none;">
+                        <select id="kb-crt-dept" class="form-control input-sm"
+                            style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" onchange="kbOnCrtDeptChange()"
+                            disabled></select>&nbsp;
+                    </span>
+                    <span id="kb-crt-sector-wrap" style="display:none;">
+                        <select id="kb-crt-sector" class="form-control input-sm"
+                            style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" onchange="kbOnCrtSectorChange()"
+                            disabled></select>&nbsp;
+                    </span>
+                    <select id="kb-crt-user" class="form-control input-sm"
+                        style="width:auto;min-width:110px;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" disabled></select>
+                </span>
+            </td>
+        </tr>
+        <!-- Групповой режим: фильтры + поиск + список с чекбоксами -->
+        <tr id="kb-crt-group-row" style="display:none;">
+            <td colspan="5" style="padding-top:4px;padding-bottom:2px;">
+                <div style="margin-bottom:5px;">
+                    <span id="kb-grp-dept-wrap" style="display:none;">
+                        <select id="kb-grp-dept" class="form-control input-sm"
+                            style="width:auto;max-width:200px;height:30px;display:inline-block;vertical-align:middle;"
+                            onchange="kbOnGrpDeptChange()"></select>&nbsp;
+                    </span>
+                    <span id="kb-grp-sector-wrap" style="display:none;">
+                        <select id="kb-grp-sector" class="form-control input-sm"
+                            style="width:auto;max-width:200px;height:30px;display:inline-block;vertical-align:middle;"
+                            onchange="kbOnGrpSectorChange()"></select>&nbsp;
+                    </span>
+                    <input type="text" id="kb-grp-search" class="form-control input-sm" placeholder="&#128269; Поиск..."
+                        oninput="kbOnGrpSearch()" style="width:150px;height:30px;display:inline-block;vertical-align:middle;">&nbsp;
+                    <span id="kb-grp-count" style="font-size:11px;color:#555;vertical-align:middle;">Выбрано: 0</span>
+                </div>
+                <div id="kb-grp-presets" style="margin-bottom:5px;">
+                    <button id="kb-grp-preset-depts" type="button" class="btn btn-xs btn-default"
+                        onclick="kbGrpSelectPreset('depts')" style="display:none;">Все нач. отделений</button>
+                    <button id="kb-grp-preset-sectors" type="button" class="btn btn-xs btn-default"
+                        onclick="kbGrpSelectPreset('sectors')" style="display:none;margin-left:4px;">Все нач.
+                        секторов</button>
+                    <button type="button" class="btn btn-xs btn-default" onclick="kbGrpSelectAll()"
+                        style="margin-left:4px;">Выбрать всех</button>
+                    <button type="button" class="btn btn-xs btn-default" onclick="kbGrpClearAll()"
+                        style="margin-left:4px;">Снять всех</button>
+                </div>
+                <div id="kb-grp-list" style="max-height:110px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;
+                        padding:4px 8px;background:#fff;font-size:12px;">
+                </div>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="5" style="padding-top:5px;">
+                <label style="font-size:11px;display:block;margin-bottom:2px;">Описание</label>
+                <textarea id="kb-new-details" class="form-control"
+                    style="width:100%;height:52px;resize:vertical;font-size:12px;"
+                    placeholder="Необязательное описание задачи..."></textarea>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="5" style="padding-top:4px;padding-bottom:2px;">
+                <button type="button" class="btn btn-xs btn-default" onclick="kbCrtPickAtt()"
+                    style="font-size:11px;">&#128206; Прикрепить объект</button>
+                <button type="button" class="btn btn-xs btn-default" onclick="kbCrtPickCont()"
+                    style="font-size:11px; margin-left:4px;">&#128193; Прикрепить папку/проект</button>
+                <span id="kb-crt-att-chips" style="margin-left:4px;"></span>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<!-- Board -->
+<div class="kb-board" id="kb-board">
+
+    <!-- Колонка 0: Надо сделать -->
+    <div class="kb-col" id="kb-col-0" ondragover="kbAllowDrop(event)" ondragleave="kbDragLeave(event)"
+        ondrop="kbDrop(event, 0)">
+        <div class="kb-col-header">
+            <a href="#" onclick="showCreateTask(0); return false;"
+                style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:15px;float:left;margin-right:4px;">+</a>
+            Надо сделать
+            <span class="kb-cnt">
+                {% assign c0 = col_0 | size %}
+                {{ c0 }}
+            </span>
+        </div>
+        <div class="kb-col-body" id="kb-body-0">
+            {% for t in col_0 %}
+            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+                ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+                {% if t.priority == "urgent" %}
+                <span class="kb-urgent-badge">СРОЧНО</span>
+                {% endif %}
+                {% if t.initials != "" %}
+                <div class="kb-avatar" title="{{ t.assigneeName }}">
+                    {{ t.initials }}
+                </div>
+                {% endif %}
+                <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
+                    title="Удалить">&#215;</button>
+                <div class="kb-card-title">{{ t.title }}</div>
+                {% if t.details != "" %}
+                <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
+                {% endif %}
+                <div class="kb-card-meta">
+                    {% if t.dueDate != "" %}
+                    до {{ t.dueDate }}
+                    {% endif %}
+                    {% if t.attachmentCount > 0 %}
+                    <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
+                        <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
+                    </span>
+                    {% endif %}
+                    {% if t.commentCount > 0 %}
+                    <span class="kb-comment-badge" title="Комментарии: {{ t.commentCount }}">
+                        <i class="fa fa-comment-o"></i> {{ t.commentCount }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Колонка 1: В работе -->
+    <div class="kb-col" id="kb-col-1" ondragover="kbAllowDrop(event)" ondragleave="kbDragLeave(event)"
+        ondrop="kbDrop(event, 1)">
+        <div class="kb-col-header" style="background:#d4820a;">
+            <a href="#" onclick="showCreateTask(1); return false;"
+                style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:15px;float:left;margin-right:4px;">+</a>
+            В работе
+            <span class="kb-cnt">
+                {% assign c1 = col_1 | size %}
+                {{ c1 }}
+            </span>
+        </div>
+        <div class="kb-col-body" id="kb-body-1">
+            {% for t in col_1 %}
+            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+                ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+                {% if t.priority == "urgent" %}
+                <span class="kb-urgent-badge">СРОЧНО</span>
+                {% endif %}
+                {% if t.initials != "" %}
+                <div class="kb-avatar" title="{{ t.assigneeName }}" style="background:#d4820a;">
+                    {{ t.initials }}
+                </div>
+                {% endif %}
+                <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
+                    title="Удалить">&#215;</button>
+                <div class="kb-card-title">{{ t.title }}</div>
+                {% if t.details != "" %}
+                <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
+                {% endif %}
+                <div class="kb-card-meta">
+                    {% if t.dueDate != "" %}
+                    до {{ t.dueDate }}
+                    {% endif %}
+                    {% if t.attachmentCount > 0 %}
+                    <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
+                        <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
+                    </span>
+                    {% endif %}
+                    {% if t.commentCount > 0 %}
+                    <span class="kb-comment-badge" title="Комментарии: {{ t.commentCount }}">
+                        <i class="fa fa-comment-o"></i> {{ t.commentCount }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Колонка 2: Ожидание -->
+    <div class="kb-col" id="kb-col-2" ondragover="kbAllowDrop(event)" ondragleave="kbDragLeave(event)"
+        ondrop="kbDrop(event, 2)">
+        <div class="kb-col-header" style="background:#7c5cbf;">
+            <a href="#" onclick="showCreateTask(2); return false;"
+                style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:15px;float:left;margin-right:4px;">+</a>
+            Ожидание
+            <span class="kb-cnt">
+                {% assign c2 = col_2 | size %}
+                {{ c2 }}
+            </span>
+        </div>
+        <div class="kb-col-body" id="kb-body-2">
+            {% for t in col_2 %}
+            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+                ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+                {% if t.priority == "urgent" %}
+                <span class="kb-urgent-badge">СРОЧНО</span>
+                {% endif %}
+                {% if t.initials != "" %}
+                <div class="kb-avatar" title="{{ t.assigneeName }}" style="background:#7c5cbf;">
+                    {{ t.initials }}
+                </div>
+                {% endif %}
+                <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
+                    title="Удалить">&#215;</button>
+                <div class="kb-card-title">{{ t.title }}</div>
+                {% if t.details != "" %}
+                <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
+                {% endif %}
+                <div class="kb-card-meta">
+                    {% if t.dueDate != "" %}
+                    до {{ t.dueDate }}
+                    {% endif %}
+                    {% if t.attachmentCount > 0 %}
+                    <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
+                        <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
+                    </span>
+                    {% endif %}
+                    {% if t.commentCount > 0 %}
+                    <span class="kb-comment-badge" title="Комментарии: {{ t.commentCount }}">
+                        <i class="fa fa-comment-o"></i> {{ t.commentCount }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Колонка 3: Готово -->
+    <div class="kb-col" id="kb-col-3" ondragover="kbAllowDrop(event)" ondragleave="kbDragLeave(event)"
+        ondrop="kbDrop(event, 3)">
+        <div class="kb-col-header" style="background:#2d8a5e;">
+            <a href="#" onclick="showCreateTask(3); return false;"
+                style="color:rgba(255,255,255,0.8);text-decoration:none;font-size:15px;float:left;margin-right:4px;">+</a>
+            Готово
+            <span class="kb-cnt">
+                {% assign c3 = col_3 | size %}
+                {{ c3 }}
+            </span>
+        </div>
+        <div class="kb-col-body" id="kb-body-3">
+            {% for t in col_3 %}
+            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+                ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+                {% if t.priority == "urgent" %}
+                <span class="kb-urgent-badge">СРОЧНО</span>
+                {% endif %}
+                {% if t.initials != "" %}
+                <div class="kb-avatar" title="{{ t.assigneeName }}" style="background:#2d8a5e;">
+                    {{ t.initials }}
+                </div>
+                {% endif %}
+                <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
+                    title="Удалить">&#215;</button>
+                <div class="kb-card-title">{{ t.title }}</div>
+                {% if t.details != "" %}
+                <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
+                {% endif %}
+                <div class="kb-card-meta kb-done-date">
+                    {% if t.completedDate != "" %}
+                    &#10003; Завершено {{ t.completedDate }}
+                    {% elsif t.dueDate != "" %}
+                    до {{ t.dueDate }}
+                    {% endif %}
+                    {% if t.attachmentCount > 0 %}
+                    <span class="kb-attach-badge">
+                        <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
+                    </span>
+                    {% endif %}
+                    {% if t.commentCount > 0 %}
+                    <span class="kb-comment-badge">
+                        <i class="fa fa-comment-o"></i> {{ t.commentCount }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+
+<!-- ── Отчёт по задачам (шаг 06) ── -->
+<div id="reportOverlay" class="rpt-overlay">
+    <div class="rpt-dialog">
+        <div class="rpt-header">
+            <span class="rpt-title">Отчёт по задачам</span>
+            <button type="button" class="rpt-close" onclick="closeReport()" title="Закрыть">&#215;</button>
+        </div>
+        <div class="rpt-toolbar">
+            <span style="font-size:12px;color:#6b7280;margin-right:6px;">Период:</span>
+            <select id="reportPeriod" class="form-control input-sm" style="width:auto;display:inline-block;"
+                onchange="loadReport()">
+                <option value="week">Неделя</option>
+                <option value="month" selected="selected">Месяц</option>
+                <option value="quarter">Квартал</option>
+                <option value="all">Всё время</option>
+            </select>
+            <span id="rpt-scope-wrap" style="display:none;margin-left:10px;">
+                <span style="font-size:12px;color:#6b7280;margin-right:6px;">Область:</span>
+                <select id="reportScope" class="form-control input-sm"
+                    style="width:auto;display:inline-block;min-width:170px;" onchange="loadReport()"></select>
+            </span>
+            <button type="button" class="btn btn-xs btn-default" style="margin-left:8px;"
+                onclick="loadReport()">Обновить</button>
+        </div>
+        <div class="rpt-body">
+            <div class="rpt-summary" id="reportSummary"></div>
+            <table class="rpt-table">
+                <thead>
+                    <tr>
+                        <th>Исполнитель</th>
+                        <th id="rpt-th-ctx" style="display:none;">Сектор/Отд.</th>
+                        <th>Всего</th>
+                        <th>Выполнено</th>
+                        <th>Просрочено</th>
+                        <th>В работе</th>
+                        <th>Прогресс</th>
+                    </tr>
+                </thead>
+                <tbody id="reportBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── Карточка задачи (шаг 07) ── -->
+<div id="tcmOverlay" class="tcm-overlay">
+    <div class="tcm-dialog">
+        <div class="tcm-header">
+            <div>
+                <span class="tcm-title-bar">Карточка задачи</span>
+                <span id="tcm-badge" class="tcm-badge tcm-s0"></span>
+            </div>
+            <button type="button" class="tcm-close" onclick="tcmClose()" title="Закрыть">&#215;</button>
+        </div>
+        <div class="tcm-body">
+            <input type="hidden" id="tcm-key">
+            <div class="tcm-fg">
+                <label class="tcm-lbl">Название</label>
+                <input type="text" id="tcm-title" class="form-control input-sm">
+            </div>
+            <div class="tcm-row">
+                <div class="tcm-fg">
+                    <label class="tcm-lbl">Статус</label>
+                    <select id="tcm-status" class="form-control input-sm" onchange="tcmOnStatusChange()"></select>
+                </div>
+                <div class="tcm-fg">
+                    <label class="tcm-lbl">Приоритет</label>
+                    <select id="tcm-priority" class="form-control input-sm"></select>
+                </div>
+                <div class="tcm-fg">
+                    <label class="tcm-lbl">Исполнитель</label>
+                    <input type="text" id="tcm-assignee" class="form-control input-sm" readonly>
+                </div>
+                <div class="tcm-fg">
+                    <label class="tcm-lbl">Срок</label>
+                    <div class="kb-date-wrap" style="width:100%;">
+                        <input type="text" id="tcm-duedate" class="form-control input-sm" style="padding-right:28px;"
+                            placeholder="дд.мм.гггг">
+                        <button type="button" id="tcm-cal-btn" class="kb-date-btn" onclick="calToggle('tcm-duedate')"
+                            title="Выбрать дату">
+                            <i class="fa fa-calendar"></i>
+                        </button>
+                        <div id="kb-cal-tcm" class="kb-cal"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="tcm-fg">
+                <label class="tcm-lbl">Описание</label>
+                <textarea id="tcm-details" class="form-control"
+                    style="min-height:52px;resize:vertical;font-size:12px;"></textarea>
+            </div>
+            <div class="tcm-meta" id="tcm-meta"></div>
+            <div class="tcm-msg tcm-msg-ok" id="tcm-msg-ok">Сохранено!</div>
+            <div class="tcm-msg tcm-msg-err" id="tcm-msg-err"></div>
+            <div class="tcm-att" id="tcm-att">
+                <div class="tcm-lbl">ВЛОЖЕНИЯ <span class="tcm-att-count" id="tcm-att-count"></span></div>
+                <div class="tcm-att-list" id="tcm-att-list"></div>
+                <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNative()"
+                    style="font-size:12px; padding:3px 10px;">+ Прикрепить объект</button>
+                <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNativeCont()"
+                    style="font-size:12px; padding:3px 10px; margin-left:4px;">+ Прикрепить папку/проект</button>
+                <div class="tcm-att-search" id="tcm-att-search">
+                    <input type="text" class="tcm-att-sinp" id="tcm-att-sinp" placeholder="Поиск объекта по имени..."
+                        onkeyup="tcmAttSearchKeyup()">
+                    <div class="tcm-att-results" id="tcm-att-results"></div>
+                </div>
+            </div>
+            <div class="tcm-chat" id="tcm-chat">
+                <div class="tcm-lbl">ОБСУЖДЕНИЕ <span class="tcm-chat-count" id="tcm-chat-count"></span></div>
+                <div class="tcm-chat-list" id="tcm-chat-list"></div>
+                <div class="tcm-chat-input">
+                    <textarea id="tcm-chat-text" class="tcm-area" placeholder="Написать комментарий..."
+                        onkeydown="tcmChatKeydown(event)"></textarea>
+                    <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSendComment()"
+                        style="padding:6px 14px; font-size:12px;">Отправить</button>
+                </div>
+            </div>
+            <div class="tcm-revs">
+                <div class="tcm-revs-hdr" onclick="tcmToggleRevs()">&#9660; История изменений</div>
+                <div class="tcm-revs-body" id="tcm-revs-body">Загрузка...</div>
+            </div>
+        </div>
+        <div class="tcm-footer">
+            <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSave()">Сохранить</button>
+            <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmClose()">Отмена</button>
+            <button type="button" id="tcm-btn-del" class="tcm-btn tcm-btn-danger" onclick="tcmDelete()"
+                style="display:none;">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<script src="JS/kanban.js"></script>
+{% endblock %}
+
+

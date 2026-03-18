@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>kanban.css — Стили канбан-доски</title>
+    <link rel="stylesheet" href="kanban-docs-theme.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-top">
+                <div>
+                    <h1>kanban.css — Стили канбан-доски</h1>
+                    <p>Документ по проекту канбан-доски.</p>
+                </div>
+                <div class="badge">CSS Styles</div>
+            </div>
+            <div class="hero-meta">
+                <div class="badge">Источник: 04_KANBAN_CSS_STYLES.md</div>
+                <div class="badge">Каталог: docs/kanban-docs/HTML</div>
+            </div>
+        </header>
+
+        <div class="doc-layout">
+            <aside class="nav-card side-nav">
+                <h2>Оглавление</h2>
+                <div class="doc-nav">
+                    <a href="index.html">Индекс документации</a>
+                    <a class="" href="00_PROJECT_OVERVIEW.html">Канбан-доска — Общий обзор проекта</a>
+<a class="" href="01_KanbanScreen_SERVER_SCRIPT.html">KanbanScreen — Серверный скрипт экрана</a>
+<a class="" href="02_KanbanTask_TEMPLATE_SCRIPT.html">KanbanTask — Скрипт шаблона задачи</a>
+<a class="" href="03_KANBAN_JS_CLIENT_LOGIC.html">kanban.js — Клиентская логика</a>
+<a class="active" href="04_KANBAN_CSS_STYLES.html">kanban.css — Стили канбан-доски</a>
+<a class="" href="05_KANBAN_HTML_MARKUP.html">KanbanBoard_HTML — Разметка канбан-доски</a>
+                </div>
+            </aside>
+
+            <article class="article-card">
+<h1 id="kanban.css">kanban.css — Стили канбан-доски</h1>
+<p><strong>Файл:</strong> <code>kanban.css</code>
+<strong>Тип:</strong> CSS (чистый, без препроцессоров)</p>
+<h2 id="section">Назначение</h2>
+<p>Полная стилизация канбан-доски: layout, карточки, модалки, календарь, чат, адаптивность.</p>
+<h2 id="section-1">Структура стилей</h2>
+<h3 id="layout">1. Общий layout</h3>
+<pre><code>.kb-wrapper          — Корневой контейнер (flex column, 100vh)
+.kb-toolbar          — Верхняя панель инструментов (flex row)
+.kb-board            — Контейнер колонок (flex row, flex:1)
+.kb-board.panel-open — Уменьшенная высота при открытой панели создания
+</code></pre>
+<h3 id="section-2">2. Колонки</h3>
+<pre><code>.kb-column           — Колонка (flex:1, flex column, min-width:220px)
+.kb-col-header       — Заголовок колонки с названием и счётчиком
+.kb-col-body         — Скроллируемая область карточек (overflow-y:auto)
+</code></pre>
+<p><strong>Цветовая кодировка заголовков:</strong>
+| Колонка | Цвет верхней полосы |
+|---------|-------------------|
+| Надо сделать (col-0) | <code>#6c757d</code> (серый) |
+| В работе (col-1) | <code>#0d6efd</code> (синий) |
+| Ожидание (col-2) | <code>#ffc107</code> (жёлтый) |
+| Готово (col-3) | <code>#198754</code> (зелёный) |</p>
+<h3 id="section-3">3. Карточки задач</h3>
+<pre><code>.kb-card             — Карточка (border-radius:8px, box-shadow, cursor:grab)
+.kb-card:hover       — Подсветка при наведении
+.kb-card.dragging    — Полупрозрачность при перетаскивании (opacity:0.5)
+.kb-card-title       — Название задачи (font-weight:600)
+.kb-card-meta        — Метаинформация (дата, исполнитель)
+.kb-card-badges      — Контейнер бейджей (приоритет, вложения, комментарии)
+</code></pre>
+<p><strong>Бейджи приоритета:</strong></p>
+<pre><code>.kb-badge-low        — Серый (#6c757d)
+.kb-badge-medium     — Синий (#0d6efd)
+.kb-badge-high       — Оранжевый (#fd7e14)
+.kb-badge-urgent     — Красный (#dc3545), пульсирующая анимация
+</code></pre>
+<p><strong>Индикатор просрочки:</strong></p>
+<pre><code>.kb-card.overdue     — Красная левая полоса (border-left:3px solid #dc3545)
+.kb-overdue-badge    — Бейдж «Просрочено» (красный фон)
+</code></pre>
+<h3 id="section-4">4. Аватары</h3>
+<pre><code>.kb-avatar           — Круглый аватар с инициалами (32x32, border-radius:50%)
+.kb-avatar-sm        — Маленький аватар (24x24) для комментариев
+</code></pre>
+<p>Цвет аватара генерируется из хеша имени пользователя (палитра из 8 цветов).</p>
+<h3 id="section-5">5. Панель создания задачи</h3>
+<pre><code>.kb-create-panel     — Выдвижная панель (display:none по умолчанию)
+.kb-create-form      — Форма внутри панели (grid layout)
+.kb-input            — Стилизованные input/textarea
+.kb-select           — Стилизованные select
+.kb-btn              — Базовая кнопка
+.kb-btn-primary      — Синяя кнопка (создать)
+.kb-btn-secondary    — Серая кнопка (отмена)
+</code></pre>
+<h3 id="section-6">6. Модальное окно карточки</h3>
+<pre><code>.kb-modal-overlay    — Затемнение фона (rgba(0,0,0,0.5))
+.kb-modal            — Модальное окно (max-width:700px, centered)
+.kb-modal-header     — Заголовок с кнопкой закрытия
+.kb-modal-body       — Тело модалки (flex column)
+.kb-modal-tabs       — Вкладки (комментарии/вложения/история)
+.kb-modal-tab        — Отдельная вкладка
+.kb-modal-tab.active — Активная вкладка (подчёркивание)
+.kb-modal-footer     — Кнопки действий (сохранить/удалить)
+</code></pre>
+<h3 id="section-7">7. Календарь</h3>
+<pre><code>.kb-calendar         — Контейнер календаря (position:absolute, z-index:1000)
+.kb-cal-header       — Навигация (← месяц год →)
+.kb-cal-grid         — Сетка дней (7 колонок)
+.kb-cal-day          — Ячейка дня
+.kb-cal-day:hover    — Подсветка при наведении
+.kb-cal-day.today    — Текущий день (синяя обводка)
+.kb-cal-day.selected — Выбранный день (синий фон)
+.kb-cal-day.other    — Дни другого месяца (серый текст)
+</code></pre>
+<h3 id="section-8">8. Комментарии (чат)</h3>
+<pre><code>.kb-chat-list        — Список комментариев (overflow-y:auto, max-height:300px)
+.kb-chat-item        — Один комментарий (flex row)
+.kb-chat-bubble      — Текст комментария (фон, border-radius)
+.kb-chat-author      — Имя автора (bold)
+.kb-chat-time        — Время (мелкий серый текст)
+.kb-chat-input       — Поле ввода нового комментария
+.kb-chat-send        — Кнопка отправки
+</code></pre>
+<h3 id="section-9">9. Вложения</h3>
+<pre><code>.kb-attach-list      — Список вложений
+.kb-attach-item      — Одно вложение (flex row, иконка + название)
+.kb-attach-search    — Поле поиска объектов PLM
+.kb-attach-results   — Результаты поиска (dropdown)
+</code></pre>
+<h3 id="section-10">10. Фильтры и иерархия</h3>
+<pre><code>.kb-filter-bar       — Панель фильтров (flex row)
+.kb-mode-btn         — Кнопка режима (Мои/Все задачи)
+.kb-mode-btn.active  — Активный режим
+.kb-hierarchy        — Панель иерархии (дерево подразделений)
+.kb-hier-item        — Элемент дерева
+.kb-hier-item.active — Выбранный элемент
+</code></pre>
+<h3 id="section-11">11. Отчёт</h3>
+<pre><code>.kb-report-modal     — Модалка отчёта (шире основной — max-width:900px)
+.kb-report-table     — Таблица отчёта
+.kb-report-summary   — Блок сводки (карточки с числами)
+</code></pre>
+<h3 id="drag-drop">12. Drag &amp; Drop визуальные эффекты</h3>
+<pre><code>.kb-col-body.drag-over  — Подсветка колонки при наведении (пунктирная рамка)
+.kb-card.dragging       — Полупрозрачность перетаскиваемой карточки
+</code></pre>
+<h3 id="section-12">13. Анимации</h3>
+<pre><code>@keyframes kb-pulse     — Пульсация для urgent-бейджа
+@keyframes kb-fadeIn    — Плавное появление модалки
+@keyframes kb-slideDown — Выезд панели создания сверху
+</code></pre>
+<h3 id="section-13">14. Адаптивность</h3>
+<pre><code class="language-css">@media (max-width: 1200px) {
+    .kb-column { min-width: 200px; }
+}
+@media (max-width: 768px) {
+    .kb-board { flex-direction: column; }
+    .kb-column { min-width: 100%; }
+}
+</code></pre>
+<h2 id="section-14">Цветовая палитра</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Назначение</th>
+<th>Цвет</th>
+<th>HEX</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Primary (кнопки, ссылки)</td>
+<td>Синий</td>
+<td><code>#0d6efd</code></td>
+</tr>
+<tr>
+<td>Success (Готово)</td>
+<td>Зелёный</td>
+<td><code>#198754</code></td>
+</tr>
+<tr>
+<td>Warning (Ожидание)</td>
+<td>Жёлтый</td>
+<td><code>#ffc107</code></td>
+</tr>
+<tr>
+<td>Danger (Просрочено, Urgent)</td>
+<td>Красный</td>
+<td><code>#dc3545</code></td>
+</tr>
+<tr>
+<td>Secondary (Надо сделать)</td>
+<td>Серый</td>
+<td><code>#6c757d</code></td>
+</tr>
+<tr>
+<td>High priority</td>
+<td>Оранжевый</td>
+<td><code>#fd7e14</code></td>
+</tr>
+<tr>
+<td>Фон страницы</td>
+<td>Светло-серый</td>
+<td><code>#f8f9fa</code></td>
+</tr>
+<tr>
+<td>Фон карточки</td>
+<td>Белый</td>
+<td><code>#ffffff</code></td>
+</tr>
+<tr>
+<td>Текст основной</td>
+<td>Тёмный</td>
+<td><code>#212529</code></td>
+</tr>
+<tr>
+<td>Текст вторичный</td>
+<td>Серый</td>
+<td><code>#6c757d</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="section-15">Типографика</h2>
+<ul>
+<li>Шрифт: <code>system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, sans-serif</code></li>
+<li>Размер базовый: <code>14px</code></li>
+<li>Заголовки колонок: <code>13px</code>, uppercase, letter-spacing</li>
+<li>Название карточки: <code>14px</code>, font-weight:600</li>
+<li>Мета-информация: <code>12px</code></li>
+</ul>
+
+            </article>
+        </div>
+    </div>
+</body>
+</html>

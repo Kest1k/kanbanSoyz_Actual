@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Канбан-доска — Общий обзор проекта</title>
+    <link rel="stylesheet" href="kanban-docs-theme.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-top">
+                <div>
+                    <h1>Канбан-доска — Общий обзор проекта</h1>
+                    <p>Документ по проекту канбан-доски.</p>
+                </div>
+                <div class="badge">Обзор</div>
+            </div>
+            <div class="hero-meta">
+                <div class="badge">Источник: 00_PROJECT_OVERVIEW.md</div>
+                <div class="badge">Каталог: docs/kanban-docs/HTML</div>
+            </div>
+        </header>
+
+        <div class="doc-layout">
+            <aside class="nav-card side-nav">
+                <h2>Оглавление</h2>
+                <div class="doc-nav">
+                    <a href="index.html">Индекс документации</a>
+                    <a class="active" href="00_PROJECT_OVERVIEW.html">Канбан-доска — Общий обзор проекта</a>
+<a class="" href="01_KanbanScreen_SERVER_SCRIPT.html">KanbanScreen — Серверный скрипт экрана</a>
+<a class="" href="02_KanbanTask_TEMPLATE_SCRIPT.html">KanbanTask — Скрипт шаблона задачи</a>
+<a class="" href="03_KANBAN_JS_CLIENT_LOGIC.html">kanban.js — Клиентская логика</a>
+<a class="" href="04_KANBAN_CSS_STYLES.html">kanban.css — Стили канбан-доски</a>
+<a class="" href="05_KANBAN_HTML_MARKUP.html">KanbanBoard_HTML — Разметка канбан-доски</a>
+                </div>
+            </aside>
+
+            <article class="article-card">
+<h1 id="section">Канбан-доска — Общий обзор проекта</h1>
+<h2 id="section-1">Назначение</h2>
+<p>Канбан-доска — веб-модуль системы <strong>SOYUZ PLM</strong>, реализующий управление задачами в формате Kanban.
+Работает внутри PLM-платформы: серверная часть на <strong>C# (Scriban-шаблоны)</strong>, клиентская — <strong>vanilla JS + CSS</strong>, совместимые с <strong>IE11</strong>.</p>
+<h2 id="section-2">Архитектура</h2>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│  Браузер (IE11+)                                        │
+│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │ HTML (Liquid/ │  │  kanban.js   │  │  kanban.css   │  │
+│  │  Scriban)     │  │  (клиент)    │  │  (стили)      │  │
+│  └──────┬───────┘  └──────┬───────┘  └───────────────┘  │
+│         │                 │                              │
+│         │    AJAX (XMLHttpRequest)                       │
+│         ▼                 ▼                              │
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  PLM Server  (C# + Scriban)                     │    │
+│  │  ┌──────────────────┐  ┌──────────────────────┐ │    │
+│  │  │ KanbanScreen     │  │ KanbanTask           │ │    │
+│  │  │ (серверный скрипт│  │ (скрипт шаблона      │ │    │
+│  │  │  экрана)         │  │  задачи)             │ │    │
+│  │  └──────────────────┘  └──────────────────────┘ │    │
+│  └─────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<h2 id="section-3">Файлы проекта</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Файл</th>
+<th>Тип</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOYUZ_UPLOAD_KanbanScreen_script.cs</code></td>
+<td>C# серверный скрипт</td>
+<td>Главный серверный скрипт экрана: загрузка задач, фильтрация, AJAX-обработчики</td>
+</tr>
+<tr>
+<td><code>SOYUZ_UPLOAD_KanbanTask_script.cs</code></td>
+<td>C# скрипт шаблона</td>
+<td>Скрипт шаблона объекта «Задача»: CRUD, комментарии, вложения, отчёт</td>
+</tr>
+<tr>
+<td><code>kanban.js</code></td>
+<td>JavaScript (IE11-совместимый)</td>
+<td>Клиентская логика: drag-and-drop, календарь, модалки, AJAX-вызовы</td>
+</tr>
+<tr>
+<td><code>kanban.css</code></td>
+<td>CSS (IE11-совместимый)</td>
+<td>Стили: доска, карточки, модалки, панели, анимации</td>
+</tr>
+<tr>
+<td><code>KanbanBoard_HTML.html</code></td>
+<td>HTML (Scriban/Liquid)</td>
+<td>Разметка страницы: доска, панель создания, модалки отчёта и карточки</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="section-4">Ключевые сущности</h2>
+<h3 id="kanbantask">Задача (KanbanTask)</h3>
+<ul>
+<li><strong>Статус</strong> (колонка): 0 = «Надо сделать», 1 = «В работе», 2 = «Ожидание», 3 = «Готово»</li>
+<li><strong>Приоритет</strong>: <code>low</code>, <code>medium</code>, <code>high</code>, <code>urgent</code></li>
+<li><strong>Поля</strong>: название, описание, срок, исполнитель, создатель, дата создания, дата завершения</li>
+<li><strong>Связи</strong>: вложения (объекты/папки PLM), комментарии</li>
+</ul>
+<h3 id="section-5">Роли и иерархия</h3>
+<ul>
+<li><strong>Обычный пользователь</strong> — видит только свои задачи</li>
+<li><strong>Начальник сектора</strong> — видит задачи своего сектора</li>
+<li><strong>Начальник отделения</strong> — видит задачи отделения</li>
+<li><strong>Начальник отдела</strong> — видит все задачи</li>
+</ul>
+<p>Иерархия определяется через PLM-роли: <code>КанбанНачОтдела</code>, <code>КанбанНачОтделения</code>, <code>КанбанНачСектора</code>.</p>
+<h3 id="section-6">Режимы просмотра</h3>
+<ul>
+<li><strong>«Мои задачи»</strong> — задачи текущего пользователя (по умолчанию)</li>
+<li><strong>«Все задачи»</strong> — доступен руководителям, с фильтрами по отделению/сектору/сотруднику</li>
+</ul>
+<h2 id="section-7">Основные функции</h2>
+<ol>
+<li><strong>Создание задач</strong> — панель с полями: название, статус, приоритет, срок, описание, исполнитель</li>
+<li><strong>Групповое создание</strong> — одна задача нескольким исполнителям одновременно</li>
+<li><strong>Drag-and-drop</strong> — перетаскивание карточек между колонками (смена статуса)</li>
+<li><strong>Карточка задачи</strong> — модальное окно с редактированием всех полей</li>
+<li><strong>Комментарии</strong> — чат внутри карточки задачи</li>
+<li><strong>Вложения</strong> — привязка объектов и папок PLM к задаче</li>
+<li><strong>Отчёт</strong> — сводка по задачам с фильтрами по периоду и области</li>
+<li><strong>Сверхсрочные задачи</strong> — особый приоритет <code>urgent</code> с пульсирующей анимацией</li>
+<li><strong>Просроченные задачи</strong> — визуальная подсветка задач с истёкшим сроком</li>
+</ol>
+<h2 id="section-8">Технические ограничения</h2>
+<ul>
+<li><strong>IE11</strong>: нет CSS Grid, нет <code>var()</code>, нет <code>fetch()</code>, нет стрелочных функций, нет <code>let</code>/<code>const</code></li>
+<li>Все стили с <code>-ms-</code> и <code>-webkit-</code> префиксами</li>
+<li>AJAX через <code>XMLHttpRequest</code></li>
+<li>Шаблонизация через Scriban (Liquid-совместимый синтаксис)</li>
+</ul>
+<h2 id="section-9">Взаимодействие компонентов</h2>
+<pre><code>Пользователь → HTML (клик/drag) → kanban.js → AJAX → KanbanScreen/KanbanTask (C#) → PLM API → БД
+                                                  ↓
+                                            JSON-ответ → kanban.js → DOM-обновление
+</code></pre>
+<p>Серверные скрипты обрабатывают AJAX-запросы через параметр <code>ajaxAction</code>:</p>
+<ul>
+<li><code>KanbanScreen</code>: <code>moveTask</code>, <code>deleteTask</code>, <code>createTask</code>, <code>getReport</code>, <code>getHierarchy</code>, <code>getUsers</code>, <code>getTaskCard</code>, <code>searchObjects</code></li>
+<li><code>KanbanTask</code>: <code>getCard</code>, <code>saveCard</code>, <code>deleteCard</code>, <code>getComments</code>, <code>addComment</code>, <code>deleteComment</code>, <code>getAttachments</code>, <code>addAttachment</code>, <code>removeAttachment</code>, <code>getRevisions</code></li>
+</ul>
+
+            </article>
+        </div>
+    </div>
+</body>
+</html>

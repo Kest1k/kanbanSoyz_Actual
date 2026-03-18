@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vs/
+*.user
+.claude/
+
+# Temp
+.neteragen/
+.temp/
+meta/
+
+# Archives
+*.7z

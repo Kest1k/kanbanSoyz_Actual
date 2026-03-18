@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KanbanBoard_HTML — Разметка канбан-доски</title>
+    <link rel="stylesheet" href="kanban-docs-theme.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-top">
+                <div>
+                    <h1>KanbanBoard_HTML — Разметка канбан-доски</h1>
+                    <p>Документ по проекту канбан-доски.</p>
+                </div>
+                <div class="badge">HTML Markup</div>
+            </div>
+            <div class="hero-meta">
+                <div class="badge">Источник: 05_KANBAN_HTML_MARKUP.md</div>
+                <div class="badge">Каталог: docs/kanban-docs/HTML</div>
+            </div>
+        </header>
+
+        <div class="doc-layout">
+            <aside class="nav-card side-nav">
+                <h2>Оглавление</h2>
+                <div class="doc-nav">
+                    <a href="index.html">Индекс документации</a>
+                    <a class="" href="00_PROJECT_OVERVIEW.html">Канбан-доска — Общий обзор проекта</a>
+<a class="" href="01_KanbanScreen_SERVER_SCRIPT.html">KanbanScreen — Серверный скрипт экрана</a>
+<a class="" href="02_KanbanTask_TEMPLATE_SCRIPT.html">KanbanTask — Скрипт шаблона задачи</a>
+<a class="" href="03_KANBAN_JS_CLIENT_LOGIC.html">kanban.js — Клиентская логика</a>
+<a class="" href="04_KANBAN_CSS_STYLES.html">kanban.css — Стили канбан-доски</a>
+<a class="active" href="05_KANBAN_HTML_MARKUP.html">KanbanBoard_HTML — Разметка канбан-доски</a>
+                </div>
+            </aside>
+
+            <article class="article-card">
+<h1 id="kanbanboard_html">KanbanBoard_HTML — Разметка канбан-доски</h1>
+<p><strong>Файл:</strong> <code>KanbanBoard_HTML.html</code>
+<strong>Тип:</strong> HTML-шаблон (Scriban-синтаксис для серверного рендеринга)</p>
+<h2 id="section">Назначение</h2>
+<p>HTML-шаблон экрана канбан-доски. Использует Scriban-синтаксис (<code>{{ }}</code>) для серверной подстановки данных. Подключает <code>kanban.css</code> и <code>kanban.js</code>.</p>
+<h2 id="section-1">Структура документа</h2>
+<pre><code>&lt;html&gt;
+├── &lt;head&gt;
+│   ├── &lt;link&gt; kanban.css
+│   └── &lt;meta&gt; viewport
+├── &lt;body&gt;
+│   └── .kb-wrapper
+│       ├── .kb-toolbar          — Панель инструментов
+│       ├── .kb-create-panel     — Панель создания (скрыта)
+│       ├── .kb-board            — Доска с колонками
+│       │   ├── .kb-column#col-0 — «Надо сделать»
+│       │   ├── .kb-column#col-1 — «В работе»
+│       │   ├── .kb-column#col-2 — «Ожидание»
+│       │   └── .kb-column#col-3 — «Готово»
+│       ├── .kb-modal-overlay    — Модалка карточки (скрыта)
+│       ├── .kb-report-overlay   — Модалка отчёта (скрыта)
+│       └── .kb-calendar         — Календарь (скрыт)
+└── &lt;script&gt; kanban.js
+</code></pre>
+<h2 id="section-2">Секции разметки</h2>
+<h3 id="toolbar.kb-toolbar">1. Toolbar (<code>.kb-toolbar</code>)</h3>
+<pre><code class="language-html">&lt;div class=&quot;kb-toolbar&quot;&gt;
+  &lt;!-- Кнопка «Создать задачу» --&gt;
+  &lt;button onclick=&quot;toggleCreatePanel()&quot; class=&quot;kb-btn kb-btn-primary&quot;&gt;
+    + Создать задачу
+  &lt;/button&gt;
+
+  &lt;!-- Переключатель режима (только для руководителей) --&gt;
+  {{ if is_manager }}
+  &lt;div class=&quot;kb-filter-bar&quot;&gt;
+    &lt;button onclick=&quot;toggleMode('my')&quot; class=&quot;kb-mode-btn active&quot;&gt;Мои задачи&lt;/button&gt;
+    &lt;button onclick=&quot;toggleMode('all')&quot; class=&quot;kb-mode-btn&quot;&gt;Все задачи&lt;/button&gt;
+  &lt;/div&gt;
+  {{ end }}
+
+  &lt;!-- Кнопка отчёта (только для руководителей) --&gt;
+  {{ if is_manager }}
+  &lt;button onclick=&quot;openReport()&quot; class=&quot;kb-btn&quot;&gt;📊 Отчёт&lt;/button&gt;
+  {{ end }}
+&lt;/div&gt;
+</code></pre>
+<h3 id="kb-create-panel">2. Панель создания (<code>.kb-create-panel</code>)</h3>
+<pre><code class="language-html">&lt;div id=&quot;kb-create-panel&quot; class=&quot;kb-create-panel&quot; style=&quot;display:none&quot;&gt;
+  &lt;div class=&quot;kb-create-form&quot;&gt;
+    &lt;input id=&quot;kb-new-title&quot; placeholder=&quot;Название задачи&quot; class=&quot;kb-input&quot;&gt;
+    &lt;textarea id=&quot;kb-new-details&quot; placeholder=&quot;Описание&quot; class=&quot;kb-input&quot;&gt;&lt;/textarea&gt;
+    &lt;select id=&quot;kb-new-priority&quot; class=&quot;kb-select&quot;&gt;
+      &lt;option value=&quot;medium&quot;&gt;Обычный&lt;/option&gt;
+      &lt;option value=&quot;low&quot;&gt;Низкий&lt;/option&gt;
+      &lt;option value=&quot;high&quot;&gt;Высокий&lt;/option&gt;
+      &lt;option value=&quot;urgent&quot;&gt;Срочный&lt;/option&gt;
+    &lt;/select&gt;
+    &lt;input id=&quot;kb-new-duedate&quot; placeholder=&quot;Срок&quot; readonly onclick=&quot;calOpen('kb-new-duedate')&quot;&gt;
+
+    &lt;!-- Выбор исполнителя (только для руководителей) --&gt;
+    {{ if is_manager }}
+    &lt;select id=&quot;kb-new-assignee&quot; class=&quot;kb-select&quot;&gt;...&lt;/select&gt;
+    {{ end }}
+
+    &lt;button onclick=&quot;createTask()&quot; class=&quot;kb-btn kb-btn-primary&quot;&gt;Создать&lt;/button&gt;
+    &lt;button onclick=&quot;toggleCreatePanel()&quot; class=&quot;kb-btn kb-btn-secondary&quot;&gt;Отмена&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<h3 id="kb-board">3. Доска (<code>.kb-board</code>)</h3>
+<p>Каждая колонка имеет одинаковую структуру:</p>
+<pre><code class="language-html">&lt;div class=&quot;kb-column&quot; id=&quot;col-0&quot;&gt;
+  &lt;div class=&quot;kb-col-header&quot;&gt;
+    &lt;span class=&quot;kb-col-title&quot;&gt;Надо сделать&lt;/span&gt;
+    &lt;span class=&quot;kb-col-count&quot;&gt;({{ col_0 | array.size }})&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;kb-col-body&quot; ondragover=&quot;allowDrop(event)&quot; ondrop=&quot;dropCard(event)&quot;&gt;
+    {{ for task in col_0 }}
+      &lt;!-- Карточка задачи (шаблон KanbanTask) --&gt;
+      {{ include 'KanbanTask' task }}
+    {{ end }}
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<h3 id="kanbantask">4. Шаблон карточки (KanbanTask)</h3>
+<p>Карточка рендерится через include шаблона <code>KanbanTask</code>:</p>
+<pre><code class="language-html">&lt;div class=&quot;kb-card {{ if task.overdue }}overdue{{ end }}&quot;
+     draggable=&quot;true&quot;
+     ondragstart=&quot;dragStart(event)&quot;
+     data-id=&quot;{{ task.id }}&quot;
+     onclick=&quot;openCard('{{ task.id }}')&quot;&gt;
+
+  &lt;div class=&quot;kb-card-title&quot;&gt;{{ task.title }}&lt;/div&gt;
+  &lt;div class=&quot;kb-card-meta&quot;&gt;
+    &lt;span class=&quot;kb-avatar&quot; style=&quot;background:{{ task.avatarColor }}&quot;&gt;
+      {{ task.initials }}
+    &lt;/span&gt;
+    &lt;span&gt;{{ task.assigneeName }}&lt;/span&gt;
+    &lt;span&gt;{{ task.dueDate }}&lt;/span&gt;
+  &lt;/div&gt;
+  &lt;div class=&quot;kb-card-badges&quot;&gt;
+    &lt;span class=&quot;kb-badge-{{ task.priority }}&quot;&gt;{{ task.priorityName }}&lt;/span&gt;
+    {{ if task.attachmentCount &gt; 0 }}
+      &lt;span&gt;📎 {{ task.attachmentCount }}&lt;/span&gt;
+    {{ end }}
+    {{ if task.commentCount &gt; 0 }}
+      &lt;span&gt;💬 {{ task.commentCount }}&lt;/span&gt;
+    {{ end }}
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<h3 id="section-3">5. Модальное окно карточки</h3>
+<pre><code class="language-html">&lt;div id=&quot;kb-modal-overlay&quot; class=&quot;kb-modal-overlay&quot; style=&quot;display:none&quot;&gt;
+  &lt;div class=&quot;kb-modal&quot;&gt;
+    &lt;div class=&quot;kb-modal-header&quot;&gt;
+      &lt;h3 id=&quot;kb-modal-title&quot;&gt;&lt;/h3&gt;
+      &lt;button onclick=&quot;closeCard()&quot;&gt;✕&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;kb-modal-body&quot;&gt;
+      &lt;!-- Поля редактирования --&gt;
+      &lt;input id=&quot;kb-modal-title-input&quot;&gt;
+      &lt;textarea id=&quot;kb-modal-details&quot;&gt;&lt;/textarea&gt;
+      &lt;select id=&quot;kb-modal-priority&quot;&gt;...&lt;/select&gt;
+      &lt;select id=&quot;kb-modal-status&quot;&gt;...&lt;/select&gt;
+      &lt;input id=&quot;kb-modal-duedate&quot; readonly onclick=&quot;calOpen('kb-modal-duedate')&quot;&gt;
+      &lt;div id=&quot;kb-modal-assignee&quot;&gt;&lt;/div&gt;
+      &lt;div id=&quot;kb-modal-created&quot;&gt;&lt;/div&gt;
+
+      &lt;!-- Вкладки --&gt;
+      &lt;div class=&quot;kb-modal-tabs&quot;&gt;
+        &lt;button onclick=&quot;switchTab('comments')&quot; class=&quot;kb-modal-tab active&quot;&gt;
+          💬 Комментарии
+        &lt;/button&gt;
+        &lt;button onclick=&quot;switchTab('attachments')&quot; class=&quot;kb-modal-tab&quot;&gt;
+          📎 Вложения
+        &lt;/button&gt;
+        &lt;button onclick=&quot;switchTab('history')&quot; class=&quot;kb-modal-tab&quot;&gt;
+          📋 История
+        &lt;/button&gt;
+      &lt;/div&gt;
+
+      &lt;!-- Содержимое вкладок --&gt;
+      &lt;div id=&quot;kb-tab-comments&quot;&gt;...&lt;/div&gt;
+      &lt;div id=&quot;kb-tab-attachments&quot; style=&quot;display:none&quot;&gt;...&lt;/div&gt;
+      &lt;div id=&quot;kb-tab-history&quot; style=&quot;display:none&quot;&gt;...&lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;kb-modal-footer&quot;&gt;
+      &lt;button onclick=&quot;saveCard()&quot; class=&quot;kb-btn kb-btn-primary&quot;&gt;Сохранить&lt;/button&gt;
+      &lt;button onclick=&quot;deleteCard()&quot; class=&quot;kb-btn kb-btn-danger&quot;&gt;Удалить&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+</code></pre>
+<h3 id="section-4">6. Скрытые данные</h3>
+<p>В конце body передаются серверные данные в JS:</p>
+<pre><code class="language-html">&lt;script&gt;
+  var KB_DATA = {
+    currentUserId: &quot;{{ current_user_id }}&quot;,
+    currentUserName: &quot;{{ current_user_name }}&quot;,
+    isManager: {{ is_manager }},
+    userRole: &quot;{{ user_role }}&quot;
+  };
+&lt;/script&gt;
+&lt;script src=&quot;kanban.js&quot;&gt;&lt;/script&gt;
+</code></pre>
+<h2 id="scriban">Scriban-переменные</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Переменная</th>
+<th>Где используется</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>{{ col_0 }}</code></td>
+<td>Колонка 0</td>
+<td>Массив задач «Надо сделать»</td>
+</tr>
+<tr>
+<td><code>{{ col_1 }}</code></td>
+<td>Колонка 1</td>
+<td>Массив задач «В работе»</td>
+</tr>
+<tr>
+<td><code>{{ col_2 }}</code></td>
+<td>Колонка 2</td>
+<td>Массив задач «Ожидание»</td>
+</tr>
+<tr>
+<td><code>{{ col_3 }}</code></td>
+<td>Колонка 3</td>
+<td>Массив задач «Готово»</td>
+</tr>
+<tr>
+<td><code>{{ is_manager }}</code></td>
+<td>Toolbar, панель создания</td>
+<td>Показ кнопок руководителя</td>
+</tr>
+<tr>
+<td><code>{{ current_user_id }}</code></td>
+<td>Script-блок</td>
+<td>ID для JS</td>
+</tr>
+<tr>
+<td><code>{{ current_user_name }}</code></td>
+<td>Script-блок</td>
+<td>Имя для JS</td>
+</tr>
+<tr>
+<td><code>{{ user_role }}</code></td>
+<td>Script-блок</td>
+<td>Роль для JS</td>
+</tr>
+<tr>
+<td><code>{{ task.* }}</code></td>
+<td>Карточка</td>
+<td>Поля задачи (см. серверный скрипт)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="id">Ключевые ID элементов</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Элемент</th>
+<th>Назначение</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kb-board</code></td>
+<td>div</td>
+<td>Контейнер доски</td>
+</tr>
+<tr>
+<td><code>col-0..col-3</code></td>
+<td>div</td>
+<td>Колонки</td>
+</tr>
+<tr>
+<td><code>kb-create-panel</code></td>
+<td>div</td>
+<td>Панель создания</td>
+</tr>
+<tr>
+<td><code>kb-modal-overlay</code></td>
+<td>div</td>
+<td>Оверлей модалки</td>
+</tr>
+<tr>
+<td><code>kb-new-title</code></td>
+<td>input</td>
+<td>Название новой задачи</td>
+</tr>
+<tr>
+<td><code>kb-new-details</code></td>
+<td>textarea</td>
+<td>Описание новой задачи</td>
+</tr>
+<tr>
+<td><code>kb-new-priority</code></td>
+<td>select</td>
+<td>Приоритет новой задачи</td>
+</tr>
+<tr>
+<td><code>kb-new-duedate</code></td>
+<td>input</td>
+<td>Срок новой задачи</td>
+</tr>
+<tr>
+<td><code>kb-new-assignee</code></td>
+<td>select</td>
+<td>Исполнитель новой задачи</td>
+</tr>
+<tr>
+<td><code>kb-modal-title-input</code></td>
+<td>input</td>
+<td>Название в модалке</td>
+</tr>
+<tr>
+<td><code>kb-modal-details</code></td>
+<td>textarea</td>
+<td>Описание в модалке</td>
+</tr>
+<tr>
+<td><code>kb-modal-priority</code></td>
+<td>select</td>
+<td>Приоритет в модалке</td>
+</tr>
+<tr>
+<td><code>kb-modal-status</code></td>
+<td>select</td>
+<td>Статус в модалке</td>
+</tr>
+<tr>
+<td><code>kb-modal-duedate</code></td>
+<td>input</td>
+<td>Срок в модалке</td>
+</tr>
+<tr>
+<td><code>kb-tab-comments</code></td>
+<td>div</td>
+<td>Вкладка комментариев</td>
+</tr>
+<tr>
+<td><code>kb-tab-attachments</code></td>
+<td>div</td>
+<td>Вкладка вложений</td>
+</tr>
+<tr>
+<td><code>kb-tab-history</code></td>
+<td>div</td>
+<td>Вкладка истории</td>
+</tr>
+<tr>
+<td><code>kb-calendar</code></td>
+<td>div</td>
+<td>Контейнер календаря</td>
+</tr>
+</tbody>
+</table></div>
+
+            </article>
+        </div>
+    </div>
+</body>
+</html>

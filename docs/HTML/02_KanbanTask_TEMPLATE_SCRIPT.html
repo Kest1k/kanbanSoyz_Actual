@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KanbanTask — Скрипт шаблона задачи</title>
+    <link rel="stylesheet" href="kanban-docs-theme.css">
+</head>
+<body>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-top">
+                <div>
+                    <h1>KanbanTask — Скрипт шаблона задачи</h1>
+                    <p>Документ по проекту канбан-доски.</p>
+                </div>
+                <div class="badge">Template Script</div>
+            </div>
+            <div class="hero-meta">
+                <div class="badge">Источник: 02_KanbanTask_TEMPLATE_SCRIPT.md</div>
+                <div class="badge">Каталог: docs/kanban-docs/HTML</div>
+            </div>
+        </header>
+
+        <div class="doc-layout">
+            <aside class="nav-card side-nav">
+                <h2>Оглавление</h2>
+                <div class="doc-nav">
+                    <a href="index.html">Индекс документации</a>
+                    <a class="" href="00_PROJECT_OVERVIEW.html">Канбан-доска — Общий обзор проекта</a>
+<a class="" href="01_KanbanScreen_SERVER_SCRIPT.html">KanbanScreen — Серверный скрипт экрана</a>
+<a class="active" href="02_KanbanTask_TEMPLATE_SCRIPT.html">KanbanTask — Скрипт шаблона задачи</a>
+<a class="" href="03_KANBAN_JS_CLIENT_LOGIC.html">kanban.js — Клиентская логика</a>
+<a class="" href="04_KANBAN_CSS_STYLES.html">kanban.css — Стили канбан-доски</a>
+<a class="" href="05_KANBAN_HTML_MARKUP.html">KanbanBoard_HTML — Разметка канбан-доски</a>
+                </div>
+            </aside>
+
+            <article class="article-card">
+<h1 id="kanbantask">KanbanTask — Скрипт шаблона задачи</h1>
+<p><strong>Файл:</strong> <code>SOYUZ_UPLOAD_KanbanTask_script.cs</code>
+<strong>Тип:</strong> C# скрипт шаблона объекта PLM</p>
+<h2 id="section">Назначение</h2>
+<p>Скрипт шаблона объекта «Задача канбан-доски». Обрабатывает AJAX-запросы, связанные с конкретной задачей:</p>
+<ul>
+<li>Получение/сохранение карточки задачи</li>
+<li>Управление комментариями (чат)</li>
+<li>Управление вложениями (привязка объектов PLM)</li>
+<li>История изменений (ревизии)</li>
+</ul>
+<h2 id="kanbantask-1">Атрибуты шаблона KanbanTask</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Атрибут</th>
+<th>Тип</th>
+<th>Описание</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>КанбанНазвание</code></td>
+<td>string</td>
+<td>Название задачи</td>
+</tr>
+<tr>
+<td><code>КанбанОписание</code></td>
+<td>text</td>
+<td>Описание задачи</td>
+</tr>
+<tr>
+<td><code>КанбанСтатус</code></td>
+<td>int</td>
+<td>Статус: 0-3 (колонка на доске)</td>
+</tr>
+<tr>
+<td><code>КанбанПриоритет</code></td>
+<td>string</td>
+<td><code>low</code>, <code>medium</code>, <code>high</code>, <code>urgent</code></td>
+</tr>
+<tr>
+<td><code>КанбанСрок</code></td>
+<td>datetime</td>
+<td>Дата дедлайна</td>
+</tr>
+<tr>
+<td><code>КанбанИсполнитель</code></td>
+<td>reference</td>
+<td>Ссылка на пользователя-исполнителя</td>
+</tr>
+<tr>
+<td><code>КанбанСоздатель</code></td>
+<td>reference</td>
+<td>Ссылка на пользователя-создателя</td>
+</tr>
+<tr>
+<td><code>КанбанДатаСоздания</code></td>
+<td>datetime</td>
+<td>Дата создания задачи</td>
+</tr>
+<tr>
+<td><code>КанбанДатаЗавершения</code></td>
+<td>datetime</td>
+<td>Дата перевода в статус «Готово»</td>
+</tr>
+<tr>
+<td><code>КанбанКомментарии</code></td>
+<td>text (JSON)</td>
+<td>JSON-массив комментариев</td>
+</tr>
+<tr>
+<td><code>КанбанВложения</code></td>
+<td>text (JSON)</td>
+<td>JSON-массив привязанных объектов</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="ajax">AJAX-обработчики</h2>
+<h3 id="getcard"><code>getCard</code> — Получение данных карточки</h3>
+<pre><code>Параметры: taskId
+Ответ: {
+  &quot;id&quot;: &quot;...&quot;,
+  &quot;title&quot;: &quot;...&quot;,
+  &quot;details&quot;: &quot;...&quot;,
+  &quot;status&quot;: 0,
+  &quot;statusName&quot;: &quot;Надо сделать&quot;,
+  &quot;priority&quot;: &quot;medium&quot;,
+  &quot;dueDate&quot;: &quot;15.01.2025&quot;,
+  &quot;assigneeId&quot;: &quot;...&quot;,
+  &quot;assigneeName&quot;: &quot;Иванов И.И.&quot;,
+  &quot;creatorName&quot;: &quot;Петров П.П.&quot;,
+  &quot;createdDate&quot;: &quot;10.01.2025&quot;,
+  &quot;completedDate&quot;: &quot;&quot;,
+  &quot;isOwner&quot;: true,
+  &quot;canEdit&quot;: true,
+  &quot;canDelete&quot;: true
+}
+</code></pre>
+<h3 id="savecard"><code>saveCard</code> — Сохранение изменений</h3>
+<pre><code>Параметры: taskId, title, details, status, priority, dueDate
+Действие:
+  1. Валидирует входные данные
+  2. Обновляет атрибуты объекта
+  3. Если статус изменился на 3 (Готово) → ставит дату завершения
+  4. Если статус изменился с 3 → очищает дату завершения
+  5. Создаёт запись в истории изменений
+Ответ: { &quot;ok&quot;: true }
+</code></pre>
+<h3 id="deletecard"><code>deleteCard</code> — Удаление задачи</h3>
+<pre><code>Параметры: taskId
+Проверки: Только создатель или руководитель
+Действие: Удаляет объект из PLM
+Ответ: { &quot;ok&quot;: true }
+</code></pre>
+<h2 id="section-1">Комментарии (чат)</h2>
+<h3 id="getcomments"><code>getComments</code> — Получение комментариев</h3>
+<pre><code>Параметры: taskId
+Ответ: {
+  &quot;comments&quot;: [
+    {
+      &quot;id&quot;: &quot;comment_1736500000000&quot;,
+      &quot;author&quot;: &quot;Иванов И.И.&quot;,
+      &quot;authorId&quot;: &quot;...&quot;,
+      &quot;initials&quot;: &quot;ИИ&quot;,
+      &quot;text&quot;: &quot;Текст комментария&quot;,
+      &quot;time&quot;: &quot;10.01.2025 14:30&quot;,
+      &quot;isMine&quot;: true
+    }
+  ]
+}
+</code></pre>
+<p>Комментарии хранятся в атрибуте <code>КанбанКомментарии</code> как JSON-массив.</p>
+<h3 id="addcomment"><code>addComment</code> — Добавление комментария</h3>
+<pre><code>Параметры: taskId, text
+Действие: Добавляет объект комментария в JSON-массив с timestamp-ID
+Ответ: { &quot;ok&quot;: true, &quot;comment&quot;: { ... } }
+</code></pre>
+<h3 id="deletecomment"><code>deleteComment</code> — Удаление комментария</h3>
+<pre><code>Параметры: taskId, commentId
+Проверки: Только автор комментария может удалить
+Действие: Удаляет комментарий из JSON-массива
+Ответ: { &quot;ok&quot;: true }
+</code></pre>
+<h2 id="section-2">Вложения</h2>
+<h3 id="getattachments"><code>getAttachments</code> — Получение вложений</h3>
+<pre><code>Параметры: taskId
+Ответ: {
+  &quot;attachments&quot;: [
+    {
+      &quot;id&quot;: &quot;...&quot;,
+      &quot;objectId&quot;: &quot;...&quot;,
+      &quot;name&quot;: &quot;Деталь-001&quot;,
+      &quot;template&quot;: &quot;Деталь&quot;,
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;date&quot;: &quot;10.01.2025&quot;
+    }
+  ]
+}
+</code></pre>
+<p>Вложения хранятся в атрибуте <code>КанбанВложения</code> как JSON-массив ссылок на объекты PLM.</p>
+<h3 id="addattachment"><code>addAttachment</code> — Привязка объекта</h3>
+<pre><code>Параметры: taskId, objectId, type (&quot;object&quot;/&quot;container&quot;)
+Действие:
+  1. Проверяет существование объекта в PLM
+  2. Проверяет, не привязан ли уже
+  3. Добавляет запись в JSON-массив вложений
+Ответ: { &quot;ok&quot;: true, &quot;attachment&quot;: { ... } }
+</code></pre>
+<h3 id="removeattachment"><code>removeAttachment</code> — Отвязка объекта</h3>
+<pre><code>Параметры: taskId, attachmentId
+Действие: Удаляет запись из JSON-массива вложений
+Ответ: { &quot;ok&quot;: true }
+</code></pre>
+<h2 id="section-3">История изменений</h2>
+<h3 id="getrevisions"><code>getRevisions</code> — Получение истории</h3>
+<pre><code>Параметры: taskId
+Действие: Возвращает историю изменений объекта из PLM (ревизии атрибутов)
+Ответ: {
+  &quot;revisions&quot;: [
+    {
+      &quot;date&quot;: &quot;10.01.2025 14:30&quot;,
+      &quot;user&quot;: &quot;Иванов И.И.&quot;,
+      &quot;changes&quot;: &quot;Статус: «Надо сделать» → «В работе»&quot;
+    }
+  ]
+}
+</code></pre>
+<h2 id="section-4">Логика статусов</h2>
+<pre><code>Статус 0 (Надо сделать) ──drag──→ Статус 1 (В работе)
+Статус 1 (В работе)     ──drag──→ Статус 2 (Ожидание)
+Статус 2 (Ожидание)     ──drag──→ Статус 1 (В работе)
+Любой статус             ──drag──→ Статус 3 (Готово) → автоматически ставится completedDate
+Статус 3 (Готово)        ──drag──→ Любой → очищается completedDate
+</code></pre>
+<h2 id="json">Формат хранения комментариев (JSON)</h2>
+<pre><code class="language-json">[
+  {
+    &quot;id&quot;: &quot;comment_1736500000000&quot;,
+    &quot;authorId&quot;: &quot;user_123&quot;,
+    &quot;author&quot;: &quot;Иванов И.И.&quot;,
+    &quot;text&quot;: &quot;Нужно уточнить ТЗ&quot;,
+    &quot;ts&quot;: 1736500000000
+  }
+]
+</code></pre>
+<h2 id="json-1">Формат хранения вложений (JSON)</h2>
+<pre><code class="language-json">[
+  {
+    &quot;id&quot;: &quot;att_1736500000000&quot;,
+    &quot;objectId&quot;: &quot;obj_456&quot;,
+    &quot;name&quot;: &quot;Деталь-001&quot;,
+    &quot;template&quot;: &quot;Деталь&quot;,
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;addedBy&quot;: &quot;user_123&quot;,
+    &quot;addedDate&quot;: &quot;2025-01-10T14:30:00&quot;
+  }
+]
+</code></pre>
+
+            </article>
+        </div>
+    </div>
+</body>
+</html>
