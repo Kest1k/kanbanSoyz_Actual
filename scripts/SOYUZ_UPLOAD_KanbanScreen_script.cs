@@ -933,6 +933,8 @@ private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
     }
     sb.Append( "]," );
 
+    visibleUsers.Sort( (a, b) => string.Compare( a.ToString() ?? "", b.ToString() ?? "", System.StringComparison.CurrentCultureIgnoreCase ) );
+
     sb.Append( "\"users\":[" );
     first = true;
     foreach( var u in visibleUsers )

@@ -121,8 +121,10 @@
                             style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" onchange="kbOnCrtSectorChange()"
                             disabled></select>&nbsp;
                     </span>
-                    <select id="kb-crt-user" class="form-control input-sm"
-                        style="width:auto;min-width:110px;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" disabled></select>
+                    <span id="kb-crt-user-wrap" style="display:none;">
+                        <select id="kb-crt-user" class="form-control input-sm"
+                            style="width:auto;min-width:110px;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" disabled></select>
+                    </span>
                 </span>
             </td>
         </tr>
@@ -235,12 +237,13 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-                {% if t.isOverdue == "1" %}
-                <div class="kb-overdue">Просрочено (до {{ t.dueDate }})</div>
-                {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
-                    до {{ t.dueDate }}
+                        {% if t.isOverdue == "1" %}
+                        <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
+                        {% else %}
+                        до {{ t.dueDate }}
+                        {% endif %}
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
@@ -296,12 +299,13 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-                {% if t.isOverdue == "1" %}
-                <div class="kb-overdue">Просрочено (до {{ t.dueDate }})</div>
-                {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
-                    до {{ t.dueDate }}
+                        {% if t.isOverdue == "1" %}
+                        <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
+                        {% else %}
+                        до {{ t.dueDate }}
+                        {% endif %}
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
@@ -357,12 +361,13 @@
                     {% endfor %}
                 </div>
                 {% endif %}
-                {% if t.isOverdue == "1" %}
-                <div class="kb-overdue">Просрочено (до {{ t.dueDate }})</div>
-                {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
-                    до {{ t.dueDate }}
+                        {% if t.isOverdue == "1" %}
+                        <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
+                        {% else %}
+                        до {{ t.dueDate }}
+                        {% endif %}
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">

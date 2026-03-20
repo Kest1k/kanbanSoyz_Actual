@@ -744,12 +744,6 @@
         if (_kbH.role === "regular") { row.style.display = "none"; return; }
         row.style.display = "";
 
-        var deptWrap = document.getElementById("kb-crt-dept-wrap");
-        var sectorWrap = document.getElementById("kb-crt-sector-wrap");
-        if (deptWrap) deptWrap.style.display = (_kbH.role === "admin") ? "" : "none";
-        if (sectorWrap) sectorWrap.style.display =
-            (_kbH.role === "admin" || _kbH.role === "headOfDept") ? "" : "none";
-
         if (_kbH.role === "admin") { kbFillCrtDepts(); }
         if (_kbH.role === "admin" || _kbH.role === "headOfDept") { kbFillCrtSectors(null); }
         kbFillCrtUsers(null, null);
@@ -765,10 +759,16 @@
         var grpSearch = document.getElementById("kb-grp-search");
         if (grpSearch) grpSearch.value = "";
 
-        // Сбрасываем чекбокс в «Сам себе» и блокируем селекторы
+        // Сбрасываем чекбокс в «Сам себе» и скрываем селекторы
         var selfEl = document.getElementById("kb-crt-self");
         if (selfEl) selfEl.checked = true;
-        kbOnSelfChange();
+        // Принудительно скрываем все селекторы при инициализации (Сам себе = вкл)
+        var deptWrap = document.getElementById("kb-crt-dept-wrap");
+        var sectorWrap = document.getElementById("kb-crt-sector-wrap");
+        var userWrap = document.getElementById("kb-crt-user-wrap");
+        if (deptWrap) deptWrap.style.display = "none";
+        if (sectorWrap) sectorWrap.style.display = "none";
+        if (userWrap) userWrap.style.display = "none";
     }
 
     function kbFillCrtDepts() {
@@ -809,14 +809,30 @@
         }
     }
 
-    // Чекбокс «Сам себе»: блокирует/разблокирует каскадные селекторы формы
+    // Чекбокс «Сам себе»: скрывает/показывает каскадные селекторы формы
     window.kbOnSelfChange = function () {
         var selfEl = document.getElementById("kb-crt-self");
         var isSelf = selfEl ? selfEl.checked : true;
-        var ids = ["kb-crt-dept", "kb-crt-sector", "kb-crt-user"];
-        for (var i = 0; i < ids.length; i++) {
-            var el = document.getElementById(ids[i]);
-            if (el) el.disabled = isSelf;
+
+        var deptWrap = document.getElementById("kb-crt-dept-wrap");
+        var sectorWrap = document.getElementById("kb-crt-sector-wrap");
+        var userWrap = document.getElementById("kb-crt-user-wrap");
+        var deptEl = document.getElementById("kb-crt-dept");
+        var sectorEl = document.getElementById("kb-crt-sector");
+        var userEl = document.getElementById("kb-crt-user");
+
+        if (isSelf) {
+            if (deptWrap) deptWrap.style.display = "none";
+            if (sectorWrap) sectorWrap.style.display = "none";
+            if (userWrap) userWrap.style.display = "none";
+        } else {
+            if (deptWrap) deptWrap.style.display = (_kbH.role === "admin") ? "inline" : "none";
+            if (sectorWrap) sectorWrap.style.display =
+                (_kbH.role === "admin" || _kbH.role === "headOfDept") ? "inline" : "none";
+            if (userWrap) userWrap.style.display = "inline";
+            if (deptEl) deptEl.disabled = false;
+            if (sectorEl) sectorEl.disabled = false;
+            if (userEl) userEl.disabled = false;
         }
     };
 
@@ -981,6 +997,24 @@
         var f = kbGrpGetFilters();
         var html = "";
         var shown = 0;
+
+        // Себя — первым в списке с бейджем [сам себе]
+        for (var mi = 0; mi < _kbH.users.length; mi++) {
+            if (_kbH.users[mi].key !== _kbH.myKey) continue;
+            var me = _kbH.users[mi];
+            if (f.search && me.name.toLowerCase().indexOf(f.search) === -1) break;
+            var mChk = _kbGrpSelected[me.key] ? " checked" : "";
+            html += "<label>"
+                + "<input type='checkbox' value='" + kbEscAttr(me.key) + "'" + mChk
+                + " onchange='kbGrpToggle(\"" + kbEscAttr(me.key) + "\")'"
+                + ">"
+                + "<span>" + kbEscHtml(me.name)
+                + " <span style='color:#3b82f6;font-size:10px;'>[сам себе]</span></span>"
+                + "</label>";
+            shown++;
+            break;
+        }
+
         for (var i = 0; i < _kbH.users.length; i++) {
             var u = _kbH.users[i];
             if (u.key === _kbH.myKey) continue;
@@ -1023,7 +1057,6 @@
         var f = kbGrpGetFilters();
         for (var i = 0; i < _kbH.users.length; i++) {
             var u = _kbH.users[i];
-            if (u.key === _kbH.myKey) continue;
             var sr = u.subrole || "";
             if (type === "depts" && sr !== "headOfDept") continue;
             if (type === "sectors" && sr !== "headOfSector") continue;
@@ -1040,7 +1073,6 @@
         var f = kbGrpGetFilters();
         for (var i = 0; i < _kbH.users.length; i++) {
             var u = _kbH.users[i];
-            if (u.key === _kbH.myKey) continue;
             var ctx = u.context || "";
             if (f.dept && !kbBelongsToDept(ctx, f.dept)) continue;
             if (f.sector && ctx !== f.sector) continue;
