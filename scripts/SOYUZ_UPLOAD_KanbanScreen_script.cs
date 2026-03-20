@@ -84,6 +84,33 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 renderArgs["col_1"] = cols[1];
                 renderArgs["col_2"] = cols[2];
                 renderArgs["col_3"] = cols[3];
+
+                // Список тегов для панели создания задачи
+                var tagsList = new List<object>();
+                try
+                {
+                    var rootNv = Service.GetNamedValue( "Ref_KanbanTags" );
+                    if( rootNv != null )
+                    {
+                        foreach( var t in rootNv.AllChildren )
+                        {
+                            if( t.IsHiddenInUI ) continue;
+                            var tn = t.ToString() ?? "";
+                            if( !string.IsNullOrEmpty( tn ) )
+                                tagsList.Add( new { name = HtmlEnc( tn ) } );
+                        }
+                    }
+                    if( tagsList.Count == 0 )
+                    {
+                        var tc = Service.GetDataContainer( "Ref_KanbanTags" );
+                        if( tc != null )
+                            foreach( var t in tc.RootInfoObjects )
+                                tagsList.Add( new { name = HtmlEnc( t.ToString() ?? "" ) } );
+                    }
+                }
+                catch { }
+                renderArgs["availableTags"] = tagsList;
+
                 break;
             }
 
@@ -224,14 +251,14 @@ private object DoMoveTask( object inputParams )
 
 
 // ─── CreateTask ───────────────────────────────────────────────────────
-// inputParams (JS → C#): object[] { "title|status|priority|dueDate|details" }
+// inputParams (JS → C#): object[] { "title|status|priority|dueDate|details|tags|assigneeKey" }
 // Только title обязателен; остальные — с дефолтами.
 private object DoCreateTask( object inputParams )
 {
     var raw = GetParamStr( inputParams );
 
-    // Разбираем: title|status|priority|dueDate|details|assigneeKey
-    var parts  = ParsePipeArgs( raw, 6 );
+    // Разбираем: title|status|priority|dueDate|details|tags|assigneeKey
+    var parts  = ParsePipeArgs( raw, 7 );
     var title  = parts.Length > 0 ? parts[0].Trim() : "";
     if( string.IsNullOrEmpty( title ) ) return "ERROR:EmptyTitle";
 
@@ -246,7 +273,8 @@ private object DoCreateTask( object inputParams )
 
     var dueDateStr  = parts.Length > 3 ? parts[3].Trim() : "";
     var detailsStr  = parts.Length > 4 ? parts[4].Trim() : "";
-    var assigneeKey = parts.Length > 5 ? parts[5].Trim() : "";
+    var tagsStr     = parts.Length > 5 ? parts[5].Trim() : "";
+    var assigneeKey = parts.Length > 6 ? parts[6].Trim() : "";
 
     // Создаём объект
     var container = Service.GetDataContainer( "All_Kanban_Tasks_Folder" );
@@ -284,6 +312,10 @@ private object DoCreateTask( object inputParams )
     if( !string.IsNullOrEmpty( detailsStr ) )
         task["TaskDetails"] = detailsStr;
 
+    // Теги
+    if( !string.IsNullOrEmpty( tagsStr ) )
+        task["Tags"] = tagsStr;
+
     // Исполнитель = текущий пользователь (по умолчанию)
     var currentUser = Service.GetCurrentUser();
     if( currentUser != null )
@@ -316,12 +348,12 @@ private object DoCreateTask( object inputParams )
 }
 
 // ─── CreateGroupTask ──────────────────────────────────────────────────
-// inputParams: "title|status|priority|dueDate|details|key1,key2,key3"
+// inputParams: "title|status|priority|dueDate|details|tags|key1,key2,key3"
 // Создаёт по одной задаче для каждого исполнителя из списка.
 private object DoCreateGroupTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 6 );
+    var parts = ParsePipeArgs( raw, 7 );
 
     var title = parts.Length > 0 ? parts[0].Trim() : "";
     if( string.IsNullOrEmpty( title ) ) return "ERROR:EmptyTitle";
@@ -334,7 +366,8 @@ private object DoCreateGroupTask( object inputParams )
     var priority   = parts.Length > 2 && !string.IsNullOrEmpty( parts[2].Trim() ) ? parts[2].Trim() : "medium";
     var dueDateStr = parts.Length > 3 ? parts[3].Trim() : "";
     var detailsStr = parts.Length > 4 ? parts[4].Trim() : "";
-    var keysStr    = parts.Length > 5 ? parts[5].Trim() : "";
+    var tagsStr    = parts.Length > 5 ? parts[5].Trim() : "";
+    var keysStr    = parts.Length > 6 ? parts[6].Trim() : "";
 
     if( string.IsNullOrEmpty( keysStr ) ) return "ERROR:NoAssignees";
     var assigneeKeys = keysStr.Split( new char[]{ ',' }, StringSplitOptions.RemoveEmptyEntries );
@@ -386,6 +419,7 @@ private object DoCreateGroupTask( object inputParams )
         if( priorityNv != null ) task["Priority"] = priorityNv;
         if( dueDate != default(DateTime) ) task["DueDate"] = dueDate;
         if( !string.IsNullOrEmpty( detailsStr ) ) task["TaskDetails"] = detailsStr;
+        if( !string.IsNullOrEmpty( tagsStr ) ) task["Tags"] = tagsStr;
         task["Assignee"] = assignee;
         if( !string.IsNullOrEmpty( creatorKey ) )
             try { task["Creator"] = creatorKey; } catch { }
@@ -652,6 +686,19 @@ private object BuildCardData( InfoObject task, int status )
     }
     catch { }
 
+    string tags = "";
+    try { tags = task.GetString( "Tags" ) ?? ""; } catch { }
+
+    // Просроченность: DueDate < сегодня И задача не завершена (status != 3)
+    var isOverdue = "0";
+    try
+    {
+        var dd = task.GetValue<DateTime>( "DueDate" );
+        if( dd != default(DateTime) && dd.Date < DateTime.Today && status != 3 )
+            isOverdue = "1";
+    }
+    catch { }
+
     return new {
         id              = taskId,
         isOwner         = isOwner,
@@ -665,7 +712,9 @@ private object BuildCardData( InfoObject task, int status )
         dueDate         = dueDateStr,
         completedDate   = completedDateStr,
         attachmentCount = GetAttachmentCount( task ),
-        commentCount    = GetCommentCount( task )
+        commentCount    = GetCommentCount( task ),
+        tags            = HtmlEnc( tags ),
+        isOverdue       = isOverdue
     };
 }
 
@@ -1114,6 +1163,8 @@ private object DoGetTaskDetails( object inputParams )
     int    status       = GetStatusIndex( task );
     string title        = task.GetString( "TaskName" )    ?? "";
     string details      = task.GetString( "TaskDetails" ) ?? "";
+    string tags         = "";
+    try { tags = task.GetString( "Tags" ) ?? ""; } catch { }
     string dueDate      = "";
     string createdAt    = "";
     string completedAt  = "";
@@ -1148,6 +1199,16 @@ private object DoGetTaskDetails( object inputParams )
     try { createdAt = task.DateCreated.ToString( "dd.MM.yyyy HH:mm" ); } catch { }
     try { var cd = task.GetValue<DateTime>( "CompletedDate" );
           if( cd != default(DateTime) ) completedAt = cd.ToString( "dd.MM.yyyy HH:mm" ); } catch { }
+
+    // Просроченность
+    bool isOverdue = false;
+    try
+    {
+        var dd2 = task.GetValue<DateTime>( "DueDate" );
+        if( dd2 != default(DateTime) && dd2.Date < DateTime.Today && status != 3 )
+            isOverdue = true;
+    }
+    catch { }
 
     // Права: создатель, имя создателя, полное редактирование
     bool   isOwner      = false;
@@ -1226,6 +1287,44 @@ private object DoGetTaskDetails( object inputParams )
         pSb.Append( "{\"key\":\"High\",\"name\":\"Высокий\"},{\"key\":\"Medium\",\"name\":\"Средний\"},{\"key\":\"Low\",\"name\":\"Низкий\"},{\"key\":\"Urgent\",\"name\":\"Сверхсрочная\"}" );
     pSb.Append( "]" );
 
+    // Список доступных тегов из справочника Ref_KanbanTags
+    var tSb = new System.Text.StringBuilder();
+    bool ft = true;
+    tSb.Append( "[" );
+    try
+    {
+        // Способ 1: NamedValues (именованные значения) через корневой путь
+        var rootNv = Service.GetNamedValue( "Ref_KanbanTags" );
+        if( rootNv != null )
+        {
+            foreach( var t in rootNv.AllChildren )
+            {
+                if( t.IsHiddenInUI ) continue;
+                var name = t.ToString() ?? "";
+                if( string.IsNullOrEmpty( name ) ) continue;
+                if( !ft ) tSb.Append( "," );
+                tSb.Append( "\"" + JsonEscape( name ) + "\"" );
+                ft = false;
+            }
+        }
+        // Способ 2 (fallback): InfoObjects в DataContainer
+        if( ft )
+        {
+            var tc = Service.GetDataContainer( "Ref_KanbanTags" );
+            if( tc != null )
+            {
+                foreach( var t in tc.RootInfoObjects )
+                {
+                    if( !ft ) tSb.Append( "," );
+                    tSb.Append( "\"" + JsonEscape( t.ToString() ?? "" ) + "\"" );
+                    ft = false;
+                }
+            }
+        }
+    }
+    catch { }
+    tSb.Append( "]" );
+
     var sb = new System.Text.StringBuilder();
     sb.Append( "{" );
     sb.Append( "\"nameKey\":\""      + JsonEscape( nameKey )      + "\"," );
@@ -1241,26 +1340,30 @@ private object DoGetTaskDetails( object inputParams )
     sb.Append( "\"isOwner\":"        + (isOwner ? "true" : "false")     + "," );
     sb.Append( "\"canFullEdit\":"   + (canFullEdit ? "true" : "false") + "," );
     sb.Append( "\"creatorName\":\""  + JsonEscape( creatorName )        + "\"," );
-    sb.Append( "\"priorities\":"     + pSb.ToString()                   + "," );
+    sb.Append( "\"tags\":\""          + JsonEscape( tags )                + "\"," );
+    sb.Append( "\"isOverdue\":"     + (isOverdue ? "true" : "false")    + "," );
+    sb.Append( "\"availableTags\":"  + tSb.ToString()                    + "," );
+    sb.Append( "\"priorities\":"     + pSb.ToString()                    + "," );
     sb.Append( "\"statusNames\":[\"Надо сделать\",\"В работе\",\"Ожидание\",\"Готово\"]" );
     sb.Append( "}" );
     return sb.ToString();
 }
 
 // ─── SaveTask ─────────────────────────────────────────────────────────
-// inputParams: "nameKey|title|status|priorityKey|dueDate|details"
-// details может содержать символы | — Split с лимитом 6 берёт всё остальное
+// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|details"
+// details может содержать символы | — Split с лимитом 7 берёт всё остальное
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 6 );
+    var parts = ParsePipeArgs( raw, 7 );
 
     var nameKey    = parts.Length > 0 ? parts[0].Trim() : "";
     var title      = parts.Length > 1 ? parts[1].Trim() : "";
     var statusStr  = parts.Length > 2 ? parts[2].Trim() : "0";
     var prioKey    = parts.Length > 3 ? parts[3].Trim() : "";
     var dueDateStr = parts.Length > 4 ? parts[4].Trim() : "";
-    var detailsStr = parts.Length > 5 ? parts[5] : "";       // НЕ Trim — пробелы в конце важны
+    var tagsStr    = parts.Length > 5 ? parts[5].Trim() : "";
+    var detailsStr = parts.Length > 6 ? parts[6] : "";       // НЕ Trim — пробелы в конце важны
 
     if( string.IsNullOrEmpty( nameKey ) ) return "ERROR:EmptyId";
 
@@ -1296,6 +1399,8 @@ private object DoSaveTask( object inputParams )
     int    oldStatus    = GetStatusIndex( task );
     string oldTitle     = task.GetString( "TaskName" )    ?? "";
     string oldDetails   = task.GetString( "TaskDetails" ) ?? "";
+    string oldTags      = "";
+    try { oldTags = task.GetString( "Tags" ) ?? ""; } catch { }
     string oldPrioKey   = "";
     string oldPrioName  = "";
     string oldDueDate   = "";
@@ -1311,6 +1416,7 @@ private object DoSaveTask( object inputParams )
     {
         task["TaskName"]    = title;
         task["TaskDetails"] = detailsStr;
+        task["Tags"]        = tagsStr;
 
         // Приоритет
         if( !string.IsNullOrEmpty( prioKey ) )
@@ -1384,6 +1490,12 @@ private object DoSaveTask( object inputParams )
         {
             if( hasChange ) changes.Append( "," );
             changes.Append( "{\"f\":\"Описание\",\"o\":\"" + JsonEscape( TruncDesc( oldDetails ) ) + "\",\"n\":\"" + JsonEscape( TruncDesc( detailsStr ) ) + "\"}" );
+            hasChange = true;
+        }
+        if( canFullEdit && tagsStr != oldTags )
+        {
+            if( hasChange ) changes.Append( "," );
+            changes.Append( "{\"f\":\"Теги\",\"o\":\"" + JsonEscape( oldTags ) + "\",\"n\":\"" + JsonEscape( tagsStr ) + "\"}" );
             hasChange = true;
         }
         changes.Append( "]" );

@@ -11,6 +11,8 @@
                 if (board.className.indexOf("panel-open") === -1)
                     board.className += " panel-open";
             }
+            // Пересчитать высоту доски после смены панели
+            setTimeout(function() { if (typeof kbFitBoard === "function") kbFitBoard(); }, 50);
         }
 
         // ── Calendar (обобщённый: _calTargetId определяет целевой инпут) ────
@@ -266,6 +268,8 @@
             document.getElementById("kb-new-title").value = "";
             document.getElementById("kb-new-duedate").value = "";
             document.getElementById("kb-new-details").value = "";
+            var newTagsEl = document.getElementById("kb-new-tags");
+            if (newTagsEl) newTagsEl.value = "";
             document.getElementById("kb-new-status").value = "0";
             document.getElementById("kb-new-priority").value = "medium";
             var prSel = document.getElementById("kb-new-priority");
@@ -286,16 +290,32 @@
             kbCrtRenderAtts();
         };
 
+        // Добавить тег-подсказку в поле ввода панели создания
+        window.kbCrtAddTag = function (tag) {
+            var inp = document.getElementById("kb-new-tags");
+            if (!inp) return;
+            tag = (tag || "").replace(/^\s+|\s+$/g, "");
+            if (!tag) return;
+            var cur = inp.value ? inp.value.replace(/^\s+|\s+$/g, "") : "";
+            var parts = cur ? cur.split(",") : [];
+            for (var j = 0; j < parts.length; j++) {
+                if (parts[j].replace(/^\s+|\s+$/g, "") === tag) return; // дубликат
+            }
+            inp.value = cur ? cur + ", " + tag : tag;
+        };
+
         window.doCreateTask = function () {
             var title = document.getElementById("kb-new-title").value;
             var status = document.getElementById("kb-new-status").value;
             var priority = document.getElementById("kb-new-priority").value;
             var dueDate = document.getElementById("kb-new-duedate").value;
             var details = document.getElementById("kb-new-details").value;
+            var tags = document.getElementById("kb-new-tags") ? document.getElementById("kb-new-tags").value : "";
 
             title = title ? title.replace(/^\s+|\s+$/g, "") : "";
             dueDate = dueDate ? dueDate.replace(/^\s+|\s+$/g, "") : "";
             details = details ? details.replace(/^\s+|\s+$/g, "") : "";
+            tags = tags ? tags.replace(/^\s+|\s+$/g, "").replace(/\|/g, " ") : "";
 
             if (!title) { alert("Введите название задачи"); return; }
             if (dueDate && !/^\d{2}\.\d{2}\.\d{4}$/.test(dueDate)) {
@@ -311,7 +331,7 @@
                     if (_kbGrpSelected.hasOwnProperty(k)) keys.push(k);
                 }
                 if (keys.length === 0) { alert("Выберите хотя бы одного получателя"); return; }
-                var grpParam = title + "|" + status + "|" + priority + "|" + dueDate + "|" + details + "|" + keys.join(",");
+                var grpParam = title + "|" + status + "|" + priority + "|" + dueDate + "|" + details + "|" + tags + "|" + keys.join(",");
                 try {
                     var grpRes = window.external.InvokeTemplate("CreateGroupTask", grpParam);
                     if (grpRes && grpRes.indexOf("ERROR") === 0) {
@@ -330,7 +350,7 @@
             var crtUserEl = document.getElementById("kb-crt-user");
             var assignee = (!isSelf && crtUserEl) ? (crtUserEl.value || "") : "";
 
-            var param = title + "|" + status + "|" + priority + "|" + dueDate + "|" + details + "|" + assignee;
+            var param = title + "|" + status + "|" + priority + "|" + dueDate + "|" + details + "|" + tags + "|" + assignee;
             try {
                 var result = window.external.InvokeTemplate("CreateTask", param);
                 if (result && result.indexOf("ERROR") === 0) {
@@ -1213,6 +1233,7 @@
             _tcmData = JSON.parse(String(res));
             tcmRender(_tcmData);
             overlay.className = "tcm-overlay visible";
+            tcmAutoResize(document.getElementById("tcm-details"));
         } catch (e) {
             alert("Ошибка: " + (e.message || e));
         }
@@ -1223,6 +1244,39 @@
         if (overlay) overlay.className = "tcm-overlay";
         _tcmData = null;
     };
+
+    function tcmRenderTagSuggestions(available) {
+        var cont = document.getElementById("tcm-tag-suggestions");
+        if (!cont) return;
+        cont.innerHTML = "";
+        if (!available || available.length === 0) return;
+        for (var i = 0; i < available.length; i++) {
+            var span = document.createElement("span");
+            span.className = "kb-tag";
+            span.textContent = available[i];
+            span.onclick = (function (tag) {
+                return function () {
+                    var inp = document.getElementById("tcm-tags");
+                    if (!inp || inp.readOnly) return;
+                    var cur = inp.value ? inp.value.replace(/^\s+|\s+$/g, "") : "";
+                    // Проверить дубликат
+                    var parts = cur ? cur.split(",") : [];
+                    for (var j = 0; j < parts.length; j++) {
+                        if (parts[j].replace(/^\s+|\s+$/g, "") === tag) return;
+                    }
+                    inp.value = cur ? cur + ", " + tag : tag;
+                };
+            })(available[i]);
+            cont.appendChild(span);
+        }
+    }
+
+    function tcmAutoResize(el) {
+        if (!el) return;
+        el.style.height = "auto";
+        var sh = el.scrollHeight;
+        if (sh > 80) el.style.height = sh + "px";
+    }
 
     function tcmRender(d) {
         var st = d.status || 0;
@@ -1240,6 +1294,23 @@
         document.getElementById("tcm-assignee").value = d.assignee || "";
         document.getElementById("tcm-duedate").value = d.dueDate || "";
         document.getElementById("tcm-details").value = d.details || "";
+
+        // Просроченность
+        var overdueEl = document.getElementById("tcm-overdue");
+        if (overdueEl) {
+            if (d.isOverdue) {
+                overdueEl.innerHTML = "Просрочено (до " + tcmEsc(d.dueDate || "") + ")";
+                overdueEl.style.display = "";
+            } else {
+                overdueEl.innerHTML = "";
+                overdueEl.style.display = "none";
+            }
+        }
+
+        // Теги
+        var tagsEl = document.getElementById("tcm-tags");
+        if (tagsEl) tagsEl.value = d.tags || "";
+        tcmRenderTagSuggestions(d.availableTags || []);
 
         // Статус select
         var selSt = document.getElementById("tcm-status");
@@ -1297,6 +1368,8 @@
         var canFull = d.canFullEdit !== false;
         document.getElementById("tcm-title").readOnly = !canFull;
         document.getElementById("tcm-details").readOnly = !canFull;
+        var tagsRO = document.getElementById("tcm-tags");
+        if (tagsRO) tagsRO.readOnly = !canFull;
         document.getElementById("tcm-duedate").readOnly = !canFull;
         document.getElementById("tcm-priority").disabled = !canFull;
         var calBtn = document.getElementById("tcm-cal-btn");
@@ -1612,12 +1685,13 @@
         var prio = document.getElementById("tcm-priority").value;
         var dueDate = document.getElementById("tcm-duedate").value;
         var details = document.getElementById("tcm-details").value;
+        var tags = document.getElementById("tcm-tags") ? document.getElementById("tcm-tags").value : "";
 
         if (!title || !title.replace(/\s/g, "")) {
             tcmShowMsg("err", "Введите название задачи"); return;
         }
 
-        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + details;
+        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + details;
         try {
             var res = window.external.InvokeTemplate("SaveTask", param);
             if (!res || (typeof res === "string" && res.indexOf("ERROR") === 0)) {
@@ -1745,6 +1819,37 @@
         ? window.addEventListener("resize", truncateCardDescs)
         : window.attachEvent("onresize", truncateCardDescs);
     truncateCardDescs();
+
+    // Подгонка высоты доски под реальный viewport
+    // CSS calc(100vh - 90px) даёт начальную высоту; JS уточняет после отрисовки
+    function kbFitBoard() {
+        var board = document.getElementById("kb-board");
+        if (!board) return;
+        var rect = board.getBoundingClientRect();
+        var vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (vh < 100 || rect.top <= 0) return; // DOM ещё не готов — не трогаем
+        var h = vh - rect.top - 2;
+        if (h < 300) h = 300;
+        board.style.height = h + "px";
+    }
+    // Отложенный вызов — DOM должен успеть отрисоваться
+    setTimeout(kbFitBoard, 150);
+    setTimeout(kbFitBoard, 500);
+    if (window.addEventListener) {
+        window.addEventListener("resize", kbFitBoard);
+    } else if (window.attachEvent) {
+        window.attachEvent("onresize", kbFitBoard);
+    }
+
+    // Авто-ресайз textarea описания при вводе
+    var _detailsTA = document.getElementById("tcm-details");
+    if (_detailsTA) {
+        if (_detailsTA.addEventListener) {
+            _detailsTA.addEventListener("input", function () { tcmAutoResize(_detailsTA); });
+        } else if (_detailsTA.attachEvent) {
+            _detailsTA.attachEvent("onpropertychange", function () { tcmAutoResize(_detailsTA); });
+        }
+    }
 
     // Вызов после того, как все функции определены
     kbInitHierarchy();

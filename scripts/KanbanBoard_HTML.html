@@ -42,6 +42,8 @@
 </div>
 {% endblock %}
 
+{% block bottomNavigation %}{% endblock %}
+
 {% block content %}
 <!-- Create panel -->
 <div class="kb-create-panel" id="kb-create-panel">
@@ -167,6 +169,20 @@
             </td>
         </tr>
         <tr>
+            <td colspan="5" style="padding-top:5px;">
+                <label style="font-size:11px;display:block;margin-bottom:2px;">Теги (НИОКР)</label>
+                <input type="text" id="kb-new-tags" class="form-control input-sm"
+                    style="font-size:12px;" placeholder="Через запятую...">
+                {% if availableTags.size > 0 %}
+                <div class="tcm-tag-suggestions" style="margin-top:3px;">
+                    {% for tg in availableTags %}
+                    <span class="kb-tag" onclick="kbCrtAddTag(this.textContent)">{{ tg.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </td>
+        </tr>
+        <tr>
             <td colspan="5" style="padding-top:4px;padding-bottom:2px;">
                 <button type="button" class="btn btn-xs btn-default" onclick="kbCrtPickAtt()"
                     style="font-size:11px;">&#128206; Прикрепить объект</button>
@@ -210,6 +226,17 @@
                 <div class="kb-card-title">{{ t.title }}</div>
                 {% if t.details != "" %}
                 <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
+                {% endif %}
+                {% if t.tags != "" %}
+                <div class="kb-card-tags">
+                    {% assign tagList = t.tags | split: "," %}
+                    {% for tag in tagList %}
+                    <span class="kb-tag">{{ tag | strip }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if t.isOverdue == "1" %}
+                <div class="kb-overdue">Просрочено (до {{ t.dueDate }})</div>
                 {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
@@ -261,6 +288,17 @@
                 {% if t.details != "" %}
                 <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
                 {% endif %}
+                {% if t.tags != "" %}
+                <div class="kb-card-tags">
+                    {% assign tagList = t.tags | split: "," %}
+                    {% for tag in tagList %}
+                    <span class="kb-tag">{{ tag | strip }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if t.isOverdue == "1" %}
+                <div class="kb-overdue">Просрочено (до {{ t.dueDate }})</div>
+                {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
                     до {{ t.dueDate }}
@@ -310,6 +348,17 @@
                 <div class="kb-card-title">{{ t.title }}</div>
                 {% if t.details != "" %}
                 <div class="kb-card-details" data-full="{{ t.details }}">{{ t.details }}</div>
+                {% endif %}
+                {% if t.tags != "" %}
+                <div class="kb-card-tags">
+                    {% assign tagList = t.tags | split: "," %}
+                    {% for tag in tagList %}
+                    <span class="kb-tag">{{ tag | strip }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if t.isOverdue == "1" %}
+                <div class="kb-overdue">Просрочено (до {{ t.dueDate }})</div>
                 {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
@@ -440,6 +489,7 @@
             <button type="button" class="tcm-close" onclick="tcmClose()" title="Закрыть">&#215;</button>
         </div>
         <div class="tcm-body">
+            <div id="tcm-overdue" class="kb-overdue" style="display:none;margin:0 0 8px;"></div>
             <input type="hidden" id="tcm-key">
             <div class="tcm-fg">
                 <label class="tcm-lbl">Название</label>
@@ -473,8 +523,13 @@
             </div>
             <div class="tcm-fg">
                 <label class="tcm-lbl">Описание</label>
-                <textarea id="tcm-details" class="form-control"
-                    style="min-height:52px;resize:vertical;font-size:12px;"></textarea>
+                <textarea id="tcm-details" class="form-control"></textarea>
+            </div>
+            <div class="tcm-fg">
+                <label class="tcm-lbl">Теги (НИОКР)</label>
+                <input type="text" id="tcm-tags" class="form-control input-sm"
+                    style="font-size:12px;" placeholder="Через запятую...">
+                <div id="tcm-tag-suggestions" class="tcm-tag-suggestions"></div>
             </div>
             <div class="tcm-meta" id="tcm-meta"></div>
             <div class="tcm-msg tcm-msg-ok" id="tcm-msg-ok">Сохранено!</div>
