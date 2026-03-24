@@ -41,12 +41,11 @@
 <p><strong>Файл:</strong> <code>SOYUZ_UPLOAD_KanbanTask_script.cs</code>
 <strong>Тип:</strong> C# скрипт шаблона объекта PLM</p>
 <h2 id="section">Назначение</h2>
-<p>Скрипт шаблона объекта «Задача канбан-доски». Обрабатывает AJAX-запросы, связанные с конкретной задачей:</p>
+<p>Скрипт шаблона объекта «Задача канбан-доски». Обрабатывает:</p>
 <ul>
-<li>Получение/сохранение карточки задачи</li>
-<li>Управление комментариями (чат)</li>
-<li>Управление вложениями (привязка объектов PLM)</li>
-<li>История изменений (ревизии)</li>
+<li>Уведомления при назначении задачи (OnBeforeSave → WorkItem ExclamationKanban)</li>
+<li>Сброс SeenByList при смене исполнителя (для бейджа «НОВАЯ»)</li>
+<li>AJAX-запросы: CRUD задачи, комментарии, вложения, история</li>
 </ul>
 <h2 id="kanbantask-1">Атрибуты шаблона KanbanTask</h2>
 <div class="table-wrap"><table>
@@ -113,8 +112,22 @@
 <td>text (JSON)</td>
 <td>JSON-массив привязанных объектов</td>
 </tr>
+<tr>
+<td><code>SeenByList</code></td>
+<td>string</td>
+<td>Ключи пользователей, просмотревших задачу (через запятую)</td>
+</tr>
 </tbody>
 </table></div>
+<h2 id="notifications">Уведомления (OnBeforeSave)</h2>
+<p>При смене исполнителя (Assignee) скрипт:</p>
+<ol>
+<li>Сравнивает нового исполнителя с сохранённым (<code>PersistedValue</code>)</li>
+<li>Если исполнитель изменился и это не самоназначение — создаёт <code>WorkItem</code> из шаблона <code>ExclamationKanban</code></li>
+<li>Очищает <code>SeenByList</code> — новый исполнитель увидит бейдж «НОВАЯ» на доске</li>
+<li>В Subject передаёт: название задачи, имя отправителя (в родительном падеже), приоритет</li>
+</ol>
+<p><strong>Шаблон уведомления:</strong> <code>WorkLoads\BASIC\Message\ExclamationKanban</code> — кастомный дубликат Exclamation с RTF-форматированием и кликабельной ссылкой на доску.</p>
 <h2 id="ajax">AJAX-обработчики</h2>
 <h3 id="getcard"><code>getCard</code> — Получение данных карточки</h3>
 <pre><code>Параметры: taskId
