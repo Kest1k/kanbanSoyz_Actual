@@ -662,13 +662,16 @@ private object BuildCardData( InfoObject task, int status )
     // Инициалы скрываем если текущий пользователь является исполнителем (isSelf)
     var isOwner  = "0";
     var initials = GetInitials( assigneeName );
+    User curUser = null;
+    string creatorKey = "";
+    string curKey = "";
     try
     {
-        var curUser    = Service.GetCurrentUser();
-        var creatorKey = task.GetString( "Creator" ) ?? "";
+        curUser    = Service.GetCurrentUser();
+        creatorKey = task.GetString( "Creator" ) ?? "";
         if( curUser != null )
         {
-            var curKey = string.IsNullOrEmpty( curUser.NameKey ) ? curUser.AccountId : curUser.NameKey;
+            curKey = string.IsNullOrEmpty( curUser.NameKey ) ? curUser.AccountId : curUser.NameKey;
             if( !string.IsNullOrEmpty( creatorKey ) && creatorKey == curKey )
                 isOwner = "1";
             else if( string.IsNullOrEmpty( creatorKey ) )
@@ -699,6 +702,22 @@ private object BuildCardData( InfoObject task, int status )
     }
     catch { }
 
+    // Бейдж «НОВАЯ»: задача не в «Готово»/«Ожидание», создана другим, текущий не в SeenByList
+    var isNew = "0";
+    if( status < 2 )
+    {
+        try
+        {
+            if( !string.IsNullOrEmpty( curKey ) && creatorKey != curKey )
+            {
+                var seenBy = task.GetString( "SeenByList" ) ?? "";
+                if( seenBy.IndexOf( curKey ) < 0 )
+                    isNew = "1";
+            }
+        }
+        catch { }
+    }
+
     return new {
         id              = taskId,
         isOwner         = isOwner,
@@ -714,7 +733,8 @@ private object BuildCardData( InfoObject task, int status )
         attachmentCount = GetAttachmentCount( task ),
         commentCount    = GetCommentCount( task ),
         tags            = HtmlEnc( tags ),
-        isOverdue       = isOverdue
+        isOverdue       = isOverdue,
+        isNew           = isNew
     };
 }
 
@@ -1326,6 +1346,24 @@ private object DoGetTaskDetails( object inputParams )
     }
     catch { }
     tSb.Append( "]" );
+
+    // Пометить задачу как просмотренную (убирает бейдж «НОВАЯ» при следующем рендере)
+    try
+    {
+        var curUser2 = Service.GetCurrentUser();
+        if( curUser2 != null )
+        {
+            var ck = string.IsNullOrEmpty( curUser2.NameKey ) ? curUser2.AccountId : curUser2.NameKey;
+            var seenBy = task.GetString( "SeenByList" ) ?? "";
+            if( !string.IsNullOrEmpty( ck ) && seenBy.IndexOf( ck ) < 0 )
+            {
+                var editable = task.GetEditable();
+                editable["SeenByList"] = string.IsNullOrEmpty( seenBy ) ? ck : seenBy + "," + ck;
+                editable.Save();
+            }
+        }
+    }
+    catch { }
 
     var sb = new System.Text.StringBuilder();
     sb.Append( "{" );

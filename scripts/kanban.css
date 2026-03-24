@@ -1380,6 +1380,41 @@
         z-index: 2;
     }
 
+    /* ── Бейдж «НОВАЯ» для непросмотренных задач ──────────────── */
+    .kb-card-new {
+        border-left: 4px solid #3b82f6;
+        background: #f0f7ff;
+        padding-top: 20px;
+        -webkit-animation: newGlow 3s ease-in-out infinite;
+        animation: newGlow 3s ease-in-out infinite;
+    }
+
+    .kb-new-badge {
+        position: absolute;
+        top: 0;
+        left: 0;
+        background: #3b82f6;
+        color: #fff;
+        font-size: 9px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 6px 0 6px 0;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        z-index: 2;
+    }
+
+    @-webkit-keyframes newGlow {
+        0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.25); }
+        70%  { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+        100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
+    @keyframes newGlow {
+        0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.25); }
+        70%  { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+        100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
+
     .kb-card.pri-urgent {
         padding-top: 22px;
         min-height: 62px;
@@ -1677,3 +1712,160 @@
 
 /* ── Скрытие элементов ── */
     .kb-hidden { display: none !important; }
+
+/* ── Справка / Help overlay ── */
+    .help-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(15,23,42,0.45);
+        z-index: 10002;
+    }
+    .help-overlay.visible { display: block; }
+
+    .help-dialog {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 12px 48px rgba(0,0,0,0.22);
+        width: 660px;
+        max-width: 95%;
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        margin-left: -330px;
+        bottom: 24px;
+        display: -ms-flexbox;
+        display: flex;
+        -ms-flex-direction: column;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .help-header {
+        display: -ms-flexbox;
+        display: flex;
+        -ms-flex-align: center;
+        align-items: center;
+        -ms-flex-pack: justify;
+        justify-content: space-between;
+        padding: 12px 20px;
+        border-bottom: 2px solid #eef1f5;
+        background: #f0f5ff;
+        -ms-flex-negative: 0;
+        flex-shrink: 0;
+    }
+
+    .help-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #1a1a2e;
+    }
+    .help-title i { color: #4a6fa5; margin-right: 6px; }
+
+    .help-body {
+        padding: 16px 24px 10px;
+        overflow-y: auto;
+        -ms-flex: 1 1 auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        /* IE11 */
+        scrollbar-face-color:       #c8cdd3;
+        scrollbar-track-color:      #fff;
+        scrollbar-arrow-color:      #fff;
+        scrollbar-shadow-color:     #c8cdd3;
+        scrollbar-highlight-color:  #c8cdd3;
+        scrollbar-3dlight-color:    #fff;
+        scrollbar-darkshadow-color: #fff;
+    }
+    .help-body::-webkit-scrollbar { width: 5px; }
+    .help-body::-webkit-scrollbar-track { background: transparent; }
+    .help-body::-webkit-scrollbar-thumb { background: #c8cdd3; border-radius: 10px; }
+    .help-body::-webkit-scrollbar-thumb:hover { background: #a0a8b2; }
+
+    .help-footer {
+        padding: 10px 20px;
+        border-top: 2px solid #eef1f5;
+        text-align: center;
+        background: #fafbfc;
+        -ms-flex-negative: 0;
+        flex-shrink: 0;
+    }
+
+    .help-section {
+        margin-bottom: 18px;
+    }
+
+    .help-section-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1a1a2e;
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        border-bottom: 2px solid #e0edff;
+    }
+
+    .help-section p {
+        font-size: 13px;
+        color: #475569;
+        line-height: 1.5;
+        margin: 0;
+    }
+
+    .help-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .help-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #f3f4f6;
+        vertical-align: top;
+        color: #475569;
+        line-height: 1.4;
+    }
+    .help-table tr:last-child td { border-bottom: none; }
+
+    .help-status {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .help-prio {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        color: #fff;
+        text-align: center;
+        line-height: 18px;
+        font-size: 11px;
+        font-weight: 700;
+        margin-right: 4px;
+        vertical-align: middle;
+    }
+
+    .help-action {
+        font-weight: 600;
+        color: #1a1a2e !important;
+        white-space: nowrap;
+        min-width: 140px;
+    }
+    .help-action i {
+        color: #4a6fa5;
+        margin-right: 4px;
+        width: 14px;
+        text-align: center;
+    }
+
+    .help-tips {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 12px;
+        color: #475569;
+        line-height: 1.7;
+    }
+    .help-tips li { margin-bottom: 2px; }

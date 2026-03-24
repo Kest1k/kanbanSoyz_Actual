@@ -12,6 +12,12 @@
     <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a></li>
     <li><a href="#" onclick="openReport(); return false;"><i class="fa fa-bar-chart fa-fw"></i> Отчёт</a></li>
 </ul>
+<div style="position:absolute;right:20px;top:8px;">
+    <button type="button" onclick="openHelp()" style="padding:5px 14px;font-size:12px;font-weight:600;
+        height:30px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#4a6fa5;cursor:pointer;">
+        <i class="fa fa-question-circle fa-fw"></i> Справка
+    </button>
+</div>
 <!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
 <div id="kb-hier-panel" style="display:none; float:left; margin-left:16px; margin-top:8px;">
     <button type="button" id="kb-btn-my" onclick="kbSetMyMode()" style="padding:5px 12px; font-size:12px; font-weight:600;
@@ -213,8 +219,11 @@
         </div>
         <div class="kb-col-body" id="kb-body-0">
             {% for t in col_0 %}
-            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+            <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
                 ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+                {% if t.isNew == "1" %}
+                <span class="kb-new-badge">НОВАЯ</span>
+                {% endif %}
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
                 {% endif %}
@@ -275,8 +284,11 @@
         </div>
         <div class="kb-col-body" id="kb-body-1">
             {% for t in col_1 %}
-            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+            <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
                 ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+                {% if t.isNew == "1" %}
+                <span class="kb-new-badge">НОВАЯ</span>
+                {% endif %}
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
                 {% endif %}
@@ -572,6 +584,124 @@
             <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmClose()">Отмена</button>
             <button type="button" id="tcm-btn-del" class="tcm-btn tcm-btn-danger" onclick="tcmDelete()"
                 style="display:none;">Удалить</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Справка / Инструкция ── -->
+<div id="helpOverlay" class="help-overlay">
+    <div class="help-dialog">
+        <div class="help-header">
+            <span class="help-title"><i class="fa fa-question-circle"></i> Как пользоваться канбан-доской</span>
+            <button type="button" class="tcm-close" onclick="closeHelp()" title="Закрыть">&#215;</button>
+        </div>
+        <div class="help-body">
+
+            <div class="help-section">
+                <div class="help-section-title">Что такое канбан-доска?</div>
+                <p>Канбан-доска — это наглядный инструмент управления задачами. Все задачи отображаются
+                   в виде карточек, распределённых по колонкам в зависимости от их состояния.
+                   Вы всегда видите, что нужно сделать, что в работе и что уже выполнено.</p>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Колонки (статусы задач)</div>
+                <table class="help-table">
+                    <tr>
+                        <td><span class="help-status" style="background:#e0edff;color:#2563eb;">Надо сделать</span></td>
+                        <td>Новые задачи, к которым ещё не приступали</td>
+                    </tr>
+                    <tr>
+                        <td><span class="help-status" style="background:#fff3e0;color:#d97706;">В работе</span></td>
+                        <td>Задачи, которые сейчас выполняются</td>
+                    </tr>
+                    <tr>
+                        <td><span class="help-status" style="background:#fce4ec;color:#be185d;">Ожидание</span></td>
+                        <td>Задача ожидает действий от других: ответ, согласование, материалы</td>
+                    </tr>
+                    <tr>
+                        <td><span class="help-status" style="background:#dcfce7;color:#16a34a;">Готово</span></td>
+                        <td>Задача выполнена</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Приоритеты</div>
+                <table class="help-table">
+                    <tr><td><span class="help-prio" style="background:#dc2626;">!</span> Сверхсрочный</td><td>Требует немедленного выполнения. Карточка подсвечивается красным</td></tr>
+                    <tr><td><span class="help-prio" style="background:#f59e0b;">!</span> Срочный</td><td>Высокий приоритет, выполнять в первую очередь</td></tr>
+                    <tr><td><span class="help-prio" style="background:#6b7280;">&#8226;</span> Средний</td><td>Обычная задача (по умолчанию)</td></tr>
+                    <tr><td><span class="help-prio" style="background:#22c55e;">&#8226;</span> Низкий</td><td>Можно сделать, когда появится время</td></tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Основные действия</div>
+                <table class="help-table">
+                    <tr>
+                        <td class="help-action"><i class="fa fa-plus"></i> Создать задачу</td>
+                        <td>Нажмите <b>«Новая задача»</b> в верхнем меню. Заполните название, выберите приоритет, срок и исполнителя. Нажмите <b>«Создать»</b></td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-arrows"></i> Переместить</td>
+                        <td>Зажмите карточку левой клавишей мыши (ЛКМ) и перетащите в нужную колонку. Например, из «Надо сделать» в «В работе», когда начинаете выполнять задачу</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-pencil"></i> Открыть карточку</td>
+                        <td>Нажмите два раза ЛКМ на карточку, чтобы увидеть подробности, оставить комментарий или прикрепить документ</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-paperclip"></i> Вложения</td>
+                        <td>Внутри карточки можно прикрепить <b>объект</b> (чертёж, 3D-модель, документ, информационный объект) кнопкой <b>«+ Прикрепить объект»</b> или <b>контейнер</b> (папку, проект) кнопкой <b>«+ Прикрепить папку/проект»</b></td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-comment"></i> Комментарии</td>
+                        <td>Внутри карточки есть раздел <b>«Обсуждение»</b> — напишите сообщение и нажмите <b>«Отправить»</b> (или Ctrl+Enter). Свои комментарии можно удалить</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-trash"></i> Удалить задачу</td>
+                        <td>Удалить можно только свои задачи. Быстрый способ: наведите на карточку и нажмите <b>&#215;</b> в правом верхнем углу. Или откройте карточку и нажмите <b>«Удалить»</b> внизу</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Для руководителей</div>
+                <table class="help-table">
+                    <tr>
+                        <td class="help-action">Назначить задачу</td>
+                        <td>При создании задачи снимите галочку <b>«Сам себе»</b> и выберите сотрудника из списка</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Групповая задача</td>
+                        <td>Выберите режим <b>«Нескольким»</b> и отметьте галочками нужных сотрудников — каждый получит свою копию задачи</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Просмотр подчинённых</td>
+                        <td>Используйте фильтры в верхней панели, чтобы видеть задачи конкретного сотрудника, сектора или всех</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Отчёт</td>
+                        <td>Нажмите <b>«Отчёт»</b> — увидите сводку по задачам за период: сколько создано, выполнено, просрочено</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Полезные подсказки</div>
+                <ul class="help-tips">
+                    <li>Просроченные задачи отображаются <span style="color:#dc2626;font-weight:600;">красным цветом</span> — обратите на них внимание</li>
+                    <li>К задаче можно добавить <b>теги</b> для группировки (например, название проекта или направления)</li>
+                    <li>Все изменения в задаче записываются в <b>«Историю изменений»</b> — всегда видно, кто и когда что менял</li>
+                    <li>При назначении задачи другому сотруднику ему приходит <b>уведомление</b> в системе</li>
+                    <li>Обновляйте статус задачи вовремя — это помогает коллегам и руководителям видеть реальную картину</li>
+                </ul>
+            </div>
+
+        </div>
+        <div class="help-footer">
+            <button type="button" class="tcm-btn tcm-btn-primary" onclick="closeHelp()">Понятно!</button>
         </div>
     </div>
 </div>

@@ -3,11 +3,11 @@
 // Формат уведомления: «Новая задача «TaskName» от Иванова С.А.»
 //
 // Требования в PLM:
-//   WorkLoad-шаблон: WorkLoads\BASIC\Message\Exclamation
+//   WorkLoad-шаблон: WorkLoads\BASIC\Message\ExclamationKanban
 //   Атрибуты KanbanTask: Assignee (Reference → User), TaskName (String)
 // ═══════════════════════════════════════════════════════════════════════
 
-private const string MSG_TEMPLATE_PATH = @"WorkLoads\BASIC\Message\Exclamation";
+private const string MSG_TEMPLATE_PATH = @"WorkLoads\BASIC\Message\ExclamationKanban";
 
 public override void OnBeforeSave( InfoObject obj )
 {
@@ -59,10 +59,19 @@ private void CheckAssigneeChanged( InfoObject obj )
     var taskName   = obj.GetString( "TaskName" ) ?? obj.ToString();
     var senderName = FormatSenderName( currentUser );
 
+    // Собираем информативную строку: только приоритет
+    var extra = "";
+    var prio = ( obj.GetString( "Priority" ) ?? "" ).Trim();
+    if( prio == "urgent" )      extra += " | \u26a0 \u0421\u0440\u043e\u0447\u043d\u0430\u044f";
+    else if( prio == "high" )   extra += " | \u0412\u044b\u0441\u043e\u043a\u0438\u0439 \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442";
+
+    // Сбросить список «видевших» — новый исполнитель увидит бейдж «НОВАЯ»
+    try { obj["SeenByList"] = ""; } catch { }
+
     var w = new WorkItem( msgTemplate, newAssignee );
     w[ "Subject" ] = string.IsNullOrEmpty( senderName )
-        ? "Новая задача: " + taskName
-        : "Новая задача \u00ab" + taskName + "\u00bb \u043e\u0442 " + senderName;
+        ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430: " + taskName + extra
+        : "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430 \u00ab" + taskName + "\u00bb \u043e\u0442 " + senderName + extra;
     w.StatusOperation = WorkItemBase.StatusEnum.Sent;
 }
 

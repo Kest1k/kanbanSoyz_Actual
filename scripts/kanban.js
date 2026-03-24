@@ -214,6 +214,13 @@
         };
 
         window.kbOpenTask = function (taskId) {
+            // Убираем бейдж «НОВАЯ» сразу при открытии (не ждём рефреш доски)
+            var cardEl = document.getElementById("kbc_" + taskId);
+            if (cardEl) {
+                cardEl.className = cardEl.className.replace(/\bkb-card-new\b/g, "");
+                var badge = cardEl.querySelector(".kb-new-badge");
+                if (badge && badge.parentNode) badge.parentNode.removeChild(badge);
+            }
             tcmOpen(taskId);
         };
 
@@ -1882,6 +1889,17 @@
             _detailsTA.attachEvent("onpropertychange", function () { tcmAutoResize(_detailsTA); });
         }
     }
+
+    // ── Справка ──────────────────────────────────────────────────────────
+    window.openHelp = function () {
+        var overlay = document.getElementById("helpOverlay");
+        if (overlay) overlay.className = "help-overlay visible";
+    };
+
+    window.closeHelp = function () {
+        var overlay = document.getElementById("helpOverlay");
+        if (overlay) overlay.className = "help-overlay";
+    };
 
     // Вызов после того, как все функции определены
     kbInitHierarchy();
