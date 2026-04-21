@@ -37,32 +37,47 @@
             </aside>
 
             <article class="article-card">
-<h1 id="section">Канбан-доска — Общий обзор проекта</h1>
-<h2 id="section-1">Назначение</h2>
-<p>Канбан-доска — веб-модуль системы <strong>SOYUZ PLM</strong>, реализующий управление задачами в формате Kanban.
-Работает внутри PLM-платформы: серверная часть на <strong>C# (Scriban-шаблоны)</strong>, клиентская — <strong>vanilla JS + CSS</strong>, совместимые с <strong>IE11</strong>.</p>
-<h2 id="section-2">Архитектура</h2>
-<pre><code>┌─────────────────────────────────────────────────────────┐
-│  Браузер (IE11+)                                        │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │ HTML (Liquid/ │  │  kanban.js   │  │  kanban.css   │  │
-│  │  Scriban)     │  │  (клиент)    │  │  (стили)      │  │
-│  └──────┬───────┘  └──────┬───────┘  └───────────────┘  │
-│         │                 │                              │
-│         │    AJAX (XMLHttpRequest)                       │
-│         ▼                 ▼                              │
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  PLM Server  (C# + Scriban)                     │    │
-│  │  ┌──────────────────┐  ┌──────────────────────┐ │    │
-│  │  │ KanbanScreen     │  │ KanbanTask           │ │    │
-│  │  │ (серверный скрипт│  │ (скрипт шаблона      │ │    │
-│  │  │  экрана)         │  │  задачи)             │ │    │
-│  │  └──────────────────┘  └──────────────────────┘ │    │
-│  └─────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────┘
-</code></pre>
-<h2 id="section-3">Файлы проекта</h2>
-<div class="table-wrap"><table>
+<h1 id="канбан-доска-общий-обзор-проекта">Канбан-доска — Общий обзор
+проекта</h1>
+<h2 id="назначение">Назначение</h2>
+<p>Канбан-доска — встроенный модуль <strong>SOYUZ PLM / BIS v3</strong>
+для постановки, исполнения и контроля задач в формате Kanban. Работает
+внутри клиента Союза: серверная часть реализована на <strong>C#
+scripting</strong>, клиентская — на <strong>vanilla JS + CSS</strong>,
+совместимых с <strong>IE11</strong>.</p>
+<h2 id="архитектура">Архитектура</h2>
+<pre class="text"><code>┌──────────────────────────────────────────────────────────────┐
+│ Клиент Союз (WebBrowser / IE11)                             │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐ │
+│  │ HTML + Liquid  │  │   kanban.js    │  │   kanban.css   │ │
+│  │ шаблон экрана  │  │ клиентская UX  │  │ стили и layout │ │
+│  └───────┬────────┘  └───────┬────────┘  └────────────────┘ │
+│          │                   │                               │
+│          └──── window.external.InvokeTemplate() ───────────┐ │
+└────────────────────────────────────────────────────────────│─┘
+                                                             ▼
+┌──────────────────────────────────────────────────────────────┐
+│ SOYUZ PLM server                                             │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ SOYUZ_UPLOAD_KanbanScreen_script.cs                   │  │
+│  │ Роли, иерархия, CRUD задач, отчёты, вложения, чат     │  │
+│  └────────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ SOYUZ_UPLOAD_KanbanTask_script.cs                     │  │
+│  │ OnBeforeSave, уведомления, сервисная логика шаблона   │  │
+│  └────────────────────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────────────────────┐  │
+│  │ kanbanButton.cs (optional)                            │  │
+│  │ Команда кнопки, открывающей экран myKanbanTest        │  │
+│  └────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────┘</code></pre>
+<h2 id="файлы-проекта">Файлы проекта</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 23%" />
+<col style="width: 47%" />
+</colgroup>
 <thead>
 <tr>
 <th>Файл</th>
@@ -74,83 +89,147 @@
 <tr>
 <td><code>SOYUZ_UPLOAD_KanbanScreen_script.cs</code></td>
 <td>C# серверный скрипт</td>
-<td>Главный серверный скрипт экрана: загрузка задач, фильтрация, AJAX-обработчики</td>
+<td>Главный backend экрана: рендер, роли, фильтрация, операции с
+задачами</td>
 </tr>
 <tr>
 <td><code>SOYUZ_UPLOAD_KanbanTask_script.cs</code></td>
 <td>C# скрипт шаблона</td>
-<td>Скрипт шаблона объекта «Задача»: CRUD, комментарии, вложения, отчёт</td>
+<td>Логика шаблона <code>KanbanTask</code>, уведомления и
+<code>OnBeforeSave</code></td>
+</tr>
+<tr>
+<td><code>kanbanButton.cs</code></td>
+<td>C# скрипт команды</td>
+<td>Optional-скрипт кнопки, открывающей экран
+<code>UI\Screens\myKanbanTest</code></td>
 </tr>
 <tr>
 <td><code>kanban.js</code></td>
-<td>JavaScript (IE11-совместимый)</td>
-<td>Клиентская логика: drag-and-drop, календарь, модалки, AJAX-вызовы</td>
+<td>JavaScript (IE11)</td>
+<td>Клиентская логика: drag-and-drop, модалки, создание, отчёты,
+вложения</td>
 </tr>
 <tr>
 <td><code>kanban.css</code></td>
-<td>CSS (IE11-совместимый)</td>
-<td>Стили: доска, карточки, модалки, панели, анимации</td>
+<td>CSS</td>
+<td>Визуальная часть доски, карточек, модалок, календаря и отчёта</td>
 </tr>
 <tr>
 <td><code>KanbanBoard_HTML.html</code></td>
-<td>HTML (Scriban/Liquid)</td>
-<td>Разметка страницы: доска, панель создания, модалки отчёта и карточки</td>
+<td>HTML + Liquid</td>
+<td>Разметка экрана, server-side bindings и вызовы JS</td>
 </tr>
 </tbody>
-</table></div>
-<h2 id="section-4">Ключевые сущности</h2>
-<h3 id="kanbantask">Задача (KanbanTask)</h3>
+</table>
+<h2 id="ключевые-сущности">Ключевые сущности</h2>
+<h3 id="задача-kanbantask">Задача (<code>KanbanTask</code>)</h3>
 <ul>
-<li><strong>Статус</strong> (колонка): 0 = «Надо сделать», 1 = «В работе», 2 = «Ожидание», 3 = «Готово»</li>
-<li><strong>Приоритет</strong>: <code>low</code>, <code>medium</code>, <code>high</code>, <code>urgent</code></li>
-<li><strong>Поля</strong>: название, описание, срок, исполнитель, создатель, дата создания, дата завершения, теги</li>
-<li><strong>Связи</strong>: вложения (объекты/папки PLM), комментарии</li>
-<li><strong>SeenByList</strong>: строка с ключами пользователей, просмотревших задачу (для бейджа «НОВАЯ»)</li>
+<li><strong>Статус</strong>: <code>Todo</code>, <code>InProgress</code>,
+<code>Waiting</code>, <code>Done</code></li>
+<li><strong>Приоритет</strong>: <code>low</code>, <code>medium</code>,
+<code>high</code>, <code>urgent</code></li>
+<li><strong>Поля</strong>: название, описание, срок, исполнитель,
+создатель, дата завершения, теги</li>
+<li><strong>Связи</strong>: объекты PLM, контейнеры PLM, комментарии,
+история изменений</li>
+<li><strong>Доп. признаки</strong>: просрочка, бейдж «НОВАЯ», ownership
+для удаления/полного редактирования</li>
 </ul>
-<h3 id="section-5">Роли и иерархия</h3>
+<h3 id="роли-и-иерархия">Роли и иерархия</h3>
 <ul>
-<li><strong>Обычный пользователь</strong> — видит только свои задачи</li>
-<li><strong>Начальник сектора</strong> — видит задачи своего сектора</li>
-<li><strong>Начальник отделения</strong> — видит задачи отделения</li>
-<li><strong>Начальник отдела</strong> — видит все задачи</li>
+<li><strong><code>regular</code></strong> — видит только свои
+задачи</li>
+<li><strong><code>leadEngineer</code></strong> — роль ведущего инженера;
+определяется по <code>Commission.NameKey</code>, начинающемуся с
+<code>ved</code>, и работает в рамках своего сектора</li>
+<li><strong><code>headOfSector</code></strong> — руководитель сектора,
+секторный scope</li>
+<li><strong><code>headOfDept</code></strong> — руководитель отделения,
+scope отделения</li>
+<li><strong><code>admin</code></strong> — полный организационный
+scope</li>
 </ul>
-<p>Иерархия определяется через PLM-роли: <code>КанбанНачОтдела</code>, <code>КанбанНачОтделения</code>, <code>КанбанНачСектора</code>.</p>
-<h3 id="section-6">Режимы просмотра</h3>
+<p>Роль вычисляется не по общим PLM-ролям, а по связке пользовательских
+атрибутов: - <code>Commission</code> — определяет тип должности -
+<code>Context</code> — определяет организационный контекст
+(<code>510кт</code>, <code>600кт</code> и т.д.)</p>
+<h2 id="режимы-просмотра">Режимы просмотра</h2>
 <ul>
-<li><strong>«Мои задачи»</strong> — задачи текущего пользователя (по умолчанию)</li>
-<li><strong>«Все задачи»</strong> — доступен руководителям, с фильтрами по отделению/сектору/сотруднику</li>
+<li><strong><code>my</code></strong> — только мои задачи</li>
+<li><strong><code>all</code></strong> — все задачи, только для
+<code>admin</code></li>
+<li><strong><code>dept</code></strong> — всё отделение, для
+<code>headOfDept</code></li>
+<li><strong><code>sector</code></strong> — весь сектор, для
+<code>headOfSector</code> и <code>leadEngineer</code></li>
+<li><strong><code>user:KEY</code></strong> — задачи конкретного
+сотрудника</li>
+<li><strong><code>group:CTX</code></strong> — задачи
+группы/подразделения по <code>Context</code></li>
 </ul>
-<h2 id="section-7">Основные функции</h2>
-<ol>
-<li><strong>Создание задач</strong> — панель с полями: название, статус, приоритет, срок, описание, исполнитель</li>
-<li><strong>Групповое создание</strong> — одна задача нескольким исполнителям одновременно</li>
-<li><strong>Drag-and-drop</strong> — перетаскивание карточек между колонками (смена статуса)</li>
-<li><strong>Карточка задачи</strong> — модальное окно с редактированием всех полей</li>
-<li><strong>Комментарии</strong> — чат внутри карточки задачи</li>
-<li><strong>Вложения</strong> — привязка объектов и папок PLM к задаче</li>
-<li><strong>Отчёт</strong> — сводка по задачам с фильтрами по периоду и области</li>
-<li><strong>Сверхсрочные задачи</strong> — особый приоритет <code>urgent</code> с пульсирующей анимацией</li>
-<li><strong>Просроченные задачи</strong> — визуальная подсветка задач с истёкшим сроком</li>
-<li><strong>Уведомления</strong> — всплывающее RTF-уведомление при назначении задачи (шаблон <code>ExclamationKanban</code>) с кликабельной ссылкой на доску</li>
-<li><strong>Бейдж «НОВАЯ»</strong> — синий индикатор на карточках, назначенных другим пользователем и ещё не просмотренных; исчезает при открытии карточки</li>
-<li><strong>Справка</strong> — модальное окно с инструкцией для пользователей</li>
+<p>Текущий режим хранится в
+<code>obj.PropertyBag["KbViewMode"]</code>.</p>
+<h2 id="основные-функции">Основные функции</h2>
+<ol type="1">
+<li><strong>Создание задач</strong> — одиночная постановка себе или
+сотруднику в разрешённом scope.</li>
+<li><strong>Групповое создание</strong> — отдельная задача каждому
+выбранному исполнителю.</li>
+<li><strong>Drag &amp; drop</strong> — изменение статуса карточек между
+колонками.</li>
+<li><strong>Карточка задачи</strong> — редактирование, история, чат,
+вложения.</li>
+<li><strong>Комментарии</strong> — обсуждение внутри задачи.</li>
+<li><strong>Вложения</strong> — привязка объектов и контейнеров
+PLM.</li>
+<li><strong>Отчёт</strong> — статистика по периоду и текущему
+scope.</li>
+<li><strong>Серверная проверка назначения</strong> — backend не
+позволяет назначить задачу вне допустимого подразделения даже при обходе
+UI.</li>
+<li><strong>Кнопка открытия доски</strong> — отдельный скрипт команды
+для перехода на экран канбана.</li>
 </ol>
-<h2 id="section-8">Технические ограничения</h2>
+<h2 id="технические-ограничения">Технические ограничения</h2>
 <ul>
-<li><strong>IE11</strong>: нет CSS Grid, нет <code>var()</code>, нет <code>fetch()</code>, нет стрелочных функций, нет <code>let</code>/<code>const</code></li>
-<li>Все стили с <code>-ms-</code> и <code>-webkit-</code> префиксами</li>
-<li>AJAX через <code>XMLHttpRequest</code></li>
-<li>Шаблонизация через Scriban (Liquid-совместимый синтаксис)</li>
+<li><strong>IE11 / WebBrowser</strong>: без <code>fetch</code>,
+<code>Promise</code>, <code>let</code>, <code>const</code>, стрелочных
+функций и современных DOM API</li>
+<li>Bridge клиент ↔︎ сервер:
+<code>window.external.InvokeTemplate()</code></li>
+<li>HTML-шаблон рендерится на сервере через Liquid / DotLiquid</li>
+<li>В C#-скриптах Союза используются только реальные API платформы;
+вымышленные методы недопустимы</li>
 </ul>
-<h2 id="section-9">Взаимодействие компонентов</h2>
-<pre><code>Пользователь → HTML (клик/drag) → kanban.js → AJAX → KanbanScreen/KanbanTask (C#) → PLM API → БД
-                                                  ↓
-                                            JSON-ответ → kanban.js → DOM-обновление
-</code></pre>
-<p>Серверные скрипты обрабатывают AJAX-запросы через параметр <code>ajaxAction</code>:</p>
+<h2 id="взаимодействие-компонентов">Взаимодействие компонентов</h2>
+<pre class="text"><code>Пользователь
+  → HTML / onclick / drag events
+  → kanban.js
+  → window.external.InvokeTemplate(methodName, params)
+  → SOYUZ_UPLOAD_KanbanScreen_script.cs
+  → PLM API / контейнеры / шаблоны / пользователи
+  → строка / JSON
+  → kanban.js
+  → обновление DOM или RefreshBoard</code></pre>
+<h2 id="ключевые-серверные-команды">Ключевые серверные команды</h2>
 <ul>
-<li><code>KanbanScreen</code>: <code>moveTask</code>, <code>deleteTask</code>, <code>createTask</code>, <code>getReport</code>, <code>getHierarchy</code>, <code>getUsers</code>, <code>getTaskCard</code>, <code>searchObjects</code></li>
-<li><code>KanbanTask</code>: <code>getCard</code>, <code>saveCard</code>, <code>deleteCard</code>, <code>getComments</code>, <code>addComment</code>, <code>deleteComment</code>, <code>getAttachments</code>, <code>addAttachment</code>, <code>removeAttachment</code>, <code>getRevisions</code></li>
+<li><code>MoveTask</code></li>
+<li><code>CreateTask</code></li>
+<li><code>CreateGroupTask</code></li>
+<li><code>DeleteTask</code></li>
+<li><code>RefreshBoard</code></li>
+<li><code>GetHierarchyInfo</code></li>
+<li><code>SetViewMode</code></li>
+<li><code>GetReport</code></li>
+<li><code>GetTaskDetails</code></li>
+<li><code>SaveTask</code></li>
+<li><code>GetComments</code>, <code>AddComment</code>,
+<code>DeleteComment</code></li>
+<li><code>GetAttachments</code>, <code>AddAttachment</code>,
+<code>RemoveAttachment</code></li>
+<li><code>PickObjects</code>, <code>PickContainers</code>,
+<code>SearchObjects</code></li>
 </ul>
 
             </article>

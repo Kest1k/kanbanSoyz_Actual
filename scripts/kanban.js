@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
 
         // ── Adjust board height when create panel toggles ────────────────────
         function boardAdjust() {
@@ -540,7 +540,7 @@
     }
 
     // ── Ролевая иерархия: каскадные селекторы (шаг 05) ──────────────────
-    // Роли: regular → панель скрыта; headOfSector → [Сотрудник ▼];
+    // Роли: regular → панель скрыта; headOfSector/leadEngineer → [Сотрудник ▼];
     //        headOfDept → [Сектор ▼][Сотрудник ▼]; admin → все три.
     // Кнопка «Мои задачи» — сбрасывает режим на «my».
 
@@ -666,7 +666,7 @@
         else {
             if (_kbH.role === "admin") mode = "all";
             else if (_kbH.role === "headOfDept") mode = "dept";
-            else if (_kbH.role === "headOfSector") mode = "sector";
+            else if (_kbH.role === "headOfSector" || _kbH.role === "leadEngineer") mode = "sector";
             else mode = "my";
         }
         kbSendMode(mode);
@@ -1033,6 +1033,7 @@
             var sr = u.subrole || "";
             var badge = sr === "headOfDept" ? " <span style='color:#3b82f6;font-size:10px;'>[нач.отд]</span>"
                 : sr === "headOfSector" ? " <span style='color:#3b82f6;font-size:10px;'>[нач.сект]</span>"
+                    : sr === "leadEngineer" ? " <span style='color:#3b82f6;font-size:10px;'>[вед.инж]</span>"
                     : "";
             html += "<label>"
                 + "<input type='checkbox' value='" + kbEscAttr(u.key) + "'" + checked
@@ -1330,7 +1331,26 @@
 
         document.getElementById("tcm-key").value = d.nameKey || "";
         document.getElementById("tcm-title").value = d.title || "";
-        document.getElementById("tcm-assignee").value = d.assignee || "";
+        // Исполнитель — select с подчинёнными (если canFullEdit и есть subordinates)
+        var selAsg = document.getElementById("tcm-assignee");
+        kbClearSel(selAsg);
+        var subs = d.subordinates || [];
+        if (d.canFullEdit && subs.length > 0) {
+            selAsg.disabled = false;
+            for (var si = 0; si < subs.length; si++) {
+                var oa = document.createElement("option");
+                oa.value = subs[si].key; oa.text = subs[si].name;
+                if (subs[si].key === (d.assigneeKey || "")) oa.selected = true;
+                selAsg.appendChild(oa);
+            }
+        } else {
+            // Только текущий исполнитель, disabled
+            var oa2 = document.createElement("option");
+            oa2.value = d.assigneeKey || ""; oa2.text = d.assignee || "";
+            oa2.selected = true;
+            selAsg.appendChild(oa2);
+            selAsg.disabled = true;
+        }
         document.getElementById("tcm-duedate").value = d.dueDate || "";
         document.getElementById("tcm-details").value = d.details || "";
 
@@ -1725,12 +1745,14 @@
         var dueDate = document.getElementById("tcm-duedate").value;
         var details = document.getElementById("tcm-details").value;
         var tags = document.getElementById("tcm-tags") ? document.getElementById("tcm-tags").value : "";
+        var selAsg = document.getElementById("tcm-assignee");
+        var assigneeKey = (selAsg && !selAsg.disabled) ? selAsg.value : "";
 
         if (!title || !title.replace(/\s/g, "")) {
             tcmShowMsg("err", "Введите название задачи"); return;
         }
 
-        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + details;
+        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + assigneeKey + "|" + details;
         try {
             var res = window.external.InvokeTemplate("SaveTask", param);
             if (!res || (typeof res === "string" && res.indexOf("ERROR") === 0)) {

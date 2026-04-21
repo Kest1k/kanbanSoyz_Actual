@@ -37,226 +37,242 @@
             </aside>
 
             <article class="article-card">
-<h1 id="kanbanscreen">KanbanScreen — Серверный скрипт экрана</h1>
-<p><strong>Файл:</strong> <code>SOYUZ_UPLOAD_KanbanScreen_script.cs</code>
+<h1 id="kanbanscreen-серверный-скрипт-экрана">KanbanScreen — Серверный
+скрипт экрана</h1>
+<p><strong>Файл:</strong>
+<code>SOYUZ_UPLOAD_KanbanScreen_script.cs</code><br />
 <strong>Тип:</strong> C# серверный скрипт экрана PLM</p>
-<h2 id="section">Назначение</h2>
-<p>Главный серверный скрипт канбан-доски. Отвечает за:</p>
-<ul>
-<li>Первичную загрузку задач и распределение по колонкам</li>
-<li>Определение роли пользователя и уровня доступа</li>
-<li>Обработку всех AJAX-запросов от клиента (создание, перемещение, удаление задач, отчёт, иерархия)</li>
-</ul>
-<h2 id="section-1">Структура скрипта</h2>
-<h3 id="section-2">1. Инициализация и определение роли</h3>
-<pre><code class="language-csharp">// Определение роли текущего пользователя
-var currentUser = Context.CurrentUser;
-var roles = currentUser.Roles;
-
-// Иерархия ролей (от высшей к низшей):
-// КанбанНачОтдела → КанбанНачОтделения → КанбанНачСектора → обычный пользователь
-var isHead = roles.Contains(&quot;КанбанНачОтдела&quot;);
-var isDeptHead = roles.Contains(&quot;КанбанНачОтделения&quot;);
-var isSectorHead = roles.Contains(&quot;КанбанНачСектора&quot;);
-var isManager = isHead || isDeptHead || isSectorHead;
-</code></pre>
-<p>Роль определяет:</p>
-<ul>
-<li>Видимость кнопки «Все задачи» и панели иерархии</li>
-<li>Набор доступных фильтров (отделение/сектор/сотрудник)</li>
-<li>Возможность назначать задачи другим пользователям</li>
-</ul>
-<h3 id="section-3">2. Загрузка задач (первичный рендер)</h3>
-<p>При первичной загрузке страницы скрипт:</p>
-<ol>
-<li>Получает все задачи шаблона <code>KanbanTask</code> через PLM API</li>
-<li>Фильтрует по текущему пользователю (режим «Мои задачи»)</li>
-<li>Сортирует: сверхсрочные → по дате создания (новые сверху)</li>
-<li>Распределяет по 4 коллекциям: <code>col_0</code>, <code>col_1</code>, <code>col_2</code>, <code>col_3</code></li>
-<li>Для каждой задачи формирует объект с полями для шаблона</li>
-</ol>
-<p><strong>Поля объекта задачи для шаблона:</strong></p>
-<div class="table-wrap"><table>
+<h2 id="назначение">Назначение</h2>
+<p>Главный серверный скрипт канбан-доски. Отвечает за: - первичный
+рендер доски (<code>BeforeRender</code>) - определение роли пользователя
+и области видимости - создание, групповую постановку, удаление и
+перемещение задач - карточку задачи: детали, сохранение, история,
+вложения, комментарии - отчёты и иерархические фильтры</p>
+<h2 id="точка-входа">Точка входа</h2>
+<p>Скрипт использует
+<code>Invoke(String methodName, InfoObject obj, Object inputParams)</code>
+и диспетчеризует команды по <code>methodName</code>. Ключевые ветки
+<code>switch</code>:</p>
+<table>
+<colgroup>
+<col style="width: 55%" />
+<col style="width: 45%" />
+</colgroup>
 <thead>
 <tr>
-<th>Поле</th>
-<th>Тип</th>
-<th>Описание</th>
+<th>Категория</th>
+<th>Команды</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>id</code></td>
-<td>string</td>
-<td>Идентификатор объекта задачи</td>
+<td>Рендер и refresh</td>
+<td><code>BeforeRender</code>, <code>RefreshBoard</code></td>
 </tr>
 <tr>
-<td><code>title</code></td>
-<td>string</td>
-<td>Название задачи</td>
+<td>CRUD задач</td>
+<td><code>MoveTask</code>, <code>CreateTask</code>,
+<code>CreateGroupTask</code>, <code>OpenTask</code>,
+<code>DeleteTask</code>, <code>SaveTask</code></td>
 </tr>
 <tr>
-<td><code>details</code></td>
-<td>string</td>
-<td>Описание (обрезается до 100 символов)</td>
+<td>Иерархия</td>
+<td><code>GetHierarchyInfo</code>, <code>SetViewMode</code></td>
 </tr>
 <tr>
-<td><code>priority</code></td>
-<td>string</td>
-<td>Приоритет: <code>low</code>, <code>medium</code>, <code>high</code>, <code>urgent</code></td>
+<td>Отчёты</td>
+<td><code>GetReport</code></td>
 </tr>
 <tr>
-<td><code>dueDate</code></td>
-<td>string</td>
-<td>Срок в формате <code>ДД.ММ.ГГГГ</code></td>
+<td>Карточка задачи</td>
+<td><code>GetTaskDetails</code>, <code>GetTaskHistory</code>,
+<code>GetTaskRevisions</code></td>
 </tr>
 <tr>
-<td><code>completedDate</code></td>
-<td>string</td>
-<td>Дата завершения (только для колонки «Готово»)</td>
+<td>Вложения</td>
+<td><code>GetAttachments</code>, <code>AddAttachment</code>,
+<code>RemoveAttachment</code>, <code>PickObject</code>,
+<code>PickObjects</code>, <code>PickAndAttach</code>,
+<code>PickContainers</code>, <code>PickAndAttachContainer</code>,
+<code>AddContainer</code>, <code>RemoveContainer</code>,
+<code>OpenObject</code>, <code>OpenContainer</code></td>
 </tr>
 <tr>
-<td><code>assigneeName</code></td>
-<td>string</td>
-<td>ФИО исполнителя</td>
-</tr>
-<tr>
-<td><code>initials</code></td>
-<td>string</td>
-<td>Инициалы для аватара (напр. «ИП»)</td>
-</tr>
-<tr>
-<td><code>isOwner</code></td>
-<td>string</td>
-<td><code>&quot;true&quot;</code> если текущий пользователь — создатель</td>
-</tr>
-<tr>
-<td><code>attachmentCount</code></td>
-<td>int</td>
-<td>Количество вложений</td>
-</tr>
-<tr>
-<td><code>commentCount</code></td>
-<td>int</td>
-<td>Количество комментариев</td>
+<td>Комментарии</td>
+<td><code>GetComments</code>, <code>AddComment</code>,
+<code>DeleteComment</code></td>
 </tr>
 </tbody>
-</table></div>
-<h3 id="ajax">3. AJAX-обработчики</h3>
-<p>Все AJAX-запросы приходят с параметром <code>ajaxAction</code>. Скрипт возвращает JSON.</p>
-<h4 id="movetask"><code>moveTask</code> — Перемещение задачи</h4>
-<pre><code>Параметры: taskId, newStatus
-Действие: Меняет атрибут статуса задачи. Если newStatus=3 → ставит дату завершения.
-Ответ: { &quot;ok&quot;: true }
-</code></pre>
-<h4 id="deletetask"><code>deleteTask</code> — Удаление задачи</h4>
-<pre><code>Параметры: taskId
-Действие: Удаляет объект задачи из PLM (только если пользователь — создатель или руководитель).
-Ответ: { &quot;ok&quot;: true }
-</code></pre>
-<h4 id="createtask"><code>createTask</code> — Создание задачи</h4>
-<pre><code>Параметры: title, details, status, priority, dueDate, assigneeId, attachments (JSON)
-Действие: Создаёт новый объект KanbanTask, заполняет атрибуты, привязывает вложения.
-Ответ: { &quot;ok&quot;: true, &quot;id&quot;: &quot;&lt;новый_id&gt;&quot; }
-</code></pre>
-<h4 id="creategrouptasks"><code>createGroupTasks</code> — Групповое создание</h4>
-<pre><code>Параметры: title, details, status, priority, dueDate, userIds (JSON-массив), attachments (JSON)
-Действие: Создаёт отдельную задачу для каждого пользователя из списка.
-Ответ: { &quot;ok&quot;: true, &quot;count&quot;: N }
-</code></pre>
-<h4 id="gethierarchy"><code>getHierarchy</code> — Получение иерархии</h4>
-<pre><code>Параметры: нет
-Действие: Возвращает структуру отделений/секторов для текущего руководителя.
-Ответ: { &quot;departments&quot;: [...], &quot;sectors&quot;: [...], &quot;role&quot;: &quot;...&quot; }
-</code></pre>
-<h4 id="getusers"><code>getUsers</code> — Получение списка пользователей</h4>
-<pre><code>Параметры: deptId (опц.), sectorId (опц.)
-Действие: Возвращает список пользователей с фильтрацией по подразделению.
-Ответ: { &quot;users&quot;: [{ &quot;id&quot;: &quot;...&quot;, &quot;name&quot;: &quot;...&quot;, &quot;sectorName&quot;: &quot;...&quot; }, ...] }
-</code></pre>
-<h4 id="loadboard"><code>loadBoard</code> — Перезагрузка доски</h4>
-<pre><code>Параметры: mode (&quot;my&quot;/&quot;all&quot;), deptId (опц.), sectorId (опц.), userId (опц.)
-Действие: Возвращает задачи с учётом фильтров для динамической перезагрузки.
-Ответ: { &quot;col_0&quot;: [...], &quot;col_1&quot;: [...], &quot;col_2&quot;: [...], &quot;col_3&quot;: [...] }
-</code></pre>
-<h4 id="getreport"><code>getReport</code> — Данные отчёта</h4>
-<pre><code>Параметры: period (&quot;week&quot;/&quot;month&quot;/&quot;quarter&quot;/&quot;all&quot;), scope (опц.)
-Действие: Агрегирует статистику по задачам за период.
-Ответ: { &quot;summary&quot;: {...}, &quot;rows&quot;: [...] }
-</code></pre>
-<h4 id="searchobjects-plm"><code>searchObjects</code> — Поиск объектов PLM</h4>
-<pre><code>Параметры: query (строка поиска)
-Действие: Ищет объекты PLM по имени для привязки как вложения.
-Ответ: { &quot;results&quot;: [{ &quot;id&quot;: &quot;...&quot;, &quot;name&quot;: &quot;...&quot;, &quot;template&quot;: &quot;...&quot; }, ...] }
-</code></pre>
-<h3 id="section-4">4. Вспомогательные методы</h3>
-<ul>
-<li><strong><code>GetInitials(name)</code></strong> — извлекает инициалы из ФИО (напр. «Иванов Пётр» → «ИП»)</li>
-<li><strong><code>FormatDate(date)</code></strong> — форматирует дату в <code>ДД.ММ.ГГГГ</code></li>
-<li><strong><code>IsOverdue(task)</code></strong> — проверяет просроченность задачи</li>
-<li><strong><code>GetTasksForUser(userId)</code></strong> — получает задачи конкретного пользователя</li>
-<li><strong><code>GetTasksForScope(deptId, sectorId)</code></strong> — получает задачи по подразделению</li>
-<li><strong><code>BuildTaskObject(task)</code></strong> — формирует объект задачи для JSON/шаблона</li>
-</ul>
-<h3 id="scriban">5. Переменные шаблона (Scriban)</h3>
-<p>Скрипт передаёт в HTML-шаблон следующие переменные:</p>
-<div class="table-wrap"><table>
+</table>
+<h2 id="роли-и-область-видимости">Роли и область видимости</h2>
+<h3 id="источник-роли">Источник роли</h3>
+<p>Роль вычисляется функцией <code>GetUserRole(User user)</code> на
+основе пользовательского атрибута <code>Commission</code>.</p>
+<p>Поддерживаются роли:</p>
+<table>
+<colgroup>
+<col style="width: 19%" />
+<col style="width: 58%" />
+<col style="width: 22%" />
+</colgroup>
 <thead>
 <tr>
-<th>Переменная</th>
-<th>Тип</th>
-<th>Описание</th>
+<th>Role</th>
+<th>Как определяется</th>
+<th>Scope</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>col_0</code></td>
-<td>array</td>
-<td>Задачи колонки «Надо сделать»</td>
+<td><code>admin</code></td>
+<td><code>Commission.NameKey</code> входит в массив
+<code>ADMIN_POS</code></td>
+<td>вся организация</td>
 </tr>
 <tr>
-<td><code>col_1</code></td>
-<td>array</td>
-<td>Задачи колонки «В работе»</td>
+<td><code>headOfDept</code></td>
+<td><code>Commission.NameKey</code> входит в
+<code>DEPT_HEAD_POS</code></td>
+<td>отделение</td>
 </tr>
 <tr>
-<td><code>col_2</code></td>
-<td>array</td>
-<td>Задачи колонки «Ожидание»</td>
+<td><code>headOfSector</code></td>
+<td><code>Commission.NameKey</code> входит в
+<code>SECTOR_HEAD_POS</code></td>
+<td>сектор</td>
 </tr>
 <tr>
-<td><code>col_3</code></td>
-<td>array</td>
-<td>Задачи колонки «Готово»</td>
+<td><code>leadEngineer</code></td>
+<td><code>Commission.NameKey</code> начинается с <code>ved</code></td>
+<td>сектор</td>
 </tr>
 <tr>
-<td><code>current_user_id</code></td>
-<td>string</td>
-<td>ID текущего пользователя</td>
-</tr>
-<tr>
-<td><code>current_user_name</code></td>
-<td>string</td>
-<td>Имя текущего пользователя</td>
-</tr>
-<tr>
-<td><code>is_manager</code></td>
-<td>bool</td>
-<td>Является ли руководителем</td>
-</tr>
-<tr>
-<td><code>user_role</code></td>
-<td>string</td>
-<td>Роль: <code>head</code>, <code>deptHead</code>, <code>sectorHead</code>, <code>user</code></td>
+<td><code>regular</code></td>
+<td>fallback по умолчанию</td>
+<td>только свои задачи</td>
 </tr>
 </tbody>
-</table></div>
-<h2 id="section-5">Безопасность</h2>
+</table>
+<p><code>leadEngineer</code> введён отдельно от
+<code>headOfSector</code>, чтобы дать ведущим инженерам права на выдачу
+задач в своём секторе без смешения с ролью начальника сектора в UI.</p>
+<h3 id="источник-организационного-контекста">Источник организационного
+контекста</h3>
+<p>Функция <code>GetUserContext(User user)</code> читает атрибут
+<code>Context</code>.<br />
+Примеры значений: <code>510кт</code>, <code>600кт</code>,
+<code>200.2кт</code>.</p>
+<p>Вспомогательные методы: - <code>ContextNumber(ctx)</code> — числовой
+префикс контекста - <code>ContextSuffix(ctx)</code> — буквенный/дробный
+хвост - <code>GetDivisionContext(ctx)</code> — родительское отделение -
+<code>IsWithinContext(userCtx, ownerCtx)</code> — проверка вхождения
+сектора в отделение</p>
+<h3 id="режимы-просмотра">Режимы просмотра</h3>
+<p>Текущий режим хранится в
+<code>obj.PropertyBag["KbViewMode"]</code>.</p>
+<p>Поддерживаемые значения: - <code>my</code> - <code>all</code> -
+<code>dept</code> - <code>sector</code> - <code>user:KEY</code> -
+<code>group:CTX</code></p>
+<p>Набор допустимых пользователей для каждого режима вычисляет
+<code>GetAllowedUserIdSet(...)</code>.</p>
+<h2 id="первичный-рендер-доски">Первичный рендер доски</h2>
+<p>В <code>BeforeRender</code> скрипт: 1. Берёт контейнер
+<code>All_Kanban_Tasks_Folder</code> 2. Определяет текущего
+пользователя, роль и <code>KbViewMode</code> 3. Строит допустимый набор
+исполнителей через <code>GetAllowedUserIdSet</code> 4. Отбирает задачи
+по исполнителю 5. Раскладывает задачи по 4 колонкам по статусу 6.
+Сортирует: - колонки 0-2 — по приоритету и новизне - колонку
+<code>Done</code> — по <code>CompletedDate</code> 7. Передаёт в
+Liquid-шаблон <code>col_0..col_3</code>, <code>kbRole</code>,
+<code>kbViewMode</code>, <code>availableTags</code></p>
+<p>Карточка для шаблона строится через
+<code>BuildCardData(...)</code>.</p>
+<h2 id="контракты-основных-методов">Контракты основных методов</h2>
+<h3 id="movetask"><code>MoveTask</code></h3>
+<p><strong>Вход:</strong> <code>"nameKey|newStatus"</code><br />
+<strong>Права:</strong> исполнитель, создатель или
+<code>admin</code><br />
+<strong>Поведение:</strong> меняет статус, при переходе в
+<code>Done</code> ставит <code>CompletedDate</code>, при возврате из
+<code>Done</code> очищает её</p>
+<h3 id="createtask"><code>CreateTask</code></h3>
+<p><strong>Вход:</strong>
+<code>"title|status|priority|dueDate|details|tags|assigneeKey"</code><br />
+<strong>Поведение:</strong> создаёт одну задачу, по умолчанию назначает
+текущему пользователю<br />
+<strong>Важно:</strong> если указан <code>assigneeKey</code>, сервер
+валидирует его через <code>CanAssignUserInScope(...)</code></p>
+<h3 id="creategrouptask"><code>CreateGroupTask</code></h3>
+<p><strong>Вход:</strong>
+<code>"title|status|priority|dueDate|details|tags|key1,key2,key3"</code><br />
+<strong>Поведение:</strong> создаёт отдельную задачу каждому допустимому
+исполнителю<br />
+<strong>Важно:</strong> недопустимые исполнители отбрасываются на
+сервере, а если не осталось ни одного — возвращается
+<code>ERROR:NoAllowedAssignees</code></p>
+<h3 id="gethierarchyinfo"><code>GetHierarchyInfo</code></h3>
+<p><strong>Возвращает JSON</strong> с полями: - <code>role</code> -
+<code>myKey</code> - <code>myContext</code> - <code>viewMode</code> -
+<code>divisions</code> - <code>sectors</code> - <code>users</code></p>
+<p>Для каждого пользователя также сериализуется <code>subrole</code>,
+который использует клиентский UI.</p>
+<h3 id="getreport"><code>GetReport</code></h3>
+<p><strong>Вход:</strong> <code>"period|scope"</code><br />
+<code>period</code>: <code>week</code>, <code>month</code>,
+<code>quarter</code>, <code>all</code><br />
+<code>scope</code>: режим просмотра или пустая строка для
+role-default</p>
+<h3 id="gettaskdetails"><code>GetTaskDetails</code></h3>
+<p>Возвращает полный JSON для модального окна: - базовые поля задачи -
+<code>canFullEdit</code> - <code>creatorName</code> -
+<code>subordinates</code> - <code>priorities</code> -
+<code>availableTags</code> - <code>assigneeKey</code></p>
+<p>Если у пользователя есть право полного редактирования,
+<code>subordinates</code> строится в рамках его допустимого scope.</p>
+<h3 id="savetask"><code>SaveTask</code></h3>
+<p><strong>Вход:</strong>
+<code>"nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|details"</code><br />
+<strong>Права:</strong> полный edit только у создателя; остальные могут
+менять только статус<br />
+<strong>Важно:</strong> смена исполнителя тоже проверяется сервером
+через <code>CanAssignUserInScope(...)</code></p>
+<h2 id="серверная-валидация-назначения">Серверная валидация
+назначения</h2>
+<p>Функция
+<code>CanAssignUserInScope(User currentUser, string currentRole, User targetUser)</code>
+жёстко ограничивает допустимого исполнителя: - <code>admin</code> —
+любой пользователь - <code>headOfDept</code> — только сотрудники своего
+отделения - <code>headOfSector</code> и <code>leadEngineer</code> —
+только сотрудники своего сектора - <code>regular</code> — только сам
+себе</p>
+<p>Это защищает систему от обхода фронтенда и прямых вызовов
+<code>InvokeTemplate(...)</code> с чужими ключами пользователей.</p>
+<h2 id="безопасность-и-права">Безопасность и права</h2>
 <ul>
-<li>Удаление задачи разрешено только создателю или руководителю</li>
-<li>Перемещение задачи разрешено только исполнителю или руководителю</li>
-<li>Фильтры иерархии ограничены ролью пользователя (начальник сектора не видит чужие отделения)</li>
-<li>Все входные параметры валидируются на сервере</li>
+<li><strong>Удаление</strong>: только создатель задачи; для legacy-задач
+без <code>Creator</code> сохранён permissive fallback</li>
+<li><strong>Перемещение</strong>: исполнитель, создатель или
+<code>admin</code></li>
+<li><strong>Полное редактирование карточки</strong>: только
+создатель</li>
+<li><strong>Смена исполнителя</strong>: только создатель и только в
+разрешённом scope</li>
+<li><strong>Фильтрация доски и отчётов</strong>: всегда ограничена
+допустимым набором пользователей</li>
+</ul>
+<h2 id="подтверждённые-особенности-реализации">Подтверждённые
+особенности реализации</h2>
+<ul>
+<li>В качестве стабильного ключа пользователя используется
+<code>NameKey</code>, иначе <code>AccountId</code>, иначе
+<code>Id</code></li>
+<li>Для задач без <code>NameKey</code>, созданных вне доски,
+используется fallback <code>__id_&lt;Id&gt;</code></li>
+<li>Строковые ошибки возвращаются в формате <code>ERROR:...</code>,
+клиентский JS показывает их напрямую</li>
+<li>В C#-скриптах платформы нельзя полагаться на <code>??</code> для
+<code>NameKey</code>, потому что пустая строка не равна
+<code>null</code></li>
 </ul>
 
             </article>

@@ -9,6 +9,8 @@
 //   SetViewMode       (mode) → сохраняет режим просмотра в PropertyBag
 // ═══════════════════════════════════════════════════════════════════════
 private const int STATUS_DONE = 3;
+private const string LEAD_ENGINEER_ROLE = "leadEngineer";
+private const string LEAD_ENGINEER_NAMEKEY_PREFIX = "ved";
 
 public override Object Invoke( String methodName, InfoObject obj, Object inputParams )
 {
@@ -318,6 +320,7 @@ private object DoCreateTask( object inputParams )
 
     // Исполнитель = текущий пользователь (по умолчанию)
     var currentUser = Service.GetCurrentUser();
+    var currentRole = GetUserRole( currentUser );
     if( currentUser != null )
     {
         task["Assignee"] = currentUser;
@@ -333,14 +336,11 @@ private object DoCreateTask( object inputParams )
     // Переопределить исполнителя если выбран конкретный сотрудник
     if( !string.IsNullOrEmpty( assigneeKey ) )
     {
-        foreach( var u in Service.AllUsers )
-        {
-            if( u.IsGroup ) continue;
-            var uKey = !string.IsNullOrEmpty( u.NameKey ) ? u.NameKey
-                     : !string.IsNullOrEmpty( u.AccountId ) ? u.AccountId
-                     : u.Id.ToString();
-            if( uKey == assigneeKey ) { task["Assignee"] = u; break; }
-        }
+        var assigneeUser = FindUserByKeyOrNull( assigneeKey );
+        if( assigneeUser == null ) return "ERROR:AssigneeNotFound";
+        if( !CanAssignUserInScope( currentUser, currentRole, assigneeUser ) )
+            return "ERROR:AssigneeNotAllowed";
+        task["Assignee"] = assigneeUser;
     }
 
     task.Save();
@@ -390,6 +390,7 @@ private object DoCreateGroupTask( object inputParams )
     if( template == null ) return "ERROR:TemplateNotFound";
 
     var currentUser = Service.GetCurrentUser();
+    var currentRole = GetUserRole( currentUser );
     var creatorKey  = currentUser == null ? "" :
                       string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.AccountId : currentUser.NameKey;
 
@@ -410,6 +411,7 @@ private object DoCreateGroupTask( object inputParams )
         var key = assigneeKey.Trim();
         if( string.IsNullOrEmpty( key ) || !userMap.ContainsKey( key ) ) continue;
         var assignee = userMap[key];
+        if( !CanAssignUserInScope( currentUser, currentRole, assignee ) ) continue;
 
         var task = new InfoObject( container, template );
         // Уникальный NameKey: метка + счётчик
@@ -427,6 +429,7 @@ private object DoCreateGroupTask( object inputParams )
         count++;
     }
 
+    if( count == 0 ) return "ERROR:NoAllowedAssignees";
     return "OK:" + count;
 }
 
@@ -662,6 +665,7 @@ private object BuildCardData( InfoObject task, int status )
     // Инициалы скрываем если текущий пользователь является исполнителем (isSelf)
     var isOwner  = "0";
     var initials = GetInitials( assigneeName );
+    string assigneeShort = "";
     User curUser = null;
     string creatorKey = "";
     string curKey = "";
@@ -685,6 +689,72 @@ private object BuildCardData( InfoObject task, int status )
             var aKey = string.IsNullOrEmpty( assigneeUser.NameKey ) ? assigneeUser.AccountId : assigneeUser.NameKey;
             var cKey = string.IsNullOrEmpty( curUser.NameKey )      ? curUser.AccountId      : curUser.NameKey;
             if( aKey == cKey ) initials = "";
+        }
+
+        // Фамилия И.О. исполнителя (для отображения на чужих карточках вместо кружка)
+        if( assigneeUser != null && !string.IsNullOrEmpty( initials ) )
+        {
+            try
+            {
+                var aSurname    = ( assigneeUser.GetString( "GivenName"  ) ?? "" ).Trim();
+                var aFirstName  = ( assigneeUser.GetString( "FirstName"  ) ?? "" ).Trim();
+                var aPatronymic = ( assigneeUser.GetString( "SecondName" ) ?? "" ).Trim();
+                var sbA = new System.Text.StringBuilder();
+                if( aSurname.Length > 0 ) sbA.Append( aSurname );
+                if( aFirstName.Length > 0 )
+                {
+                    if( sbA.Length > 0 ) sbA.Append( " " );
+                    sbA.Append( char.ToUpper( aFirstName[0] ) ).Append( '.' );
+                }
+                if( aPatronymic.Length > 0 )
+                    sbA.Append( char.ToUpper( aPatronymic[0] ) ).Append( '.' );
+                if( sbA.Length > 0 ) assigneeShort = sbA.ToString();
+            }
+            catch { }
+        }
+    }
+    catch { }
+
+    // Имя создателя (для «Поручил: Фамилия И.О.» на карточке)
+    // Не показываем если создатель совпадает с исполнителем
+    string creatorShort = "";
+    try
+    {
+        // Определяем ключ исполнителя для сравнения
+        string assigneeKey = "";
+        try
+        {
+            var aUser = task.GetUser( "Assignee" );
+            if( aUser != null )
+                assigneeKey = string.IsNullOrEmpty( aUser.NameKey ) ? aUser.AccountId : aUser.NameKey;
+        }
+        catch { }
+
+        if( !string.IsNullOrEmpty( creatorKey ) && creatorKey != assigneeKey )
+        {
+            User creatorUser = null;
+            foreach( var u in Service.AllUsers )
+            {
+                if( u.IsGroup ) continue;
+                var uKey = string.IsNullOrEmpty( u.NameKey ) ? u.AccountId : u.NameKey;
+                if( uKey == creatorKey ) { creatorUser = u; break; }
+            }
+            if( creatorUser != null )
+            {
+                var cSurname    = ( creatorUser.GetString( "GivenName"  ) ?? "" ).Trim();
+                var cFirstName  = ( creatorUser.GetString( "FirstName"  ) ?? "" ).Trim();
+                var cPatronymic = ( creatorUser.GetString( "SecondName" ) ?? "" ).Trim();
+                var sb2 = new System.Text.StringBuilder();
+                if( cSurname.Length > 0 ) sb2.Append( cSurname );
+                if( cFirstName.Length > 0 )
+                {
+                    if( sb2.Length > 0 ) sb2.Append( " " );
+                    sb2.Append( char.ToUpper( cFirstName[0] ) ).Append( '.' );
+                }
+                if( cPatronymic.Length > 0 )
+                    sb2.Append( char.ToUpper( cPatronymic[0] ) ).Append( '.' );
+                creatorShort = sb2.ToString();
+            }
         }
     }
     catch { }
@@ -728,13 +798,15 @@ private object BuildCardData( InfoObject task, int status )
         isUrgent        = isUrgent,
         assigneeName    = HtmlEnc( assigneeName ),
         initials        = initials,
+        assigneeShort   = HtmlEnc( assigneeShort ),
         dueDate         = dueDateStr,
         completedDate   = completedDateStr,
         attachmentCount = GetAttachmentCount( task ),
         commentCount    = GetCommentCount( task ),
         tags            = HtmlEnc( tags ),
         isOverdue       = isOverdue,
-        isNew           = isNew
+        isNew           = isNew,
+        creatorShort    = HtmlEnc( creatorShort )
     };
 }
 
@@ -788,6 +860,8 @@ private string GetUserRole( User user )
         foreach( var k in ADMIN_POS )       if( key == k ) return "admin";
         foreach( var k in DEPT_HEAD_POS )   if( key == k ) return "headOfDept";
         foreach( var k in SECTOR_HEAD_POS ) if( key == k ) return "headOfSector";
+        if( key.StartsWith( LEAD_ENGINEER_NAMEKEY_PREFIX, System.StringComparison.OrdinalIgnoreCase ) )
+            return LEAD_ENGINEER_ROLE;
 
         // Запасной вариант по имени
         if( name.StartsWith( "Начальник отделения" ) ) return "headOfDept";
@@ -795,6 +869,47 @@ private string GetUserRole( User user )
     }
     catch { }
     return "regular";
+}
+
+private bool HasSectorScopeRole( string role )
+{
+    return role == "headOfSector" || role == LEAD_ENGINEER_ROLE;
+}
+
+private string GetUserStableKey( User user )
+{
+    if( user == null ) return "";
+    return !string.IsNullOrEmpty( user.NameKey ) ? user.NameKey
+         : !string.IsNullOrEmpty( user.AccountId ) ? user.AccountId
+         : user.Id.ToString();
+}
+
+private User FindUserByKeyOrNull( string userKey )
+{
+    if( string.IsNullOrEmpty( userKey ) ) return null;
+    foreach( var u in Service.AllUsers )
+    {
+        if( u.IsGroup ) continue;
+        if( GetUserStableKey( u ) == userKey ) return u;
+    }
+    return null;
+}
+
+private bool CanAssignUserInScope( User currentUser, string currentRole, User targetUser )
+{
+    if( currentUser == null || targetUser == null ) return false;
+    if( currentRole == "admin" ) return true;
+
+    var myCtx     = GetUserContext( currentUser );
+    var targetCtx = GetUserContext( targetUser );
+
+    if( currentRole == "headOfDept" )
+        return IsWithinContext( targetCtx, myCtx );
+
+    if( HasSectorScopeRole( currentRole ) )
+        return targetCtx == myCtx;
+
+    return currentUser.Id == targetUser.Id;
 }
 
 // ─── Чтение Context пользователя ─────────────────────────────────────
@@ -894,7 +1009,7 @@ private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
         bool include = false;
         if     ( role == "admin" )        include = true;
         else if( role == "headOfDept" )   include = IsWithinContext( ctx, myContext );
-        else if( role == "headOfSector" ) include = (ctx == myContext);
+        else if( HasSectorScopeRole( role ) ) include = (ctx == myContext);
 
         if( !include ) continue;
 
@@ -932,6 +1047,7 @@ private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
     bool first = true;
     foreach( var div in divisionsSet.Keys )
     {
+        if( div.IndexOf( "кт", System.StringComparison.OrdinalIgnoreCase ) < 0 ) continue;
         if( !first ) sb.Append( "," );
         sb.Append( "{\"key\":\"" + JsonEscape( div ) + "\","
                  + "\"name\":\"Отделение " + JsonEscape( div ) + "\"}" );
@@ -1004,7 +1120,7 @@ private object DoGetReport( object inputParams )
     if( string.IsNullOrEmpty( scope ) )
         scope = role == "admin"         ? "all"
               : role == "headOfDept"    ? "dept"
-              : role == "headOfSector"  ? "sector"
+              : HasSectorScopeRole( role ) ? "sector"
               : "my";
 
     var allowedIds = GetAllowedUserIdSet( currentUser, role, scope );
@@ -1140,13 +1256,13 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
             bool allowed = false;
             if     ( role == "admin" )        allowed = IsWithinContext( ctx, targetCtx ) || ctx == targetCtx;
             else if( role == "headOfDept" )   allowed = IsWithinContext( ctx, targetCtx );
-            else if( role == "headOfSector" ) allowed = (ctx == targetCtx);
+            else if( HasSectorScopeRole( role ) ) allowed = (ctx == targetCtx);
             if( allowed ) ids.Add( u.Id.ToString() );
         }
         return ids;
     }
 
-    if( viewMode == "sector" && (role == "headOfSector" || role == "headOfDept") )
+    if( viewMode == "sector" && (HasSectorScopeRole( role ) || role == "headOfDept") )
     {
         var myCtx = GetUserContext( currentUser );
         foreach( var u in Service.AllUsers )
@@ -1384,26 +1500,85 @@ private object DoGetTaskDetails( object inputParams )
     sb.Append( "\"isOverdue\":"     + (isOverdue ? "true" : "false")    + "," );
     sb.Append( "\"availableTags\":"  + tSb.ToString()                    + "," );
     sb.Append( "\"priorities\":"     + pSb.ToString()                    + "," );
-    sb.Append( "\"statusNames\":[\"Надо сделать\",\"В работе\",\"Ожидание\",\"Готово\"]" );
+    sb.Append( "\"statusNames\":[\"Надо сделать\",\"В работе\",\"Ожидание\",\"Готово\"]," );
+
+    // Список подчинённых для смены исполнителя (только для создателя задачи)
+    sb.Append( "\"subordinates\":" );
+    if( canFullEdit )
+    {
+        var curUser3 = Service.GetCurrentUser();
+        var curRole3 = GetUserRole( curUser3 );
+        if( curRole3 != "regular" )
+        {
+            var subList = new System.Collections.Generic.List<User>();
+            var myCtx3  = GetUserContext( curUser3 );
+            foreach( var u in Service.AllUsers )
+            {
+                if( u.IsGroup ) continue;
+                var ctx = GetUserContext( u );
+                bool include = false;
+                if     ( curRole3 == "admin" )        include = true;
+                else if( curRole3 == "headOfDept" )   include = IsWithinContext( ctx, myCtx3 );
+                else if( HasSectorScopeRole( curRole3 ) ) include = (ctx == myCtx3);
+                if( include ) subList.Add( u );
+            }
+            subList.Sort( (a, b) => string.Compare( a.ToString() ?? "", b.ToString() ?? "", System.StringComparison.CurrentCultureIgnoreCase ) );
+            sb.Append( "[" );
+            bool fs = true;
+            foreach( var u in subList )
+            {
+                if( !fs ) sb.Append( "," );
+                var rawK = !string.IsNullOrEmpty( u.NameKey ) ? u.NameKey
+                         : !string.IsNullOrEmpty( u.AccountId ) ? u.AccountId
+                         : u.Id.ToString();
+                sb.Append( "{\"key\":\"" + JsonEscape( rawK ) + "\",\"name\":\"" + JsonEscape( u.ToString() ?? "" ) + "\"}" );
+                fs = false;
+            }
+            sb.Append( "]" );
+        }
+        else
+        {
+            sb.Append( "[]" );
+        }
+    }
+    else
+    {
+        sb.Append( "[]" );
+    }
+
+    // Ключ текущего исполнителя
+    string assigneeKey = "";
+    try
+    {
+        var asg2 = task.GetUser( "Assignee" );
+        if( asg2 != null )
+            assigneeKey = !string.IsNullOrEmpty( asg2.NameKey ) ? asg2.NameKey
+                        : !string.IsNullOrEmpty( asg2.AccountId ) ? asg2.AccountId
+                        : asg2.Id.ToString();
+    }
+    catch { }
+    sb.Append( ",\"assigneeKey\":\"" + JsonEscape( assigneeKey ) + "\"" );
+
     sb.Append( "}" );
     return sb.ToString();
 }
 
 // ─── SaveTask ─────────────────────────────────────────────────────────
-// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|details"
-// details может содержать символы | — Split с лимитом 7 берёт всё остальное
+// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|details"
+// details может содержать символы | — Split с лимитом 8 берёт всё остальное
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 7 );
+    var parts = ParsePipeArgs( raw, 8 );
 
-    var nameKey    = parts.Length > 0 ? parts[0].Trim() : "";
-    var title      = parts.Length > 1 ? parts[1].Trim() : "";
-    var statusStr  = parts.Length > 2 ? parts[2].Trim() : "0";
-    var prioKey    = parts.Length > 3 ? parts[3].Trim() : "";
-    var dueDateStr = parts.Length > 4 ? parts[4].Trim() : "";
-    var tagsStr    = parts.Length > 5 ? parts[5].Trim() : "";
-    var detailsStr = parts.Length > 6 ? parts[6] : "";       // НЕ Trim — пробелы в конце важны
+    var nameKey       = parts.Length > 0 ? parts[0].Trim() : "";
+    var title         = parts.Length > 1 ? parts[1].Trim() : "";
+    var statusStr     = parts.Length > 2 ? parts[2].Trim() : "0";
+    var prioKey       = parts.Length > 3 ? parts[3].Trim() : "";
+    var dueDateStr    = parts.Length > 4 ? parts[4].Trim() : "";
+    var tagsStr       = parts.Length > 5 ? parts[5].Trim() : "";
+    var assigneeKeyIn = parts.Length > 6 ? parts[6].Trim() : "";
+    var detailsStr    = parts.Length > 7 ? parts[7] : "";       // НЕ Trim — пробелы в конце важны
 
     if( string.IsNullOrEmpty( nameKey ) ) return "ERROR:EmptyId";
 
@@ -1415,12 +1590,13 @@ private object DoSaveTask( object inputParams )
     if( newStatus < 0 || newStatus > 3 ) newStatus = 0;
 
     // Проверка прав: создатель может редактировать всё, остальные — только статус
+    var curUser = Service.GetCurrentUser();
+    var curRole = GetUserRole( curUser );
     bool canFullEdit = true;
     string authorName = "";
     try
     {
         var creatorKey = task.GetString( "Creator" ) ?? "";
-        var curUser    = Service.GetCurrentUser();
         if( curUser != null )
             authorName = curUser.ToString() ?? "";
         if( !string.IsNullOrEmpty( creatorKey ) && curUser != null )
@@ -1490,6 +1666,34 @@ private object DoSaveTask( object inputParams )
     else if( newStatus != STATUS_DONE && oldStatus == STATUS_DONE )
         task["CompletedDate"] = null;
 
+    // ─── Смена исполнителя ──────────────────────────────────────
+    string oldAssigneeName = "";
+    string newAssigneeName = "";
+    bool assigneeChanged = false;
+    if( canFullEdit && !string.IsNullOrEmpty( assigneeKeyIn ) )
+    {
+        try
+        {
+            var oldAsg = task.GetUser( "Assignee" );
+            var oldAsgKey = GetUserStableKey( oldAsg );
+            if( oldAsg != null )
+            {
+                oldAssigneeName = oldAsg.ToString() ?? "";
+            }
+            if( oldAsgKey != assigneeKeyIn )
+            {
+                var newUser = FindUserByKeyOrNull( assigneeKeyIn );
+                if( newUser == null ) return "ERROR:AssigneeNotFound";
+                if( !CanAssignUserInScope( curUser, curRole, newUser ) )
+                    return "ERROR:AssigneeNotAllowed";
+                task["Assignee"] = newUser;
+                newAssigneeName = newUser.ToString() ?? "";
+                assigneeChanged = true;
+            }
+        }
+        catch { }
+    }
+
     // ─── Формирование записи ChangeLog ─────────────────────────
     try
     {
@@ -1536,6 +1740,12 @@ private object DoSaveTask( object inputParams )
         {
             if( hasChange ) changes.Append( "," );
             changes.Append( "{\"f\":\"Теги\",\"o\":\"" + JsonEscape( oldTags ) + "\",\"n\":\"" + JsonEscape( tagsStr ) + "\"}" );
+            hasChange = true;
+        }
+        if( assigneeChanged )
+        {
+            if( hasChange ) changes.Append( "," );
+            changes.Append( "{\"f\":\"Исполнитель\",\"o\":\"" + JsonEscape( oldAssigneeName ) + "\",\"n\":\"" + JsonEscape( newAssigneeName ) + "\"}" );
             hasChange = true;
         }
         changes.Append( "]" );

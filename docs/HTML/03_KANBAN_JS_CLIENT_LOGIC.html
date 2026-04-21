@@ -37,208 +37,189 @@
             </aside>
 
             <article class="article-card">
-<h1 id="kanban.js">kanban.js — Клиентская логика</h1>
-<p><strong>Файл:</strong> <code>kanban.js</code>
-<strong>Тип:</strong> Vanilla JavaScript (IIFE, без фреймворков)</p>
-<h2 id="section">Назначение</h2>
-<p>Клиентский скрипт канбан-доски. Реализует всю интерактивность:</p>
-<ul>
-<li>Drag &amp; Drop задач между колонками</li>
-<li>Модальное окно карточки задачи (просмотр/редактирование)</li>
-<li>Панель создания задачи</li>
-<li>Календарь выбора даты</li>
-<li>Чат (комментарии)</li>
-<li>Вложения (поиск и привязка объектов PLM)</li>
-<li>Фильтры и иерархия подразделений</li>
-<li>Отчёт по задачам</li>
-</ul>
-<h2 id="section-1">Архитектура</h2>
-<p>Весь код обёрнут в IIFE <code>(function() { ... })()</code> — нет глобальных переменных.
-Функции вызываются из HTML через <code>onclick</code> атрибуты.</p>
-<h2 id="section-2">Основные модули</h2>
-<h3 id="board-adjust">1. Board Adjust — Подстройка высоты доски</h3>
-<pre><code class="language-javascript">function boardAdjust()
-</code></pre>
-<p>Переключает CSS-класс <code>panel-open</code> на <code>#kb-board</code> при открытии/закрытии панели создания.</p>
-<h3 id="section-3">2. Календарь (универсальный)</h3>
-<p><strong>Переменные состояния:</strong></p>
-<ul>
-<li><code>_calYear</code>, <code>_calMonth</code> — текущий отображаемый месяц</li>
-<li><code>_calTargetId</code> — ID input-поля, куда записывается выбранная дата</li>
-<li><code>_MN</code> — массив русских названий месяцев</li>
-</ul>
-<p><strong>Функции:</strong></p>
-<pre><code class="language-javascript">function calOpen(inputId)     // Открыть календарь для конкретного input
-function calRender()          // Отрисовать сетку дней
-function calPrev() / calNext() // Навигация по месяцам
-function calPick(d)           // Выбрать дату → записать в _calTargetId
-function calClose()           // Закрыть календарь
-</code></pre>
-<p>Календарь используется в двух местах:</p>
-<ul>
-<li>Панель создания задачи (<code>kb-new-duedate</code>)</li>
-<li>Модальное окно редактирования (<code>kb-modal-duedate</code>)</li>
-</ul>
-<h3 id="drag-drop">3. Drag &amp; Drop</h3>
-<p><strong>Переменные:</strong></p>
-<ul>
-<li><code>_dragCard</code> — перетаскиваемый DOM-элемент</li>
-<li><code>_dragSourceCol</code> — исходная колонка</li>
-</ul>
-<p><strong>Функции:</strong></p>
-<pre><code class="language-javascript">function dragStart(ev)        // Начало перетаскивания — сохраняет taskId
-function allowDrop(ev)        // Разрешает drop (preventDefault)
-function dropCard(ev)         // Обработка drop:
-                              //   1. Определяет целевую колонку
-                              //   2. Перемещает DOM-элемент
-                              //   3. Отправляет AJAX moveTask
-                              //   4. Обновляет счётчики колонок
-</code></pre>
-<p><strong>Логика drop:</strong></p>
-<ul>
-<li>Карточка вставляется в начало целевой колонки</li>
-<li>Если перемещение в колонку «Готово» (status=3) — добавляется дата завершения</li>
-<li>Если из «Готово» — дата завершения убирается</li>
-<li>Счётчики <code>(N)</code> в заголовках колонок обновляются</li>
-</ul>
-<h3 id="section-4">4. Модальное окно карточки</h3>
-<p><strong>Функции:</strong></p>
-<pre><code class="language-javascript">function openCard(taskId)     // Открыть модалку:
-                              //   1. AJAX getCard → заполнить поля
-                              //   2. Загрузить комментарии
-                              //   3. Загрузить вложения
-                              //   4. Загрузить историю
-function closeCard()          // Закрыть модалку
-function saveCard()           // Сохранить изменения (AJAX saveCard)
-function deleteCard()         // Удалить задачу (AJAX deleteCard + confirm)
-</code></pre>
-<p><strong>Вкладки модалки:</strong></p>
-<pre><code class="language-javascript">function switchTab(tabName)   // Переключение: 'comments', 'attachments', 'history'
-</code></pre>
-<h3 id="section-5">5. Комментарии (чат)</h3>
-<pre><code class="language-javascript">function loadComments(taskId)       // Загрузить список комментариев
-function sendComment()              // Отправить новый комментарий
-function deleteComment(commentId)   // Удалить комментарий (с confirm)
-function renderComments(comments)   // Отрисовать список в DOM
-</code></pre>
-<p><strong>Формат отображения:</strong></p>
-<ul>
-<li>Аватар с инициалами (цветной кружок)</li>
-<li>Имя автора + время</li>
-<li>Текст комментария</li>
-<li>Кнопка удаления (только для своих)</li>
-</ul>
-<h3 id="section-6">6. Вложения</h3>
-<pre><code class="language-javascript">function loadAttachments(taskId)          // Загрузить список вложений
-function searchObjects(query)             // Поиск объектов PLM (AJAX searchObjects)
-function addAttachment(objectId)          // Привязать объект
-function removeAttachment(attachmentId)   // Отвязать объект
-function renderAttachments(attachments)   // Отрисовать список
-function renderSearchResults(results)     // Отрисовать результаты поиска
-</code></pre>
-<h3 id="section-7">7. Панель создания задачи</h3>
-<pre><code class="language-javascript">function toggleCreatePanel()    // Показать/скрыть панель создания
-function createTask()           // Создать задачу (AJAX createTask)
-function createGroupTasks()     // Групповое создание (AJAX createGroupTasks)
-function resetCreateForm()      // Очистить форму
-</code></pre>
-<p><strong>Поля формы создания:</strong></p>
-<ul>
-<li><code>kb-new-title</code> — название</li>
-<li><code>kb-new-details</code> — описание</li>
-<li><code>kb-new-priority</code> — приоритет (select)</li>
-<li><code>kb-new-duedate</code> — срок (через календарь)</li>
-<li><code>kb-new-assignee</code> — исполнитель (select, только для руководителей)</li>
-</ul>
-<h3 id="section-8">8. Фильтры и иерархия</h3>
-<pre><code class="language-javascript">function toggleMode(mode)           // Переключение «Мои задачи» / «Все задачи»
-function loadHierarchy()            // Загрузить дерево подразделений
-function filterByDepartment(id)     // Фильтр по отделению
-function filterBySector(id)         // Фильтр по сектору
-function filterByUser(id)           // Фильтр по сотруднику
-function reloadBoard()              // Перезагрузить доску с текущими фильтрами
-function renderBoard(data)          // Отрисовать все колонки из JSON
-</code></pre>
-<h3 id="section-9">9. Отчёт</h3>
-<pre><code class="language-javascript">function openReport()               // Открыть модалку отчёта
-function loadReport(period)         // Загрузить данные (AJAX getReport)
-function renderReport(data)         // Отрисовать таблицу отчёта
-function closeReport()              // Закрыть модалку
-</code></pre>
-<h2 id="ajax">AJAX-обёртка</h2>
-<pre><code class="language-javascript">function ajax(action, params, callback)
-</code></pre>
-<ul>
-<li>Формирует POST-запрос к текущему URL с <code>ajaxAction</code> параметром</li>
-<li>Парсит JSON-ответ</li>
-<li>Вызывает callback с результатом</li>
-<li>При ошибке показывает alert</li>
-</ul>
-<h2 id="section-10">Утилиты</h2>
-<pre><code class="language-javascript">function escapeHtml(str)            // Экранирование HTML-спецсимволов
-function formatDate(dateStr)        // Форматирование даты
-function updateColumnCounts()       // Пересчёт счётчиков в заголовках колонок
-function getStatusName(status)      // Числовой статус → русское название
-function getPriorityBadge(priority) // Приоритет → HTML-бейдж с цветом
-</code></pre>
-<h2 id="iife">Глобальные переменные (внутри IIFE)</h2>
-<div class="table-wrap"><table>
+<h1 id="kanban.js-клиентская-логика">kanban.js — Клиентская логика</h1>
+<p><strong>Файл:</strong> <code>kanban.js</code><br />
+<strong>Тип:</strong> Vanilla JavaScript (ES5, IIFE, без
+фреймворков)</p>
+<h2 id="назначение">Назначение</h2>
+<p>Клиентский скрипт канбан-доски. Реализует: - drag &amp; drop карточек
+- панель создания задачи - иерархические фильтры и role-aware UI -
+модальное окно карточки задачи - комментарии, вложения, историю - отчёт
+и справку</p>
+<h2 id="архитектура">Архитектура</h2>
+<p>Весь код обёрнут в IIFE:</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>(<span class="kw">function</span> () {</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="co">// ...</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>})()<span class="op">;</span></span></code></pre></div>
+<p>Во внешний мир экспортируются только функции, которые вызываются из
+HTML через <code>onclick</code>, <code>ondrop</code>,
+<code>onchange</code> и т.д.:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="bu">window</span><span class="op">.</span><span class="at">kbDrop</span> <span class="op">=</span> <span class="kw">function</span> (<span class="bu">event</span><span class="op">,</span> newStatus) { <span class="op">...</span> }<span class="op">;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">window</span><span class="op">.</span><span class="at">doCreateTask</span> <span class="op">=</span> <span class="kw">function</span> () { <span class="op">...</span> }<span class="op">;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">window</span><span class="op">.</span><span class="at">tcmOpen</span> <span class="op">=</span> <span class="kw">function</span> (nameKey) { <span class="op">...</span> }<span class="op">;</span></span></code></pre></div>
+<p>Bridge с backend построен на прямых вызовах:</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="bu">window</span><span class="op">.</span><span class="at">external</span><span class="op">.</span><span class="fu">InvokeTemplate</span>(<span class="st">&quot;MethodName&quot;</span><span class="op">,</span> <span class="st">&quot;param1|param2&quot;</span>)<span class="op">;</span></span></code></pre></div>
+<p>Отдельного AJAX-слоя с <code>ajaxAction</code> здесь больше нет.</p>
+<h2 id="основные-блоки">Основные блоки</h2>
+<h3 id="календарь">1. Календарь</h3>
+<p>Публичные функции: - <code>calToggle(targetId)</code> -
+<code>calPrev()</code> - <code>calNext()</code> -
+<code>calPickDay(day)</code> - <code>calClear()</code></p>
+<p>Состояние хранится в: - <code>_calYear</code> -
+<code>_calMonth</code> - <code>_calTargetId</code></p>
+<p>Календарь используется и в панели создания, и в модальном окне
+карточки.</p>
+<h3 id="drag-drop">2. Drag &amp; Drop</h3>
+<p>Публичные функции: - <code>kbDragStart(event, taskId)</code> -
+<code>kbAllowDrop(event)</code> - <code>kbDragLeave(event)</code> -
+<code>kbDrop(event, newStatus)</code></p>
+<p>При <code>kbDrop(...)</code> клиент: 1. определяет исходный и новый
+статус 2. показывает confirm при входе/выходе из <code>Done</code> 3.
+вызывает
+<code>InvokeTemplate("MoveTask", taskId + "|" + newStatus)</code> 4. при
+успехе делает <code>kbRefreshBoard()</code></p>
+<h3 id="панель-создания-задачи">3. Панель создания задачи</h3>
+<p>Публичные функции: - <code>showCreateTask(status)</code> -
+<code>hideCreateTask()</code> - <code>doCreateTask()</code> -
+<code>kbCrtAddTag(tag)</code> - <code>kbOnPriorityChange()</code></p>
+<p>Панель поддерживает: - одиночную постановку - групповую постановку -
+теги - срок с календарём - временные вложения при создании</p>
+<p>Контракты backend: - <code>CreateTask</code> -
+<code>CreateGroupTask</code> - <code>AddAttachment</code> -
+<code>AddContainer</code></p>
+<h3 id="иерархия-и-scope-фильтры">4. Иерархия и scope-фильтры</h3>
+<p>Основной entry point: - <code>kbInitHierarchy()</code></p>
+<p>Он получает JSON от <code>GetHierarchyInfo</code> и инициализирует: -
+<code>_kbH.role</code> - <code>_kbH.myKey</code> -
+<code>_kbH.myContext</code> - <code>_kbH.viewMode</code> -
+<code>_kbH.divisions</code> - <code>_kbH.sectors</code> -
+<code>_kbH.users</code></p>
+<p>Публичные функции фильтрации: - <code>kbOnDeptChange()</code> -
+<code>kbOnSectorChange()</code> - <code>kbOnUserChange()</code> -
+<code>kbSetMyMode()</code> - <code>kbSetAllMode()</code></p>
+<p>Смена режима всегда идёт через: - <code>SetViewMode</code> - затем
+<code>RefreshBoard</code></p>
+<h3 id="role-aware-ui-при-создании-задачи">5. Role-aware UI при создании
+задачи</h3>
+<p>Публичные функции: - <code>kbOnSelfChange()</code> -
+<code>kbOnCrtDeptChange()</code> - <code>kbOnCrtSectorChange()</code> -
+<code>kbOnModeChange()</code> - <code>kbOnGrpDeptChange()</code> -
+<code>kbOnGrpSectorChange()</code> - <code>kbOnGrpSearch()</code> -
+<code>kbGrpToggle(key)</code> - <code>kbGrpSelectPreset(type)</code> -
+<code>kbGrpSelectAll()</code> - <code>kbGrpClearAll()</code></p>
+<p>Поведение по ролям: - <code>regular</code> — панель назначения
+скрыта, задача только себе - <code>headOfSector</code> и
+<code>leadEngineer</code> — выбор сотрудника в пределах сектора -
+<code>headOfDept</code> — выбор сектора и сотрудника в пределах
+отделения - <code>admin</code> — выбор отделения, сектора и
+сотрудника</p>
+<p>Для <code>leadEngineer</code> в UI используется отдельный бейдж
+<code>[вед.инж]</code>, чтобы не путать роль с
+<code>[нач.сект]</code>.</p>
+<h3 id="модальное-окно-карточки-задачи-tcm">6. Модальное окно карточки
+задачи (<code>tcm*</code>)</h3>
+<p>Публичные функции: - <code>tcmOpen(nameKey)</code> -
+<code>tcmClose()</code> - <code>tcmSave()</code> -
+<code>tcmDelete()</code> - <code>tcmSendComment()</code> -
+<code>tcmDeleteComment(index)</code> - <code>tcmToggleRevs()</code> -
+<code>tcmOnStatusChange()</code></p>
+<p>При открытии карточки клиент вызывает: - <code>GetTaskDetails</code>
+- <code>GetComments</code> - <code>GetAttachments</code> -
+<code>GetTaskHistory</code></p>
+<p>При сохранении: - <code>SaveTask</code> - затем
+<code>RefreshBoard</code></p>
+<h3 id="вложения-и-поиск-plm-объектов">7. Вложения и поиск
+PLM-объектов</h3>
+<p>Публичные функции: - <code>kbCrtPickAtt()</code> -
+<code>kbCrtPickCont()</code> - <code>kbCrtRemoveAtt(idx)</code> -
+<code>tcmAttOpen(objKey, itemType)</code> -
+<code>tcmAttRemove(objKey, itemType)</code> -
+<code>tcmAttPickNative()</code> - <code>tcmAttPickNativeCont()</code> -
+<code>tcmAttToggleSearch()</code> - <code>tcmAttSearchKeyup()</code> -
+<code>tcmAttAdd(objKey)</code></p>
+<p>Используемые backend-методы: - <code>PickObjects</code> -
+<code>PickContainers</code> - <code>GetAttachments</code> -
+<code>OpenObject</code> - <code>OpenContainer</code> -
+<code>RemoveAttachment</code> - <code>RemoveContainer</code> -
+<code>PickAndAttach</code> - <code>PickAndAttachContainer</code> -
+<code>SearchObjects</code> - <code>AddAttachment</code></p>
+<h3 id="отчёт">8. Отчёт</h3>
+<p>Публичные функции: - <code>openReport()</code> -
+<code>closeReport()</code> - <code>loadReport()</code></p>
+<p>Клиент отправляет:</p>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">window</span><span class="op">.</span><span class="at">external</span><span class="op">.</span><span class="fu">InvokeTemplate</span>(<span class="st">&quot;GetReport&quot;</span><span class="op">,</span> period <span class="op">+</span> <span class="st">&quot;|&quot;</span> <span class="op">+</span> scope)<span class="op">;</span></span></code></pre></div>
+<p><code>scope</code> зависит от текущей роли и выбранного режима
+(<code>all</code>, <code>dept</code>, <code>sector</code>,
+<code>group:CTX</code>, <code>user:KEY</code>).</p>
+<h3 id="справка">9. Справка</h3>
+<p>Публичные функции: - <code>openHelp()</code> -
+<code>closeHelp()</code></p>
+<h2 id="важные-внутренние-структуры">Важные внутренние структуры</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Переменная</th>
-<th>Тип</th>
-<th>Описание</th>
+<th>Назначение</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>_calYear</code></td>
-<td>int</td>
-<td>Год в календаре</td>
+<td><code>_kbH</code></td>
+<td>состояние иерархии и текущей роли</td>
 </tr>
 <tr>
-<td><code>_calMonth</code></td>
-<td>int</td>
-<td>Месяц в календаре (0-11)</td>
+<td><code>_kbGrpSelected</code></td>
+<td>выбранные исполнители в групповом режиме</td>
 </tr>
 <tr>
-<td><code>_calTargetId</code></td>
-<td>string</td>
-<td>ID целевого input для даты</td>
+<td><code>_tcmData</code></td>
+<td>данные открытой карточки</td>
 </tr>
 <tr>
-<td><code>_MN</code></td>
-<td>array</td>
-<td>Русские названия месяцев</td>
+<td><code>_crtPendingAttachments</code></td>
+<td>временные вложения до сохранения новой задачи</td>
 </tr>
 <tr>
-<td><code>_dragCard</code></td>
-<td>Element</td>
-<td>Перетаскиваемая карточка</td>
+<td><code>_draggedId</code></td>
+<td>id перетаскиваемой карточки</td>
 </tr>
 <tr>
-<td><code>_dragSourceCol</code></td>
-<td>string</td>
-<td>ID исходной колонки</td>
-</tr>
-<tr>
-<td><code>_currentTaskId</code></td>
-<td>string</td>
-<td>ID открытой задачи в модалке</td>
-</tr>
-<tr>
-<td><code>_currentTab</code></td>
-<td>string</td>
-<td>Активная вкладка модалки</td>
+<td><code>_taskWasOpened</code></td>
+<td>флаг refresh после возврата фокуса</td>
 </tr>
 </tbody>
-</table></div>
-<h2 id="html">Привязка к HTML</h2>
-<p>Функции экспортируются в <code>window</code> для вызова из <code>onclick</code>:</p>
-<pre><code class="language-javascript">window.calOpen = calOpen;
-window.calPick = calPick;
-// ... и т.д.
-</code></pre>
+</table>
+<h2 id="ошибки-и-ux-ограничения">Ошибки и UX-ограничения</h2>
+<ul>
+<li>Все ошибки backend приходят строками <code>ERROR:...</code> и
+показываются через <code>alert(...)</code> или
+<code>tcmShowMsg(...)</code></li>
+<li>Формат даты жёстко ожидается как <code>ДД.ММ.ГГГГ</code></li>
+<li>Код должен оставаться IE11-совместимым: только <code>var</code>,
+обычные функции, конкатенация строк</li>
+<li><code>window.*</code>-функции должны быть определены до их вызова из
+HTML</li>
+</ul>
+<h2 id="что-изменилось-относительно-старой-версии-логики">Что изменилось
+относительно старой версии логики</h2>
+<ul>
+<li>Вместо старой <code>ajaxAction</code>-архитектуры используется
+прямой <code>InvokeTemplate(...)</code></li>
+<li>Иерархия работает через <code>GetHierarchyInfo</code> /
+<code>SetViewMode</code></li>
+<li>UI знает новую роль <code>leadEngineer</code></li>
+<li>Групповое создание и серверные ограничения назначения работают
+согласованно: фронтенд предлагает только допустимых исполнителей,
+backend дополнительно проверяет scope</li>
+</ul>
 
             </article>
         </div>

@@ -9,7 +9,7 @@
 
 A production Kanban board module for **Soyuz-PLM (BIS v3)** — an enterprise PLM system.
 
-Runtime is defined by 5 files in `scripts/`:
+Main runtime is defined by 5 files in `scripts/` plus one optional command script:
 
 | File | Role |
 |------|------|
@@ -18,6 +18,7 @@ Runtime is defined by 5 files in `scripts/`:
 | `KanbanBoard_HTML.html` | UI template with Liquid bindings |
 | `kanban.css` | Styles (loaded as resource on server) |
 | `kanban.js` | Client JS logic (loaded as resource on server) |
+| `kanbanButton.cs` | Optional command script that opens the Kanban screen `UI\Screens\myKanbanTest` |
 
 ---
 
@@ -52,6 +53,7 @@ Runtime is defined by 5 files in `scripts/`:
    - frontend task → `kanban.js` + `KanbanBoard_HTML.html`
    - styles → `kanban.css`
    - notification/save lifecycle → `SOYUZ_UPLOAD_KanbanTask_script.cs`
+   - UI button / navigation → `kanbanButton.cs`
 
 **This is enough for most tasks.**
 
@@ -78,6 +80,7 @@ kanbanSoyz_Actual/
 ├── scripts/
 │   ├── SOYUZ_UPLOAD_KanbanScreen_script.cs
 │   ├── SOYUZ_UPLOAD_KanbanTask_script.cs
+│   ├── kanbanButton.cs
 │   ├── KanbanBoard_HTML.html
 │   ├── kanban.css
 │   └── kanban.js
@@ -119,7 +122,7 @@ kanbanSoyz_Actual/
 
 ### 6.1 Backend (`SOYUZ_UPLOAD_KanbanScreen_script.cs`)
 
-- Entry: `Invoke(InfoObject obj, string methodName, string inputParams)`
+- Entry: `Invoke(String methodName, InfoObject obj, Object inputParams)`
 - `BeforeRender` prepares board columns and role/view-filtered data
 
 | Category | Methods |
@@ -134,7 +137,7 @@ kanbanSoyz_Actual/
 
 ### 6.2 Frontend (`kanban.js` + `KanbanBoard_HTML.html`)
 
-- JS → C# bridge: `window.external.InvokeTemplate('KanbanScreen', methodName, params)`
+- JS → C# bridge: `window.external.InvokeTemplate(methodName, params)`
 - Liquid template engine (DotLiquid) for server-side rendering of cards
 - All functions called from HTML must be on `window.*`
 
@@ -143,6 +146,12 @@ kanbanSoyz_Actual/
 - `OnBeforeSave(InfoObject obj)` — fires on every task save
 - Sends notification when Assignee changes
 - Contains `DeclineSurnameGenitive()` for Russian name declension
+
+### 6.4 Optional command (`kanbanButton.cs`)
+
+- Simple command script for a UI button
+- Opens screen `APSsServiceDataRootDirectory\UI\Screens\myKanbanTest`
+- If the screen is already open in a browser panel, activates the existing panel instead of opening a duplicate
 
 ---
 
@@ -178,7 +187,7 @@ kanbanSoyz_Actual/
 
 ### 7.4 User attributes
 
-- `Comission` — determines role (admin/headOfDept/headOfSector/regular)
+- `Comission` — determines role (`admin` / `headOfDept` / `headOfSector` / `leadEngineer` / `regular`)
 - `Context` — determines organizational unit (department/sector)
 
 ---
@@ -192,10 +201,17 @@ Role derived from user `Comission`:
 | `admin` | Full org scope |
 | `headOfDept` | Department scope |
 | `headOfSector` | Sector scope |
+| `leadEngineer` | Sector scope; assigned automatically when `Comission.NameKey` starts with `ved` |
 | `regular` | Own tasks only |
 
 View mode stored in `obj.PropertyBag["KbViewMode"]`.
 Values: `"my"`, `"all"`, `"dept"`, `"sector"`, `"user:KEY"`, `"group:CTX"`
+
+Assignment rules are validated on the server:
+- `admin` → can assign within full org scope
+- `headOfDept` → within own department
+- `headOfSector` and `leadEngineer` → within own sector
+- `regular` → self only
 
 ---
 
