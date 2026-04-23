@@ -283,6 +283,8 @@
             if (prSel) prSel.className = (prSel.className || "").replace(/\bkb-sel-urgent\b/g, "");
             var crtUserEl = document.getElementById("kb-crt-user");
             if (crtUserEl) crtUserEl.value = "";
+            var crtUserSearchEl = document.getElementById("kb-crt-user-search");
+            if (crtUserSearchEl) crtUserSearchEl.value = "";
             // Сброс группового режима
             var modeOneEl = document.getElementById("kb-crt-mode-one");
             if (modeOneEl) modeOneEl.checked = true;
@@ -564,6 +566,7 @@
         kbToggleEl("kb-sel-dept", _kbH.role === "admin");
         kbToggleEl("kb-sel-sector", _kbH.role === "admin" || _kbH.role === "headOfDept");
         kbToggleEl("kb-sel-user", true);
+        kbToggleEl("kb-sel-search", true);
         kbToggleEl("kb-hier-label", true);
 
         if (_kbH.role === "admin") { kbFillDivisions(); }
@@ -580,6 +583,25 @@
 
         kbRestoreViewMode(_kbH.viewMode || "my");
         kbInitCreateForm();
+
+        // Enter в поле поиска верхней панели — применить выбранного сотрудника
+        // как фильтр доски. На input() мы только фильтруем визуально
+        // (см. kbOnSelSearch), чтобы не дёргать RefreshBoard на каждую клавишу
+        // и не сбрасывать режим при пустом запросе.
+        var selSearchEl = document.getElementById("kb-sel-search");
+        if (selSearchEl && !selSearchEl._kbEnterBound) {
+            selSearchEl._kbEnterBound = true;
+            selSearchEl.onkeydown = function (e) {
+                if ((e.keyCode || e.which) !== 13) return;
+                e.preventDefault();
+                var userEl = document.getElementById("kb-sel-user");
+                var userKey = userEl ? (userEl.value || "") : "";
+                if (!userKey) return; // «Нет совпадений» или пусто — не применяем
+                kbUpdateMyBtn(false);
+                kbStyleBtn("kb-btn-all", false);
+                kbApplyMode();
+            };
+        }
     };
 
     function kbFillDivisions() {
@@ -605,24 +627,38 @@
         }
     }
 
-    function kbFillUsers(deptKey, sectorKey) {
+    function kbFillUsers(deptKey, sectorKey, searchQuery) {
         var sel = document.getElementById("kb-sel-user");
         if (!sel) return;
         kbClearSel(sel);
-        sel.appendChild(kbOpt("", "Все сотрудники"));
+        var q = (searchQuery || "").toLowerCase().replace(/^\s+|\s+$/g, "");
+        // Без поиска — показываем плашку «Все сотрудники» первой (чтобы по умолчанию
+        // не выбирался случайный сотрудник). С поиском — плашки нет, и первое
+        // совпадение автоматически становится выбранным (аналог панели создания).
+        if (!q) sel.appendChild(kbOpt("", "Все сотрудники"));
+        var matched = 0;
         for (var i = 0; i < _kbH.users.length; i++) {
             var u = _kbH.users[i];
             var ctx = u.context || "";
             if (sectorKey && ctx !== sectorKey) continue;
             if (!sectorKey && deptKey && !kbBelongsToDept(ctx, deptKey)) continue;
+            if (q && String(u.name || "").toLowerCase().indexOf(q) === -1) continue;
             sel.appendChild(kbOpt(u.key, u.name));
+            matched++;
         }
+        if (q && matched === 0) sel.appendChild(kbOpt("", "Нет совпадений"));
+    }
+
+    function kbClearSelSearch() {
+        var s = document.getElementById("kb-sel-search");
+        if (s) s.value = "";
     }
 
     window.kbOnDeptChange = function () {
         var deptKey = kbSelVal("kb-sel-dept");
+        kbClearSelSearch();
         kbFillSectors(deptKey || null);
-        kbFillUsers(deptKey || null, null);
+        kbFillUsers(deptKey || null, null, "");
         kbUpdateMyBtn(false);
         kbStyleBtn("kb-btn-all", false);
         kbApplyMode();
@@ -631,7 +667,8 @@
     window.kbOnSectorChange = function () {
         var deptKey = kbSelVal("kb-sel-dept");
         var sectorKey = kbSelVal("kb-sel-sector");
-        kbFillUsers(deptKey || null, sectorKey || null);
+        kbClearSelSearch();
+        kbFillUsers(deptKey || null, sectorKey || null, "");
         kbUpdateMyBtn(false);
         kbStyleBtn("kb-btn-all", false);
         kbApplyMode();
@@ -643,13 +680,27 @@
         kbApplyMode();
     };
 
+    window.kbOnSelSearch = function () {
+        var deptKey = kbSelVal("kb-sel-dept");
+        var sectorKey = kbSelVal("kb-sel-sector");
+        var s = document.getElementById("kb-sel-search");
+        var q = s ? (s.value || "") : "";
+        // Только фильтруем выпадашку визуально — первое совпадение становится
+        // выбранным в списке. Доску не трогаем: чтобы применить фильтр по
+        // сотруднику, пользователь кликает по дропдауну (или жмёт Enter —
+        // см. keydown-обработчик в kbInitHierarchy). Это исключает случайное
+        // переключение режима при очистке поиска.
+        kbFillUsers(deptKey || null, sectorKey || null, q);
+    };
+
     window.kbSetMyMode = function () {
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
+        kbClearSelSearch();
         if (_kbH.role === "admin" || _kbH.role === "headOfDept") {
             kbFillSectors(null);
-            kbFillUsers(null, null);
+            kbFillUsers(null, null, "");
         }
         kbUpdateMyBtn(true);
         kbSendMode("my");
@@ -732,9 +783,10 @@
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
+        kbClearSelSearch();
         if (_kbH.role === "admin" || _kbH.role === "headOfDept") {
             kbFillSectors(null);
-            kbFillUsers(null, null);
+            kbFillUsers(null, null, "");
         }
         kbUpdateAllBtn(true);
         var mode = _kbH.role === "admin" ? "all"
@@ -801,10 +853,11 @@
         }
     }
 
-    function kbFillCrtUsers(deptKey, sectorKey) {
+    function kbFillCrtUsers(deptKey, sectorKey, searchQuery) {
         var sel = document.getElementById("kb-crt-user");
         if (!sel) return;
         kbClearSel(sel);
+        var q = (searchQuery || "").toLowerCase().replace(/^\s+|\s+$/g, "");
         // «Сам себе» — отдельный чекбокс, не опция в дропдауне
         for (var i = 0; i < _kbH.users.length; i++) {
             var u = _kbH.users[i];
@@ -812,6 +865,7 @@
             var ctx = u.context || "";
             if (sectorKey && ctx !== sectorKey) continue;
             if (!sectorKey && deptKey && !kbBelongsToDept(ctx, deptKey)) continue;
+            if (q && String(u.name || "").toLowerCase().indexOf(q) === -1) continue;
             sel.appendChild(kbOpt(u.key, u.name));
         }
     }
@@ -827,11 +881,13 @@
         var deptEl = document.getElementById("kb-crt-dept");
         var sectorEl = document.getElementById("kb-crt-sector");
         var userEl = document.getElementById("kb-crt-user");
+        var searchEl = document.getElementById("kb-crt-user-search");
 
         if (isSelf) {
             if (deptWrap) deptWrap.style.display = "none";
             if (sectorWrap) sectorWrap.style.display = "none";
             if (userWrap) userWrap.style.display = "none";
+            if (searchEl) searchEl.value = "";
         } else {
             if (deptWrap) deptWrap.style.display = (_kbH.role === "admin") ? "inline" : "none";
             if (sectorWrap) sectorWrap.style.display =
@@ -846,8 +902,10 @@
     window.kbOnCrtDeptChange = function () {
         var crtDept = document.getElementById("kb-crt-dept");
         var deptKey = crtDept ? (crtDept.value || "") : "";
+        var searchEl = document.getElementById("kb-crt-user-search");
+        if (searchEl) searchEl.value = "";
         kbFillCrtSectors(deptKey || null);
-        kbFillCrtUsers(deptKey || null, null);
+        kbFillCrtUsers(deptKey || null, null, "");
         // Не вызывает kbApplyMode/kbSendMode — доска не обновляется
     };
 
@@ -856,8 +914,20 @@
         var crtSector = document.getElementById("kb-crt-sector");
         var deptKey = crtDept ? (crtDept.value || "") : "";
         var sectorKey = crtSector ? (crtSector.value || "") : "";
-        kbFillCrtUsers(deptKey || null, sectorKey || null);
+        var searchEl = document.getElementById("kb-crt-user-search");
+        if (searchEl) searchEl.value = "";
+        kbFillCrtUsers(deptKey || null, sectorKey || null, "");
         // Не вызывает kbApplyMode/kbSendMode — доска не обновляется
+    };
+
+    window.kbOnCrtUserSearch = function () {
+        var crtDept = document.getElementById("kb-crt-dept");
+        var crtSector = document.getElementById("kb-crt-sector");
+        var searchEl = document.getElementById("kb-crt-user-search");
+        var deptKey = crtDept ? (crtDept.value || "") : "";
+        var sectorKey = crtSector ? (crtSector.value || "") : "";
+        var q = searchEl ? (searchEl.value || "") : "";
+        kbFillCrtUsers(deptKey || null, sectorKey || null, q);
     };
 
     // Родительское отделение по контексту сектора: "510кт" → "500кт"

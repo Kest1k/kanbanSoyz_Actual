@@ -1,4 +1,4 @@
-﻿{% extends Layouts\Navigation %}
+{% extends Layouts\Navigation %}
 
 {% block js %}
 <base href="pmsz-plm:127.0.0.1[b0a7599a]:4450/C.26/" />
@@ -45,6 +45,9 @@
     <select id="kb-sel-user" class="kb-hier-select" onchange="kbOnUserChange()" style="display:none;
               width:auto; min-width:160px; vertical-align:middle;">
     </select>
+    <input type="text" id="kb-sel-search" class="kb-hier-select" placeholder="&#128269; Поиск..."
+        oninput="kbOnSelSearch()" style="display:none;
+              width:140px; margin-left:4px; vertical-align:middle;">
 </div>
 {% endblock %}
 
@@ -130,6 +133,9 @@
                     <span id="kb-crt-user-wrap" style="display:none;">
                         <select id="kb-crt-user" class="form-control input-sm"
                             style="width:auto;min-width:110px;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" disabled></select>
+                        <input type="text" id="kb-crt-user-search" class="form-control input-sm"
+                            placeholder="&#128269; Поиск..." oninput="kbOnCrtUserSearch()"
+                            style="width:130px;height:30px;display:inline-block;vertical-align:middle;margin-left:4px;">
                     </span>
                 </span>
             </td>
@@ -227,10 +233,8 @@
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
                 {% endif %}
-                {% if t.initials != "" %}
-                <div class="kb-avatar" title="{{ t.assigneeName }}">
-                    {{ t.initials }}
-                </div>
+                {% if t.assigneeShort != "" %}
+                <div class="kb-assignee-tag" title="{{ t.assigneeName }}">{{ t.assigneeShort }}</div>
                 {% endif %}
                 <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
                     title="Удалить">&#215;</button>
@@ -265,6 +269,9 @@
                     </span>
                     {% endif %}
                 </div>
+                {% if t.creatorShort != "" %}
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -292,10 +299,8 @@
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
                 {% endif %}
-                {% if t.initials != "" %}
-                <div class="kb-avatar" title="{{ t.assigneeName }}" style="background:#d4820a;">
-                    {{ t.initials }}
-                </div>
+                {% if t.assigneeShort != "" %}
+                <div class="kb-assignee-tag" title="{{ t.assigneeName }}">{{ t.assigneeShort }}</div>
                 {% endif %}
                 <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
                     title="Удалить">&#215;</button>
@@ -330,6 +335,9 @@
                     </span>
                     {% endif %}
                 </div>
+                {% if t.creatorShort != "" %}
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -354,10 +362,8 @@
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
                 {% endif %}
-                {% if t.initials != "" %}
-                <div class="kb-avatar" title="{{ t.assigneeName }}" style="background:#7c5cbf;">
-                    {{ t.initials }}
-                </div>
+                {% if t.assigneeShort != "" %}
+                <div class="kb-assignee-tag" title="{{ t.assigneeName }}">{{ t.assigneeShort }}</div>
                 {% endif %}
                 <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
                     title="Удалить">&#215;</button>
@@ -392,6 +398,9 @@
                     </span>
                     {% endif %}
                 </div>
+                {% if t.creatorShort != "" %}
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -416,10 +425,8 @@
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
                 {% endif %}
-                {% if t.initials != "" %}
-                <div class="kb-avatar" title="{{ t.assigneeName }}" style="background:#2d8a5e;">
-                    {{ t.initials }}
-                </div>
+                {% if t.assigneeShort != "" %}
+                <div class="kb-assignee-tag" title="{{ t.assigneeName }}">{{ t.assigneeShort }}</div>
                 {% endif %}
                 <button class="kb-card-del" onclick="kbDeleteTask('{{ t.id }}'); event.stopPropagation(); return false;"
                     title="Удалить">&#215;</button>
@@ -444,6 +451,9 @@
                     </span>
                     {% endif %}
                 </div>
+                {% if t.creatorShort != "" %}
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -523,7 +533,7 @@
                 </div>
                 <div class="tcm-fg">
                     <label class="tcm-lbl">Исполнитель</label>
-                    <input type="text" id="tcm-assignee" class="form-control input-sm" readonly>
+                    <select id="tcm-assignee" class="form-control input-sm"></select>
                 </div>
                 <div class="tcm-fg">
                     <label class="tcm-lbl">Срок</label>

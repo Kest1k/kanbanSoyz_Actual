@@ -186,10 +186,33 @@
         line-height: 1.4;
     }
 
+    .kb-card-creator {
+        font-size: 10px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        clear: both;
+        margin: 6px -11px -10px -11px;
+        padding: 5px 8px;
+        background: #eef2f7;
+        border-top: 1px solid #dde3ec;
+        border-radius: 0 0 8px 8px;
+    }
+    .kb-card-creator .kb-creator-label {
+        color: #94a3b8;
+        font-weight: 500;
+    }
+    .kb-card-creator .kb-creator-name {
+        color: #3d5a80;
+        font-weight: 700;
+    }
+
     .kb-card-meta {
         color: #9ca3af;
         font-size: 11px;
         margin-top: 4px;
+        clear: both;
     }
 
 /* ── Аватар ── */
@@ -209,6 +232,25 @@
         letter-spacing: -0.3px;
         -webkit-box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+
+/* ── Плашка «Фамилия И.О.» исполнителя ── */
+    .kb-assignee-tag {
+        float: right;
+        margin: 0 0 2px 6px;
+        background: #e0edff;
+        color: #2563eb;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 4px;
+        white-space: nowrap;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        pointer-events: none;
+        line-height: 16px;
+        box-sizing: border-box;
     }
 
 /* ── Кнопка удаления ── */
@@ -234,6 +276,7 @@
     }
 
     .kb-card:hover .kb-avatar { display: none; }
+    .kb-card:hover .kb-assignee-tag { display: none; }
     .kb-card:hover .kb-card-del { display: block; }
 
     .kb-card-del:hover {
@@ -270,6 +313,13 @@
     #kb-body-3 .kb-card .kb-card-title { color: #8b8fa3; }
     #kb-body-3 .kb-card .kb-card-details { color: #b0b5c0; }
     #kb-body-3 .kb-card .kb-avatar { opacity: 0.5; }
+    #kb-body-3 .kb-card .kb-assignee-tag { opacity: 0.5; }
+    #kb-body-3 .kb-card .kb-card-creator {
+        background: #eceef1;
+        border-top-color: #e0e3e8;
+    }
+    #kb-body-3 .kb-card .kb-creator-label { color: #b8bcc4; }
+    #kb-body-3 .kb-card .kb-creator-name  { color: #8b8fa3; font-weight: 600; }
 
     .kb-done-date {
         color: #27ae60;
@@ -1427,6 +1477,7 @@
     }
 
     .kb-card.pri-urgent .kb-avatar { top: 26px; right: 8px; }
+    .kb-card.pri-urgent .kb-assignee-tag { margin-top: 20px; }
     .kb-card.pri-urgent .kb-card-del { top: 26px; right: 8px; }
 
     /* Urgent в колонке «Готово» — приглушённый */
