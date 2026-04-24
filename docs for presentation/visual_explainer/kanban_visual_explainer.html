@@ -1,0 +1,1338 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Канбан-доска в Союз-PLM: как это работает</title>
+  <style>
+    @page {
+      size: 13.333333in 7.5in;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #dfe5ee;
+      color: #172033;
+      font-family: Arial, "Segoe UI", sans-serif;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .slide {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      background: #f7fafc;
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      padding: 54px 64px 48px;
+    }
+
+    .slide:last-child {
+      page-break-after: auto;
+    }
+
+    body.preview .slide {
+      display: none;
+      page-break-after: auto;
+    }
+
+    body.preview .slide.active {
+      display: flex;
+    }
+
+    h1,
+    h2,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 68px;
+      line-height: 0.98;
+      letter-spacing: 0;
+      max-width: 840px;
+    }
+
+    h2 {
+      font-size: 44px;
+      line-height: 1.06;
+      letter-spacing: 0;
+      max-width: 920px;
+    }
+
+    .lead {
+      margin-top: 18px;
+      font-size: 25px;
+      line-height: 1.28;
+      color: #4d5a6d;
+      max-width: 780px;
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      color: #2f6fbe;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+
+    .kicker::before {
+      content: "";
+      width: 34px;
+      height: 8px;
+      border-radius: 99px;
+      background: #2f6fbe;
+    }
+
+    .footer {
+      position: absolute;
+      left: 64px;
+      right: 64px;
+      bottom: 26px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #758195;
+      font-size: 13px;
+    }
+
+    .page-num {
+      font-weight: 700;
+      color: #506078;
+    }
+
+    .accent-blue { color: #2f6fbe; }
+    .accent-orange { color: #d27b16; }
+    .accent-green { color: #1a8f5a; }
+    .accent-red { color: #c83f3f; }
+    .accent-purple { color: #7a53cc; }
+
+    .cover {
+      background:
+        radial-gradient(circle at 88% 16%, rgba(47,111,190,0.18), transparent 25%),
+        linear-gradient(135deg, #eef5ff 0%, #f8fbff 48%, #fff8ef 100%);
+      padding-top: 72px;
+    }
+
+    .cover h1 {
+      max-width: 700px;
+    }
+
+    .cover .lead {
+      max-width: 670px;
+    }
+
+    .cover-grid {
+      position: absolute;
+      right: 72px;
+      top: 96px;
+      width: 410px;
+      height: 470px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      transform: rotate(-4deg);
+    }
+
+    .cover-col {
+      border-radius: 22px;
+      padding: 18px 12px;
+      background: rgba(255,255,255,0.78);
+      border: 2px solid rgba(31,42,68,0.08);
+      box-shadow: 0 20px 42px rgba(48,67,93,0.12);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cover-col-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      border-radius: 999px;
+      padding: 8px 10px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .cover-card {
+      min-height: 54px;
+      border-radius: 14px;
+      background: #ffffff;
+      border: 1px solid #e0e6ef;
+      box-shadow: 0 8px 18px rgba(48,67,93,0.10);
+    }
+
+    .cover-card.small {
+      min-height: 38px;
+    }
+
+    .cover-badge {
+      margin-top: 36px;
+      width: fit-content;
+      border-radius: 999px;
+      padding: 13px 20px;
+      background: #172033;
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .section-label {
+      position: absolute;
+      top: 36px;
+      right: 64px;
+      font-size: 15px;
+      color: #77859a;
+      font-weight: 700;
+    }
+
+    .board-demo {
+      margin-top: 38px;
+      height: 420px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .board-col {
+      border-radius: 24px;
+      background: #ffffff;
+      border: 2px solid #e2e8f0;
+      box-shadow: 0 20px 42px rgba(48,67,93,0.10);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .board-head {
+      border-radius: 16px;
+      color: #ffffff;
+      padding: 12px 14px;
+      font-size: 20px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .task-card {
+      border-radius: 16px;
+      background: #f9fbfe;
+      border: 2px solid #e5ebf4;
+      padding: 15px;
+      min-height: 74px;
+      box-shadow: 0 10px 22px rgba(31,42,68,0.08);
+    }
+
+    .task-title {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #243147;
+    }
+
+    .task-meta {
+      font-size: 14px;
+      color: #69778c;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .mini-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 14px;
+      line-height: 1;
+      font-weight: 700;
+      background: #edf2f7;
+      color: #475569;
+    }
+
+    .arrow {
+      position: absolute;
+      height: 6px;
+      background: #27364f;
+      border-radius: 99px;
+    }
+
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -12px;
+      top: -8px;
+      border-left: 18px solid #27364f;
+      border-top: 11px solid transparent;
+      border-bottom: 11px solid transparent;
+    }
+
+    .idea-grid {
+      margin-top: 42px;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 56px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .simple-list {
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .simple-item {
+      display: grid;
+      grid-template-columns: 66px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .simple-num {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: #172033;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .simple-item h3 {
+      margin: 0 0 6px;
+      font-size: 25px;
+      line-height: 1.1;
+    }
+
+    .simple-item p {
+      font-size: 19px;
+      line-height: 1.28;
+      color: #5d687a;
+    }
+
+    .station-track {
+      position: relative;
+      height: 330px;
+      border-radius: 30px;
+      background: linear-gradient(180deg, #ffffff, #eef4fb);
+      border: 2px solid #dfe7f2;
+      box-shadow: 0 22px 48px rgba(48,67,93,0.12);
+      padding: 34px 32px;
+    }
+
+    .station-line {
+      position: absolute;
+      left: 80px;
+      right: 80px;
+      top: 164px;
+      height: 8px;
+      border-radius: 99px;
+      background: #d2dce9;
+    }
+
+    .station {
+      position: absolute;
+      width: 104px;
+      height: 104px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 8px solid #2f6fbe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: #243147;
+      box-shadow: 0 12px 24px rgba(31,42,68,0.12);
+    }
+
+    .station:nth-child(2) { left: 46px; top: 112px; border-color: #2f6fbe; }
+    .station:nth-child(3) { left: 186px; top: 112px; border-color: #d27b16; }
+    .station:nth-child(4) { left: 326px; top: 112px; border-color: #7a53cc; }
+    .station:nth-child(5) { left: 466px; top: 112px; border-color: #1a8f5a; }
+
+    .role-map {
+      margin-top: 36px;
+      display: grid;
+      grid-template-columns: 0.95fr 1.05fr;
+      gap: 42px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .pyramid {
+      height: 390px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pyr-layer {
+      height: 64px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 20px;
+      box-shadow: 0 14px 28px rgba(31,42,68,0.14);
+    }
+
+    .pyr-admin { width: 260px; background: #172033; }
+    .pyr-dept { width: 380px; background: #2f6fbe; }
+    .pyr-sector { width: 500px; background: #7a53cc; }
+    .pyr-user { width: 620px; background: #1a8f5a; }
+
+    .role-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .role-card {
+      background: #ffffff;
+      border: 2px solid #e2e8f0;
+      border-radius: 22px;
+      padding: 20px;
+      min-height: 132px;
+      box-shadow: 0 14px 30px rgba(48,67,93,0.10);
+    }
+
+    .role-card h3 {
+      margin: 0 0 8px;
+      font-size: 23px;
+    }
+
+    .role-card p {
+      color: #5e6b80;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .flow {
+      margin-top: 38px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 26px;
+      align-items: stretch;
+      position: relative;
+      flex: 1;
+    }
+
+    .flow-step {
+      position: relative;
+      border-radius: 24px;
+      padding: 24px 18px;
+      background: #ffffff;
+      border: 2px solid #dfe7f2;
+      box-shadow: 0 18px 38px rgba(48,67,93,0.10);
+      min-height: 302px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .flow-step::after {
+      content: "";
+      position: absolute;
+      right: -29px;
+      top: 50%;
+      width: 32px;
+      height: 6px;
+      background: #27364f;
+      transform: translateY(-50%);
+      border-radius: 99px;
+      z-index: 2;
+    }
+
+    .flow-step:last-child::after {
+      display: none;
+    }
+
+    .flow-icon {
+      width: 70px;
+      height: 70px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 30px;
+      font-weight: 900;
+      margin-bottom: 16px;
+    }
+
+    .flow-step h3 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.08;
+    }
+
+    .flow-step p {
+      font-size: 18px;
+      line-height: 1.25;
+      color: #5d687a;
+    }
+
+    .move-row {
+      margin-top: 42px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      position: relative;
+      flex: 1;
+      align-items: center;
+    }
+
+    .move-lane {
+      height: 360px;
+      border-radius: 26px;
+      background: #ffffff;
+      border: 2px dashed #cdd7e6;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 16px 34px rgba(48,67,93,0.09);
+    }
+
+    .move-title {
+      color: #ffffff;
+      font-size: 21px;
+      font-weight: 800;
+      text-align: center;
+      border-radius: 16px;
+      padding: 13px;
+    }
+
+    .moving-card {
+      border-radius: 20px;
+      background: #ffffff;
+      border: 3px solid #172033;
+      padding: 18px;
+      min-height: 138px;
+      box-shadow: 0 20px 38px rgba(31,42,68,0.18);
+      font-size: 20px;
+      font-weight: 800;
+      transform: rotate(-2deg);
+    }
+
+    .move-note {
+      font-size: 18px;
+      line-height: 1.24;
+      color: #5c687a;
+      min-height: 72px;
+    }
+
+    .card-exploded {
+      margin-top: 34px;
+      flex: 1;
+      position: relative;
+    }
+
+    .big-task-card {
+      position: absolute;
+      left: 375px;
+      top: 62px;
+      width: 420px;
+      min-height: 270px;
+      border-radius: 30px;
+      background: #ffffff;
+      border: 3px solid #172033;
+      box-shadow: 0 30px 60px rgba(31,42,68,0.18);
+      padding: 28px;
+    }
+
+    .big-task-card h3 {
+      margin: 0 0 18px;
+      font-size: 31px;
+      line-height: 1.05;
+    }
+
+    .card-line {
+      height: 14px;
+      border-radius: 99px;
+      background: #e4ebf4;
+      margin-bottom: 12px;
+    }
+
+    .card-line.short {
+      width: 58%;
+    }
+
+    .bubble {
+      position: absolute;
+      border-radius: 24px;
+      padding: 16px 18px;
+      min-width: 190px;
+      background: #ffffff;
+      border: 2px solid #e2e8f0;
+      box-shadow: 0 16px 34px rgba(48,67,93,0.11);
+      font-size: 20px;
+      font-weight: 800;
+      color: #243147;
+    }
+
+    .bubble small {
+      display: block;
+      margin-top: 5px;
+      font-size: 15px;
+      line-height: 1.25;
+      color: #667387;
+      font-weight: 400;
+    }
+
+    .connector {
+      position: absolute;
+      height: 3px;
+      background: #c9d4e3;
+      transform-origin: left center;
+      border-radius: 99px;
+    }
+
+    .attach-layout {
+      margin-top: 36px;
+      display: grid;
+      grid-template-columns: 1fr 0.78fr 1fr;
+      gap: 38px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .plm-stack,
+    .task-center,
+    .work-stack {
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+
+    .object-tile {
+      border-radius: 22px;
+      background: #ffffff;
+      border: 2px solid #dfe7f2;
+      padding: 20px 22px;
+      box-shadow: 0 15px 30px rgba(48,67,93,0.10);
+    }
+
+    .object-tile h3 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .object-tile p {
+      font-size: 17px;
+      color: #617086;
+      line-height: 1.25;
+    }
+
+    .round-node {
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      background: #172033;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 31px;
+      line-height: 1.05;
+      font-weight: 900;
+      box-shadow: 0 28px 52px rgba(31,42,68,0.22);
+      margin: 0 auto;
+    }
+
+    .round-node span {
+      margin-top: 12px;
+      font-size: 17px;
+      line-height: 1.24;
+      max-width: 170px;
+      font-weight: 400;
+      color: #dce7f4;
+    }
+
+    .report-layout {
+      margin-top: 36px;
+      display: grid;
+      grid-template-columns: 0.78fr 1.22fr;
+      gap: 44px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .report-screen {
+      border-radius: 30px;
+      background: #ffffff;
+      border: 3px solid #dfe7f2;
+      box-shadow: 0 24px 52px rgba(48,67,93,0.13);
+      padding: 26px;
+      min-height: 390px;
+    }
+
+    .report-bars {
+      display: flex;
+      align-items: end;
+      gap: 22px;
+      height: 230px;
+      padding: 22px 10px 0;
+    }
+
+    .bar {
+      flex: 1;
+      border-radius: 18px 18px 6px 6px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      color: #ffffff;
+      font-size: 20px;
+      font-weight: 900;
+      padding-top: 16px;
+    }
+
+    .report-table {
+      margin-top: 22px;
+      border-top: 2px solid #e1e8f2;
+    }
+
+    .report-row {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr 0.8fr 0.8fr;
+      border-bottom: 2px solid #eef2f7;
+      padding: 12px 4px;
+      font-size: 17px;
+      color: #48576d;
+    }
+
+    .metric-list {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .metric {
+      display: grid;
+      grid-template-columns: 82px 1fr;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .metric-num {
+      width: 82px;
+      height: 82px;
+      border-radius: 22px;
+      background: #172033;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      font-weight: 900;
+    }
+
+    .metric h3 {
+      margin: 0 0 5px;
+      font-size: 25px;
+    }
+
+    .metric p {
+      font-size: 18px;
+      color: #637086;
+      line-height: 1.25;
+    }
+
+    .safe-layout {
+      margin-top: 36px;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 48px;
+      align-items: center;
+      flex: 1;
+    }
+
+    .perimeter {
+      position: relative;
+      height: 420px;
+      border-radius: 42px;
+      border: 8px solid #172033;
+      background: linear-gradient(180deg, #ffffff, #eef5ff);
+      box-shadow: 0 26px 58px rgba(31,42,68,0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px;
+    }
+
+    .perimeter h3 {
+      margin: 0;
+      font-size: 38px;
+      line-height: 1.08;
+    }
+
+    .perimeter p {
+      margin-top: 16px;
+      color: #5b687d;
+      font-size: 21px;
+      line-height: 1.24;
+    }
+
+    .lock-bar {
+      position: absolute;
+      left: 86px;
+      right: 86px;
+      bottom: -28px;
+      height: 58px;
+      border-radius: 18px;
+      background: #172033;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .rules {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .rule-card {
+      border-radius: 22px;
+      background: #ffffff;
+      border: 2px solid #dfe7f2;
+      box-shadow: 0 14px 30px rgba(48,67,93,0.10);
+      padding: 22px;
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .check {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      background: #1a8f5a;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 900;
+    }
+
+    .rule-card h3 {
+      margin: 0 0 4px;
+      font-size: 23px;
+    }
+
+    .rule-card p {
+      font-size: 17px;
+      color: #627086;
+      line-height: 1.24;
+    }
+
+    .big-picture {
+      margin-top: 38px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 14px;
+      align-items: center;
+      position: relative;
+    }
+
+    .system-node {
+      min-height: 230px;
+      border-radius: 26px;
+      background: #ffffff;
+      border: 2px solid #dfe7f2;
+      box-shadow: 0 15px 32px rgba(48,67,93,0.10);
+      padding: 20px 14px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .system-node h3 {
+      margin: 0;
+      font-size: 21px;
+      line-height: 1.12;
+    }
+
+    .system-node p {
+      font-size: 15px;
+      color: #637086;
+      line-height: 1.22;
+    }
+
+    .node-dot {
+      width: 66px;
+      height: 66px;
+      border-radius: 20px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 29px;
+      font-weight: 900;
+      margin: 0 auto;
+    }
+
+    .connector-arrow {
+      position: absolute;
+      top: 356px;
+      height: 5px;
+      width: 52px;
+      background: #27364f;
+      border-radius: 99px;
+    }
+
+    .connector-arrow::after {
+      content: "";
+      position: absolute;
+      right: -10px;
+      top: -7px;
+      border-left: 15px solid #27364f;
+      border-top: 9px solid transparent;
+      border-bottom: 9px solid transparent;
+    }
+
+    .summary-layout {
+      margin-top: 28px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 40px;
+      align-items: start;
+    }
+
+    .result-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .result-item {
+      display: grid;
+      grid-template-columns: 50px 1fr;
+      gap: 16px;
+      align-items: center;
+      background: #ffffff;
+      border: 2px solid #e1e8f2;
+      border-radius: 20px;
+      padding: 13px 18px;
+      box-shadow: 0 13px 28px rgba(48,67,93,0.09);
+    }
+
+    .result-mark {
+      width: 50px;
+      height: 50px;
+      border-radius: 16px;
+      background: #172033;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 25px;
+      font-weight: 900;
+    }
+
+    .result-item h3 {
+      margin: 0 0 4px;
+      font-size: 23px;
+    }
+
+    .result-item p {
+      color: #607087;
+      font-size: 16.5px;
+      line-height: 1.22;
+    }
+
+    .final-board {
+      height: 360px;
+      border-radius: 34px;
+      background: #ffffff;
+      border: 3px solid #dfe7f2;
+      padding: 26px;
+      box-shadow: 0 24px 52px rgba(48,67,93,0.14);
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .final-col {
+      border-radius: 22px;
+      background: #f6f9fd;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .final-head {
+      height: 42px;
+      border-radius: 14px;
+    }
+
+    .final-mini {
+      height: 48px;
+      border-radius: 14px;
+      background: #ffffff;
+      border: 1px solid #e0e7f1;
+      box-shadow: 0 7px 14px rgba(48,67,93,0.08);
+    }
+
+    .bg-blue { background: #2f6fbe; }
+    .bg-orange { background: #d27b16; }
+    .bg-purple { background: #7a53cc; }
+    .bg-green { background: #1a8f5a; }
+    .bg-red { background: #c83f3f; }
+    .bg-dark { background: #172033; }
+
+    @media print {
+      html,
+      body {
+        width: 13.333333in;
+        background: #ffffff;
+      }
+
+      .slide {
+        width: 13.333333in;
+        height: 7.5in;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <section class="slide cover" data-slide="1">
+    <div class="section-label">простое объяснение</div>
+    <div class="kicker">Союз-PLM</div>
+    <h1>Канбан-доска: как задачи проходят путь до результата</h1>
+    <p class="lead">Представьте школьную доску с карточками. Только карточки живут внутри «Союза», сами помнят сроки, исполнителей, вложения и историю.</p>
+    <div class="cover-badge">Без внешних сервисов. Всё внутри PLM.</div>
+    <div class="cover-grid" aria-hidden="true">
+      <div class="cover-col">
+        <div class="cover-col-title bg-blue">Надо</div>
+        <div class="cover-card"></div>
+        <div class="cover-card small"></div>
+        <div class="cover-card"></div>
+      </div>
+      <div class="cover-col">
+        <div class="cover-col-title bg-orange">В работе</div>
+        <div class="cover-card small"></div>
+        <div class="cover-card"></div>
+      </div>
+      <div class="cover-col">
+        <div class="cover-col-title bg-purple">Ожидание</div>
+        <div class="cover-card"></div>
+      </div>
+      <div class="cover-col">
+        <div class="cover-col-title bg-green">Готово</div>
+        <div class="cover-card small"></div>
+        <div class="cover-card small"></div>
+      </div>
+    </div>
+    <div class="footer"><span>Канбан-доска для Союз-PLM</span><span class="page-num">01</span></div>
+  </section>
+
+  <section class="slide" data-slide="2">
+    <div class="section-label">главная идея</div>
+    <div class="kicker">Если совсем просто</div>
+    <h2>Задача — это карточка. Колонка — это её состояние.</h2>
+    <div class="idea-grid">
+      <div class="station-track">
+        <div class="station-line"></div>
+        <div class="station">Надо<br>сделать</div>
+        <div class="station">В<br>работе</div>
+        <div class="station">Ждём</div>
+        <div class="station">Готово</div>
+      </div>
+      <div class="simple-list">
+        <div class="simple-item">
+          <div class="simple-num">1</div>
+          <div><h3>Появилась работа</h3><p>Создаём карточку: что сделать, кому, до какого срока.</p></div>
+        </div>
+        <div class="simple-item">
+          <div class="simple-num">2</div>
+          <div><h3>Работа меняет состояние</h3><p>Перетаскиваем карточку между колонками, а система обновляет статус.</p></div>
+        </div>
+        <div class="simple-item">
+          <div class="simple-num">3</div>
+          <div><h3>Все видят актуальную картину</h3><p>Исполнитель видит свои дела, руководитель — картину по своему уровню.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="footer"><span>Одна карточка = один понятный кусок работы</span><span class="page-num">02</span></div>
+  </section>
+
+  <section class="slide" data-slide="3">
+    <div class="section-label">видимость</div>
+    <div class="kicker">Кто что видит</div>
+    <h2>Доска показывает не всё подряд, а только то, что человеку положено видеть.</h2>
+    <div class="role-map">
+      <div class="pyramid" aria-hidden="true">
+        <div class="pyr-layer pyr-admin">Администратор<br>вся организация</div>
+        <div class="pyr-layer pyr-dept">Начальник отделения<br>своё отделение</div>
+        <div class="pyr-layer pyr-sector">Начальник сектора / ведущий<br>свой сектор</div>
+        <div class="pyr-layer pyr-user">Сотрудник<br>свои задачи</div>
+      </div>
+      <div class="role-cards">
+        <div class="role-card"><h3>Сотрудник</h3><p>Видит свои задачи и двигает их по колонкам.</p></div>
+        <div class="role-card"><h3>Ведущий</h3><p>Помогает контролировать задачи в секторе.</p></div>
+        <div class="role-card"><h3>Руководитель</h3><p>Смотрит нагрузку людей и подразделений.</p></div>
+        <div class="role-card"><h3>Сервер</h3><p>Проверяет права даже если кто-то обойдёт экран.</p></div>
+      </div>
+    </div>
+    <div class="footer"><span>Права строятся по должности и подразделению пользователя</span><span class="page-num">03</span></div>
+  </section>
+
+  <section class="slide" data-slide="4">
+    <div class="section-label">создание</div>
+    <div class="kicker">Как появляется новая задача</div>
+    <h2>Пользователь заполняет форму, а «Союз» превращает её в настоящую PLM-задачу.</h2>
+    <div class="flow">
+      <div class="flow-step">
+        <div><div class="flow-icon bg-blue">1</div><h3>Нажали<br>«Новая задача»</h3></div>
+        <p>Название, срок, приоритет, исполнитель, описание.</p>
+      </div>
+      <div class="flow-step">
+        <div><div class="flow-icon bg-orange">2</div><h3>Экран отправил<br>команду</h3></div>
+        <p>JS передаёт запрос серверному скрипту экрана.</p>
+      </div>
+      <div class="flow-step">
+        <div><div class="flow-icon bg-dark">3</div><h3>Сервер<br>проверил права</h3></div>
+        <p>Можно ли назначать задачу этому человеку.</p>
+      </div>
+      <div class="flow-step">
+        <div><div class="flow-icon bg-purple">4</div><h3>PLM сохранил<br>карточку</h3></div>
+        <p>Задача живёт внутри штатной базы «Союза».</p>
+      </div>
+      <div class="flow-step">
+        <div><div class="flow-icon bg-green">5</div><h3>Исполнитель<br>получил задачу</h3></div>
+        <p>Доска обновилась, при назначении приходит уведомление.</p>
+      </div>
+    </div>
+    <div class="footer"><span>Групповая постановка делает отдельную карточку каждому исполнителю</span><span class="page-num">04</span></div>
+  </section>
+
+  <section class="slide" data-slide="5">
+    <div class="section-label">движение</div>
+    <div class="kicker">Как задача двигается</div>
+    <h2>Перетащил карточку — изменил статус. Не надо открывать отдельные формы.</h2>
+    <div class="move-row">
+      <div class="move-lane">
+        <div class="move-title bg-blue">Надо сделать</div>
+        <div class="moving-card">Проверить чертёж<br><span class="mini-pill">до пятницы</span></div>
+        <div class="move-note">Задача только поставлена.</div>
+      </div>
+      <div class="move-lane">
+        <div class="move-title bg-orange">В работе</div>
+        <div class="task-card"><div class="task-title">Исполнитель начал</div><div class="task-meta"><span class="mini-pill">статус обновлён</span></div></div>
+        <div class="move-note">Все видят, что работа уже идёт.</div>
+      </div>
+      <div class="move-lane">
+        <div class="move-title bg-purple">Ожидание</div>
+        <div class="task-card"><div class="task-title">Ждём данные</div><div class="task-meta"><span class="mini-pill">согласование</span></div></div>
+        <div class="move-note">Понятно, почему задача стоит.</div>
+      </div>
+      <div class="move-lane">
+        <div class="move-title bg-green">Готово</div>
+        <div class="task-card"><div class="task-title">Выполнено</div><div class="task-meta"><span class="mini-pill">дата завершения</span></div></div>
+        <div class="move-note">Система фиксирует результат.</div>
+      </div>
+    </div>
+    <div class="arrow" style="left: 345px; top: 386px; width: 92px;"></div>
+    <div class="arrow" style="left: 645px; top: 386px; width: 92px;"></div>
+    <div class="arrow" style="left: 945px; top: 386px; width: 92px;"></div>
+    <div class="footer"><span>Статус меняется на сервере, поэтому доска и данные PLM не расходятся</span><span class="page-num">05</span></div>
+  </section>
+
+  <section class="slide" data-slide="6">
+    <div class="section-label">карточка</div>
+    <div class="kicker">Что внутри одной карточки</div>
+    <h2>Карточка — это маленькая папка по задаче: всё нужное лежит рядом.</h2>
+    <div class="card-exploded">
+      <div class="connector" style="left: 292px; top: 144px; width: 166px; transform: rotate(18deg);"></div>
+      <div class="connector" style="left: 282px; top: 302px; width: 176px; transform: rotate(-16deg);"></div>
+      <div class="connector" style="left: 760px; top: 150px; width: 172px; transform: rotate(-18deg);"></div>
+      <div class="connector" style="left: 760px; top: 306px; width: 182px; transform: rotate(16deg);"></div>
+      <div class="bubble" style="left: 56px; top: 54px; border-color:#2f6fbe;">Название и описание<small>что именно нужно сделать</small></div>
+      <div class="bubble" style="left: 42px; top: 292px; border-color:#d27b16;">Срок и приоритет<small>что горит и когда нужно сдать</small></div>
+      <div class="big-task-card">
+        <h3>Карточка задачи</h3>
+        <div class="card-line"></div>
+        <div class="card-line"></div>
+        <div class="card-line short"></div>
+        <div style="margin-top:24px; display:flex; gap:10px;">
+          <span class="mini-pill">исполнитель</span>
+          <span class="mini-pill">статус</span>
+        </div>
+      </div>
+      <div class="bubble" style="right: 46px; top: 54px; border-color:#7a53cc;">Вложения<small>чертежи, модели, документы, папки</small></div>
+      <div class="bubble" style="right: 38px; top: 292px; border-color:#1a8f5a;">Чат и история<small>кто что сказал и поменял</small></div>
+    </div>
+    <div class="footer"><span>Контекст не размазан по почте, блокнотам и устным поручениям</span><span class="page-num">06</span></div>
+  </section>
+
+  <section class="slide" data-slide="7">
+    <div class="section-label">вложения</div>
+    <div class="kicker">Как связаны задачи и данные PLM</div>
+    <h2>К задаче можно прикрепить реальные объекты «Союза», а не просто написать “смотри где-то там”.</h2>
+    <div class="attach-layout">
+      <div class="plm-stack">
+        <div class="object-tile"><h3>Чертёж</h3><p>Информационный объект PLM.</p></div>
+        <div class="object-tile"><h3>3D-модель</h3><p>Модель или документ по работе.</p></div>
+        <div class="object-tile"><h3>Папка / проект</h3><p>Контейнер с набором данных.</p></div>
+      </div>
+      <div class="task-center">
+        <div class="round-node">Задача<span>содержит ссылки на нужные материалы</span></div>
+      </div>
+      <div class="work-stack">
+        <div class="object-tile"><h3>Исполнитель</h3><p>Открывает карточку и сразу видит материалы.</p></div>
+        <div class="object-tile"><h3>Руководитель</h3><p>Понимает, к чему относится работа.</p></div>
+        <div class="object-tile"><h3>История</h3><p>Контекст остаётся вместе с задачей.</p></div>
+      </div>
+    </div>
+    <div class="arrow" style="left: 388px; top: 382px; width: 94px;"></div>
+    <div class="arrow" style="left: 782px; top: 382px; width: 94px;"></div>
+    <div class="footer"><span>Задача не копирует файлы наружу, а связывает их внутри PLM</span><span class="page-num">07</span></div>
+  </section>
+
+  <section class="slide" data-slide="8">
+    <div class="section-label">отчёты</div>
+    <div class="kicker">Что видит руководитель</div>
+    <h2>Отчёт превращает доску в понятную картину: сколько сделано, что просрочено, где работа зависла.</h2>
+    <div class="report-layout">
+      <div class="report-screen">
+        <div class="report-bars">
+          <div class="bar bg-green" style="height: 190px;">42</div>
+          <div class="bar bg-orange" style="height: 142px;">18</div>
+          <div class="bar bg-red" style="height: 86px;">5</div>
+        </div>
+        <div class="report-table">
+          <div class="report-row" style="font-weight:800;color:#243147;"><span>Исполнитель</span><span>Всего</span><span>Готово</span><span>Проср.</span></div>
+          <div class="report-row"><span>Иванов</span><span>12</span><span>9</span><span>1</span></div>
+          <div class="report-row"><span>Петров</span><span>8</span><span>5</span><span>0</span></div>
+        </div>
+      </div>
+      <div class="metric-list">
+        <div class="metric"><div class="metric-num bg-green">1</div><div><h3>Выполнено</h3><p>Показывает реальный результат за неделю, месяц или квартал.</p></div></div>
+        <div class="metric"><div class="metric-num bg-orange">2</div><div><h3>В работе</h3><p>Видно, кто чем занят сейчас и где есть нагрузка.</p></div></div>
+        <div class="metric"><div class="metric-num bg-red">3</div><div><h3>Просрочено</h3><p>Проблемные задачи не прячутся: они подсвечены отдельно.</p></div></div>
+      </div>
+    </div>
+    <div class="footer"><span>Отчёт строится по тому же доступному человеку scope</span><span class="page-num">08</span></div>
+  </section>
+
+  <section class="slide" data-slide="9">
+    <div class="section-label">безопасность</div>
+    <div class="kicker">Почему данные остаются под контролем</div>
+    <h2>Это не внешний сайт и не облачный сервис. Доска встроена в «Союз».</h2>
+    <div class="safe-layout">
+      <div class="perimeter">
+        <div>
+          <h3>Всё внутри контура предприятия</h3>
+          <p>Задачи, комментарии, вложения и история хранятся в штатной среде Союз-PLM.</p>
+        </div>
+        <div class="lock-bar">серверная проверка прав</div>
+      </div>
+      <div class="rules">
+        <div class="rule-card"><div class="check">✓</div><div><h3>Назначение проверяется сервером</h3><p>Нельзя назначить задачу вне разрешённого подразделения.</p></div></div>
+        <div class="rule-card"><div class="check">✓</div><div><h3>Видимость зависит от роли</h3><p>Сотрудник видит своё, руководитель — свой сектор или отделение.</p></div></div>
+        <div class="rule-card"><div class="check">✓</div><div><h3>Ничего не надо устанавливать</h3><p>Экран, JS, CSS и C#-скрипты работают средствами BIS v3.</p></div></div>
+      </div>
+    </div>
+    <div class="footer"><span>Даже если обойти интерфейс, backend всё равно проверяет правила</span><span class="page-num">09</span></div>
+  </section>
+
+  <section class="slide" data-slide="10">
+    <div class="section-label">вся цепочка</div>
+    <div class="kicker">Что происходит под капотом, но простыми словами</div>
+    <h2>Экран — это витрина. Сервер — контролёр. PLM — место, где всё хранится.</h2>
+    <div class="big-picture">
+      <div class="system-node"><div class="node-dot bg-blue">1</div><h3>Пользователь</h3><p>Создаёт, двигает или открывает задачу.</p></div>
+      <div class="system-node"><div class="node-dot bg-orange">2</div><h3>Экран доски</h3><p>HTML показывает колонки и карточки.</p></div>
+      <div class="system-node"><div class="node-dot bg-purple">3</div><h3>JS-логика</h3><p>Передаёт действие на сервер.</p></div>
+      <div class="system-node"><div class="node-dot bg-dark">4</div><h3>C#-скрипт</h3><p>Проверяет права и выполняет команду.</p></div>
+      <div class="system-node"><div class="node-dot bg-green">5</div><h3>Союз-PLM</h3><p>Хранит задачи, людей, вложения и историю.</p></div>
+      <div class="system-node"><div class="node-dot bg-red">6</div><h3>Ответ</h3><p>Доска обновляет карточки и отчёты.</p></div>
+      <div class="connector-arrow" style="left: 190px;"></div>
+      <div class="connector-arrow" style="left: 388px;"></div>
+      <div class="connector-arrow" style="left: 586px;"></div>
+      <div class="connector-arrow" style="left: 784px;"></div>
+      <div class="connector-arrow" style="left: 982px;"></div>
+    </div>
+    <div class="footer"><span>window.external.InvokeTemplate() — мост между экраном и серверным скриптом</span><span class="page-num">10</span></div>
+  </section>
+
+  <section class="slide" data-slide="11">
+    <div class="section-label">итог</div>
+    <div class="kicker">Что получает команда</div>
+    <h2>Вместо разрозненных поручений появляется одна понятная рабочая картина.</h2>
+    <div class="summary-layout">
+      <div class="result-list">
+        <div class="result-item"><div class="result-mark">1</div><div><h3>Задачи не теряются</h3><p>Карточки лежат в «Союзе», а не в почте, блокноте или памяти.</p></div></div>
+        <div class="result-item"><div class="result-mark">2</div><div><h3>Контекст рядом</h3><p>Вложение, чат и история открываются прямо из карточки.</p></div></div>
+        <div class="result-item"><div class="result-mark">3</div><div><h3>Сроки видны заранее</h3><p>Просроченные и срочные задачи подсвечиваются на доске.</p></div></div>
+        <div class="result-item"><div class="result-mark">4</div><div><h3>Руководителю проще управлять</h3><p>Видна нагрузка, прогресс и проблемные места.</p></div></div>
+      </div>
+      <div class="final-board">
+        <div class="final-col"><div class="final-head bg-blue"></div><div class="final-mini"></div><div class="final-mini"></div><div class="final-mini"></div></div>
+        <div class="final-col"><div class="final-head bg-orange"></div><div class="final-mini"></div><div class="final-mini"></div></div>
+        <div class="final-col"><div class="final-head bg-purple"></div><div class="final-mini"></div></div>
+        <div class="final-col"><div class="final-head bg-green"></div><div class="final-mini"></div><div class="final-mini"></div></div>
+      </div>
+    </div>
+    <div class="footer"><span>Канбан-доска = понятный маршрут задачи от поручения до результата</span><span class="page-num">11</span></div>
+  </section>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var slide = params.get("slide");
+      if (!slide) return;
+      document.body.className += " preview";
+      var selected = document.querySelector('[data-slide="' + slide + '"]');
+      if (selected) selected.className += " active";
+    })();
+  </script>
+</body>
+</html>

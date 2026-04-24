@@ -187,6 +187,30 @@ Liquid-шаблон <code>col_0..col_3</code>, <code>kbRole</code>,
 <code>kbViewMode</code>, <code>availableTags</code></p>
 <p>Карточка для шаблона строится через
 <code>BuildCardData(...)</code>.</p>
+<h2 id="lifecycle-хуки">Lifecycle-хуки</h2>
+<h3 id="onbeforedisplayinui"><code>OnBeforeDisplayInUI(InfoObject obj, IPropertySheetCallback propertySheet)</code></h3>
+<p>Срабатывает у платформы перед отрисовкой экрана.
+Используется, чтобы доску можно было корректно открыть по внешней ссылке:</p>
+<ul>
+<li>если <code>propertySheet.IsDialog == true</code> или родительская панель —
+это <code>IPropertiesBrowserPanel</code> (экран открывается как карточка / в
+боковой панели), скрываются штатные элементы оформления:
+<ul>
+<li><code>ToolStripVisibility = false</code></li>
+<li><code>TabStripVisibility = false</code></li>
+</ul>
+</li>
+</ul>
+<p>Для «штатного» открытия экрана иерархии (когда <code>propertySheet</code> —
+обычный таб) условие не срабатывает, оформление остаётся по умолчанию.</p>
+<h3 id="связка-с-globallinkhandler">Связка с <code>GlobalLinkHandler</code></h3>
+<p>В репозитории лежит
+<a href="../../scripts/GlobalLinkHandler.txt"><code>scripts/GlobalLinkHandler.txt</code></a>
+— глобальный обработчик внешних ссылок Soyuz-PLM. Он ловит клик по ссылке
+на объект канбан-доски (жёстко зашитый <code>Id = 804663UL</code>) и
+открывает его через <code>Service.UI.OpenPropertiesPane(io)</code>. Вместе
+с <code>OnBeforeDisplayInUI</code> это даёт чистое открытие доски без лишней
+обвязки тулбара/вкладок.</p>
 <h2 id="контракты-основных-методов">Контракты основных методов</h2>
 <h3 id="movetask"><code>MoveTask</code></h3>
 <p><strong>Вход:</strong> <code>"nameKey|newStatus"</code><br />

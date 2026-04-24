@@ -11,6 +11,7 @@
 private const int STATUS_DONE = 3;
 private const string LEAD_ENGINEER_ROLE = "leadEngineer";
 private const string LEAD_ENGINEER_NAMEKEY_PREFIX = "ved";
+private static long lastTick = 0;
 
 public override Object Invoke( String methodName, InfoObject obj, Object inputParams )
 {
@@ -476,13 +477,17 @@ private object DoDeleteTask( object inputParams )
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// OnBeforeDisplayInUI
+// OnBeforeDisplayInUI - для удобного открытия доски по ссылке
 // ═══════════════════════════════════════════════════════════════════════
 
-public override void OnBeforeDisplayInUI( InfoObject obj, IPropertySheetCallback propertySheet )
+public override void OnBeforeDisplayInUI( InfoObject obj, IPropertySheetCallback propertySheet)
 {
+         if (propertySheet.IsDialog || propertySheet.ParentBrowserPanel is IPropertiesBrowserPanel) 
+            {
+             propertySheet.ToolStripVisibility = false;
+             propertySheet.TabStripVisibility = false;
+            }         
 }
-
 // ═══════════════════════════════════════════════════════════════════════
 // DOM-помощники
 // ═══════════════════════════════════════════════════════════════════════

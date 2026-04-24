@@ -1,0 +1,23 @@
+/// <summary>
+/// Вызывается при получении клиентом запроса на открытие внешней ссылки
+/// </summary>
+/// <param name="obj">Объект для открытия</param>
+/// <param name="url">Полный URL внешней ссылки, переданной для открытия в клиенте</param>
+/// <param name="openTree">true, если предполагается, что объект должен быть открыт в дереве 
+/// (фактически используется true во всех случаях)</param>
+/// <returns>true, если запрос обработан и другие обработчики, а так же штатное поведение, вызывать не следует</returns>
+public override bool DoHandleExternalLink( ScriptingObject obj, String url, bool openTree )
+{
+
+    var io = obj as InfoObject;
+      
+    //if(io.GlobalIdentifier == new Guid("db816ce5-87bd-4c70-aea7-51b5d82a29f2"))
+   
+    if(io != null && io.Id == 804663UL)
+    {
+        Service.UI.OpenPropertiesPane(io);
+        return true;
+    }
+    
+	return false;
+}

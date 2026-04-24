@@ -1,0 +1,1248 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Канбан Союз-PLM: внутренняя кухня кода</title>
+  <style>
+    @page {
+      size: 13.333333in 7.5in;
+      margin: 0;
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #dce4ee;
+      color: #172033;
+      font-family: Arial, "Segoe UI", sans-serif;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .slide {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      background: #f6f9fc;
+      page-break-after: always;
+      padding: 44px 58px 42px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide:last-child { page-break-after: auto; }
+
+    body.preview .slide {
+      display: none;
+      page-break-after: auto;
+    }
+
+    body.preview .slide.active { display: flex; }
+
+    h1,
+    h2,
+    h3,
+    p { margin: 0; }
+
+    h1 {
+      font-size: 62px;
+      line-height: 1.02;
+      letter-spacing: 0;
+      max-width: 760px;
+    }
+
+    h2 {
+      font-size: 39px;
+      line-height: 1.08;
+      letter-spacing: 0;
+      max-width: 1040px;
+    }
+
+    h3 {
+      font-size: 22px;
+      line-height: 1.12;
+      margin-bottom: 8px;
+    }
+
+    .lead {
+      margin-top: 18px;
+      font-size: 24px;
+      line-height: 1.28;
+      color: #506076;
+      max-width: 700px;
+    }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      color: #2f6fbe;
+      font-size: 17px;
+      font-weight: 800;
+    }
+
+    .kicker::before {
+      content: "";
+      width: 34px;
+      height: 7px;
+      border-radius: 99px;
+      background: #2f6fbe;
+    }
+
+    .section-label {
+      position: absolute;
+      right: 58px;
+      top: 38px;
+      font-size: 14px;
+      color: #728095;
+      font-weight: 800;
+    }
+
+    .footer {
+      position: absolute;
+      left: 58px;
+      right: 58px;
+      bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #6b7890;
+      font-size: 12.5px;
+    }
+
+    .page-num {
+      font-weight: 800;
+      color: #33445f;
+    }
+
+    .blue { color: #2f6fbe; }
+    .green { color: #168a57; }
+    .orange { color: #d77810; }
+    .purple { color: #7851c8; }
+    .red { color: #c83f3f; }
+    .dark { color: #172033; }
+
+    .bg-blue { background: #2f6fbe; }
+    .bg-green { background: #168a57; }
+    .bg-orange { background: #d77810; }
+    .bg-purple { background: #7851c8; }
+    .bg-red { background: #c83f3f; }
+    .bg-dark { background: #172033; }
+    .bg-slate { background: #46566d; }
+
+    code,
+    .code {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+    }
+
+    .cover {
+      background:
+        linear-gradient(135deg, #edf5ff 0%, #f8fbff 54%, #f7fff8 100%);
+    }
+
+    .cover-circuit {
+      position: absolute;
+      right: 64px;
+      top: 76px;
+      width: 430px;
+      height: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .terminal {
+      border-radius: 24px;
+      background: #172033;
+      color: #dfe9f6;
+      box-shadow: 0 26px 52px rgba(23, 32, 51, 0.22);
+      padding: 22px;
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .terminal-top {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #7d8ba3;
+    }
+
+    .terminal-line {
+      font-size: 17px;
+      line-height: 1.55;
+      white-space: nowrap;
+    }
+
+    .mini-stack {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .mini-file {
+      border-radius: 18px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      padding: 16px;
+      box-shadow: 0 14px 30px rgba(60, 76, 98, 0.11);
+      min-height: 92px;
+    }
+
+    .mini-file b {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .mini-file span {
+      font-size: 14px;
+      color: #607088;
+      line-height: 1.25;
+    }
+
+    .badge-line {
+      margin-top: 30px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      max-width: 700px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 9px 13px;
+      background: #ffffff;
+      border: 2px solid #dbe5f1;
+      color: #33445f;
+      font-size: 15px;
+      font-weight: 800;
+      box-shadow: 0 9px 18px rgba(60,76,98,0.08);
+      white-space: nowrap;
+    }
+
+    .stage {
+      margin-top: 30px;
+      flex: 1;
+      display: grid;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .grid-6 { grid-template-columns: repeat(6, 1fr); }
+    .grid-5 { grid-template-columns: repeat(5, 1fr); }
+    .grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .grid-3 { grid-template-columns: repeat(3, 1fr); }
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+    .grid-2-wide { grid-template-columns: 1.08fr 0.92fr; }
+
+    .file-card,
+    .node,
+    .panel,
+    .code-card,
+    .lane {
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      border-radius: 22px;
+      box-shadow: 0 16px 34px rgba(60,76,98,0.10);
+    }
+
+    .file-card {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      min-height: 190px;
+    }
+
+    .file-card .tag,
+    .node .tag {
+      width: fit-content;
+      border-radius: 999px;
+      color: #ffffff;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .file-card b {
+      font-size: 18px;
+      line-height: 1.12;
+      word-break: break-word;
+    }
+
+    .file-card p {
+      margin-top: 10px;
+      font-size: 15.5px;
+      line-height: 1.25;
+      color: #617088;
+    }
+
+    .node {
+      padding: 18px 14px;
+      min-height: 160px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    .node-num {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+
+    .node b {
+      font-size: 19px;
+      line-height: 1.15;
+      display: block;
+    }
+
+    .node p {
+      margin-top: 8px;
+      font-size: 14.5px;
+      line-height: 1.2;
+      color: #607088;
+    }
+
+    .arrow-row .node:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -25px;
+      top: 50%;
+      width: 28px;
+      height: 5px;
+      background: #29384f;
+      border-radius: 99px;
+      transform: translateY(-50%);
+      z-index: 4;
+    }
+
+    .arrow-row .node:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      right: -32px;
+      top: calc(50% - 8px);
+      border-left: 14px solid #29384f;
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+      z-index: 4;
+    }
+
+    .render-flow {
+      margin-top: 28px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 0.82fr 1.18fr;
+      gap: 30px;
+      align-items: stretch;
+    }
+
+    .code-card {
+      padding: 20px;
+      background: #172033;
+      color: #e8f0fb;
+      border-color: #172033;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .code-card h3 {
+      color: #ffffff;
+      margin-bottom: 14px;
+    }
+
+    .code-line {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 16px;
+      line-height: 1.55;
+      white-space: nowrap;
+      color: #cfe0f7;
+    }
+
+    .code-muted { color: #8fa5c1; }
+    .code-key { color: #8fd1ff; }
+    .code-string { color: #a7e6a1; }
+    .code-warn { color: #ffd285; }
+
+    .explain-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .explain-item {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 14px;
+      align-items: center;
+      padding: 14px 16px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      border-radius: 20px;
+      box-shadow: 0 12px 26px rgba(60,76,98,0.08);
+    }
+
+    .explain-dot {
+      width: 48px;
+      height: 48px;
+      border-radius: 16px;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 21px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .explain-item b {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .explain-item span {
+      font-size: 15.5px;
+      line-height: 1.25;
+      color: #607088;
+    }
+
+    .dom-layout {
+      margin-top: 28px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .wire {
+      border-radius: 28px;
+      background: #ffffff;
+      border: 3px solid #dce5f1;
+      box-shadow: 0 18px 38px rgba(60,76,98,0.12);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .wire-top {
+      height: 54px;
+      border-radius: 17px;
+      background: #ecf3fc;
+      border: 2px solid #d8e3f2;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+    }
+
+    .wire-btn {
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: #ffffff;
+      border: 1px solid #cfdbea;
+      font-size: 13px;
+      font-weight: 800;
+      color: #33445f;
+    }
+
+    .wire-board {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .wire-col {
+      border-radius: 18px;
+      background: #f5f8fc;
+      border: 2px dashed #cdd9ea;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .wire-head {
+      height: 36px;
+      border-radius: 12px;
+    }
+
+    .wire-card {
+      height: 52px;
+      border-radius: 13px;
+      background: #ffffff;
+      border: 1px solid #dce5f1;
+      box-shadow: 0 7px 14px rgba(60,76,98,0.08);
+    }
+
+    .legend {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .legend-row {
+      padding: 13px 14px;
+      border-radius: 18px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      box-shadow: 0 10px 20px rgba(60,76,98,0.08);
+    }
+
+    .legend-row b {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 5px;
+    }
+
+    .legend-row span {
+      font-size: 14px;
+      line-height: 1.25;
+      color: #607088;
+    }
+
+    .api-map {
+      margin-top: 26px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 0.92fr 1.16fr 0.92fr;
+      gap: 24px;
+      align-items: center;
+    }
+
+    .big-pill {
+      border-radius: 28px;
+      background: #172033;
+      color: #ffffff;
+      padding: 26px 22px;
+      min-height: 250px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+      box-shadow: 0 24px 50px rgba(23,32,51,0.22);
+    }
+
+    .big-pill b {
+      font-size: 28px;
+      line-height: 1.08;
+      display: block;
+      margin-bottom: 12px;
+    }
+
+    .big-pill span {
+      color: #dce8f6;
+      font-size: 17px;
+      line-height: 1.25;
+    }
+
+    .switchboard {
+      border-radius: 28px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      box-shadow: 0 18px 38px rgba(60,76,98,0.11);
+      padding: 20px;
+    }
+
+    .switch-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .method {
+      border-radius: 13px;
+      padding: 9px 10px;
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 14px;
+      font-weight: 800;
+      color: #26354d;
+      background: #f0f5fb;
+      border: 1px solid #dce5f1;
+      white-space: nowrap;
+      text-align: center;
+    }
+
+    .method.blue { background: #e7f0ff; color: #225aa8; }
+    .method.green { background: #e7f8ef; color: #157049; }
+    .method.orange { background: #fff2df; color: #a75606; }
+    .method.purple { background: #f0eaff; color: #6440b0; }
+    .method.red { background: #ffe9e9; color: #aa3030; }
+    .method.dark { background: #edf1f6; color: #172033; }
+
+    .flow-lanes {
+      margin-top: 26px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+
+    .lane {
+      padding: 18px;
+      min-height: 395px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .lane:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      right: -17px;
+      top: 50%;
+      width: 24px;
+      height: 5px;
+      background: #29384f;
+      border-radius: 99px;
+      transform: translateY(-50%);
+      z-index: 4;
+    }
+
+    .lane h3 {
+      font-size: 23px;
+      line-height: 1.08;
+    }
+
+    .lane p {
+      font-size: 16px;
+      line-height: 1.28;
+      color: #607088;
+    }
+
+    .lane .code-line {
+      color: #31435e;
+      background: #f0f5fb;
+      border-radius: 12px;
+      padding: 8px 9px;
+      font-size: 13.5px;
+      white-space: normal;
+      line-height: 1.25;
+      margin-top: 12px;
+    }
+
+    .flow-title {
+      height: 56px;
+      border-radius: 18px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 900;
+      margin-bottom: 14px;
+    }
+
+    .modal-map {
+      margin-top: 26px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 0.88fr 1.12fr;
+      gap: 26px;
+      align-items: stretch;
+    }
+
+    .modal-shell {
+      background: #ffffff;
+      border: 3px solid #dce5f1;
+      border-radius: 28px;
+      box-shadow: 0 20px 44px rgba(60,76,98,0.12);
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .modal-header {
+      height: 54px;
+      border-radius: 16px;
+      background: #172033;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      font-weight: 900;
+      font-size: 18px;
+    }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .field {
+      height: 46px;
+      border-radius: 14px;
+      background: #f4f8fc;
+      border: 1px solid #d8e3f2;
+    }
+
+    .field.big {
+      height: 82px;
+    }
+
+    .modal-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .sequence {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .seq-row {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 12px;
+      align-items: center;
+      border-radius: 18px;
+      border: 2px solid #dce5f1;
+      background: #ffffff;
+      padding: 12px 14px;
+      box-shadow: 0 10px 22px rgba(60,76,98,0.08);
+    }
+
+    .seq-row b {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 15px;
+      color: #172033;
+    }
+
+    .seq-row span {
+      font-size: 15px;
+      line-height: 1.22;
+      color: #607088;
+    }
+
+    .mode-map {
+      margin-top: 26px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 0.86fr 1.14fr;
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .state-card {
+      border-radius: 28px;
+      background: #172033;
+      color: #ffffff;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 22px 48px rgba(23,32,51,0.20);
+    }
+
+    .state-card h3 {
+      font-size: 30px;
+      margin-bottom: 16px;
+    }
+
+    .state-line {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 17px;
+      line-height: 1.55;
+      color: #dbe8f7;
+    }
+
+    .mode-list {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .mode-item {
+      border-radius: 18px;
+      border: 2px solid #dce5f1;
+      background: #ffffff;
+      padding: 15px 16px;
+      box-shadow: 0 10px 22px rgba(60,76,98,0.08);
+    }
+
+    .mode-item b {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      display: block;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .mode-item span {
+      color: #607088;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .css-map {
+      margin-top: 28px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .css-group {
+      border-radius: 24px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      box-shadow: 0 14px 30px rgba(60,76,98,0.09);
+      padding: 18px;
+    }
+
+    .css-group h3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+
+    .css-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .css-tag {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      border-radius: 12px;
+      background: #f0f5fb;
+      border: 1px solid #dce5f1;
+      padding: 8px 9px;
+      font-size: 14px;
+      color: #33445f;
+      font-weight: 800;
+    }
+
+    .data-map {
+      margin-top: 26px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 0.85fr;
+      gap: 20px;
+      align-items: stretch;
+    }
+
+    .data-box {
+      border-radius: 24px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      box-shadow: 0 14px 30px rgba(60,76,98,0.09);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .data-box h3 {
+      color: #172033;
+      margin-bottom: 12px;
+    }
+
+    .field-chip {
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      border-radius: 12px;
+      padding: 8px 10px;
+      background: #f0f5fb;
+      color: #33445f;
+      margin-bottom: 8px;
+      font-size: 14.5px;
+      font-weight: 800;
+    }
+
+    .edit-map {
+      margin-top: 28px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .edit-card {
+      border-radius: 20px;
+      background: #ffffff;
+      border: 2px solid #dce5f1;
+      box-shadow: 0 12px 26px rgba(60,76,98,0.08);
+      padding: 16px;
+    }
+
+    .edit-card b {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    .edit-card .code-line {
+      font-size: 13px;
+      line-height: 1.35;
+      color: #33445f;
+      white-space: normal;
+      margin-bottom: 8px;
+    }
+
+    .edit-card p {
+      font-size: 14.5px;
+      line-height: 1.24;
+      color: #607088;
+    }
+
+    @media print {
+      html,
+      body {
+        width: 13.333333in;
+        background: #ffffff;
+      }
+
+      .slide {
+        width: 13.333333in;
+        height: 7.5in;
+        margin: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <section class="slide cover" data-slide="1">
+    <div class="section-label">code map</div>
+    <div class="kicker">Канбан Союз-PLM</div>
+    <h1>Внутренняя кухня: как связаны HTML, CSS, JS и C#</h1>
+    <p class="lead">Не презентация для пользователей, а визуальная карта проекта для быстрой ориентации в коде: куда приходит событие, кто вызывает backend и где искать нужную логику.</p>
+    <div class="badge-line">
+      <span class="pill code">KanbanBoard_HTML.html</span>
+      <span class="pill code">kanban.js</span>
+      <span class="pill code">kanban.css</span>
+      <span class="pill code">SOYUZ_UPLOAD_*.cs</span>
+    </div>
+    <div class="cover-circuit">
+      <div class="terminal">
+        <div class="terminal-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="terminal-line code"><span class="code-key">onclick</span> → <span class="code-string">window.kbDrop()</span></div>
+        <div class="terminal-line code"><span class="code-key">JS</span> → <span class="code-string">InvokeTemplate()</span></div>
+        <div class="terminal-line code"><span class="code-key">C#</span> → <span class="code-string">case "MoveTask"</span></div>
+        <div class="terminal-line code"><span class="code-key">PLM</span> → <span class="code-string">KanbanTask</span></div>
+      </div>
+      <div class="mini-stack">
+        <div class="mini-file"><b class="blue code">HTML</b><span>DOM, Liquid, обработчики событий</span></div>
+        <div class="mini-file"><b class="orange code">JS</b><span>состояние, UX, bridge-вызовы</span></div>
+        <div class="mini-file"><b class="purple code">CSS</b><span>layout, модалки, статусы</span></div>
+        <div class="mini-file"><b class="green code">C#</b><span>данные, права, операции PLM</span></div>
+      </div>
+    </div>
+    <div class="footer"><span>Ориентир по проекту для разработчика</span><span class="page-num">01</span></div>
+  </section>
+
+  <section class="slide" data-slide="2">
+    <div class="section-label">runtime files</div>
+    <div class="kicker">Какие файлы реально работают</div>
+    <h2>Проект держится на шести runtime-файлах: один рисует экран, один рулит UX, один красит, два выполняют C#-логику, один открывает доску.</h2>
+    <div class="stage grid-3">
+      <div class="file-card"><div class="tag bg-green">backend</div><b class="code">SOYUZ_UPLOAD_KanbanScreen_script.cs</b><p>Главный диспетчер: `Invoke`, `BeforeRender`, CRUD, роли, отчёты, вложения, чат.</p></div>
+      <div class="file-card"><div class="tag bg-green">task hook</div><b class="code">SOYUZ_UPLOAD_KanbanTask_script.cs</b><p>`OnBeforeSave`, уведомления при назначении, сервисная логика шаблона.</p></div>
+      <div class="file-card"><div class="tag bg-blue">markup</div><b class="code">KanbanBoard_HTML.html</b><p>Liquid-шаблон, DOM-узлы, `onclick`, `ondrop`, `id`, `class`.</p></div>
+      <div class="file-card"><div class="tag bg-orange">client</div><b class="code">kanban.js</b><p>IIFE, `window.*` API, состояние UI, вызовы `InvokeTemplate`.</p></div>
+      <div class="file-card"><div class="tag bg-purple">styles</div><b class="code">kanban.css</b><p>`.kb-*`, `.tcm-*`, `.rpt-*`, `.help-*`, состояния и визуальные подсказки.</p></div>
+      <div class="file-card"><div class="tag bg-dark">optional</div><b class="code">kanbanButton.cs</b><p>Команда открытия экрана `UI\Screens\myKanbanTest`.</p></div>
+    </div>
+    <div class="footer"><span>Если меняешь поведение, почти всегда затрагиваешь JS + C# contract</span><span class="page-num">02</span></div>
+  </section>
+
+  <section class="slide" data-slide="3">
+    <div class="section-label">render lifecycle</div>
+    <div class="kicker">Первый рендер экрана</div>
+    <h2>При открытии доски C# готовит данные, HTML только раскладывает их по колонкам.</h2>
+    <div class="stage grid-6 arrow-row">
+      <div class="node"><div class="node-num bg-blue">1</div><b>Открыли экран</b><p>Союз вызывает серверный `Invoke`.</p></div>
+      <div class="node"><div class="node-num bg-green">2</div><b class="code">BeforeRender</b><p>Берёт контейнер `All_Kanban_Tasks_Folder`.</p></div>
+      <div class="node"><div class="node-num bg-purple">3</div><b>Фильтр прав</b><p>`GetUserRole` + `KbViewMode` + allowed user ids.</p></div>
+      <div class="node"><div class="node-num bg-orange">4</div><b class="code">BuildCardData</b><p>Готовит безопасные поля карточек для шаблона.</p></div>
+      <div class="node"><div class="node-num bg-dark">5</div><b class="code">renderArgs</b><p>`col_0..col_3`, `availableTags`, `kbRole`.</p></div>
+      <div class="node"><div class="node-num bg-red">6</div><b>HTML</b><p>Liquid-циклы создают DOM карточек.</p></div>
+    </div>
+    <div class="footer"><span>Сортировка тоже на сервере: активные колонки по приоритету, Done по CompletedDate</span><span class="page-num">03</span></div>
+  </section>
+
+  <section class="slide" data-slide="4">
+    <div class="section-label">dom contract</div>
+    <div class="kicker">HTML как контракт для JS и CSS</div>
+    <h2>HTML задаёт точки подключения: `id` ищет JS, `class` красит CSS, inline-события вызывают `window.*`.</h2>
+    <div class="dom-layout">
+      <div class="wire">
+        <div class="wire-top">
+          <span class="wire-btn code">showCreateTask()</span>
+          <span class="wire-btn code">kbRefreshBoard()</span>
+          <span class="wire-btn code">openReport()</span>
+          <span class="wire-btn code">openHelp()</span>
+        </div>
+        <div class="wire-board">
+          <div class="wire-col"><div class="wire-head bg-blue"></div><div class="wire-card"></div><div class="wire-card"></div><div class="wire-card"></div></div>
+          <div class="wire-col"><div class="wire-head bg-orange"></div><div class="wire-card"></div><div class="wire-card"></div></div>
+          <div class="wire-col"><div class="wire-head bg-purple"></div><div class="wire-card"></div></div>
+          <div class="wire-col"><div class="wire-head bg-green"></div><div class="wire-card"></div><div class="wire-card"></div></div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-row"><b class="code">id="kb-body-0..3"</b><span>`kbDrop` по родителю понимает старый статус карточки.</span></div>
+        <div class="legend-row"><b class="code">id="kbc_{{t.id}}"</b><span>JS находит конкретную карточку для удаления, бейджа, drag/drop.</span></div>
+        <div class="legend-row"><b class="code">class="kb-card pri-..."</b><span>CSS показывает приоритет и состояние карточки.</span></div>
+        <div class="legend-row"><b class="code">id="tcmOverlay"</b><span>Модалка управляется классом `.visible` из JS.</span></div>
+        <div class="legend-row"><b class="code">id="reportBody"</b><span>`renderReport` заполняет таблицу отчёта.</span></div>
+      </div>
+    </div>
+    <div class="footer"><span>Если переименовать id/class в HTML, нужно синхронно проверить JS и CSS</span><span class="page-num">04</span></div>
+  </section>
+
+  <section class="slide" data-slide="5">
+    <div class="section-label">client architecture</div>
+    <div class="kicker">Как устроен `kanban.js`</div>
+    <h2>Клиентский код закрыт в IIFE: наружу выставлены только функции, которые нужны HTML-обработчикам.</h2>
+    <div class="render-flow">
+      <div class="code-card">
+        <h3 class="code">IIFE + public API</h3>
+        <div class="code-line"><span class="code-muted">(function () {</span></div>
+        <div class="code-line">&nbsp;&nbsp;<span class="code-key">var</span> _kbH, _tcmData;</div>
+        <div class="code-line">&nbsp;&nbsp;<span class="code-key">window</span>.kbDrop = <span class="code-key">function</span>() { ... };</div>
+        <div class="code-line">&nbsp;&nbsp;<span class="code-key">window</span>.tcmOpen = <span class="code-key">function</span>() { ... };</div>
+        <div class="code-line"><span class="code-muted">})();</span></div>
+      </div>
+      <div class="explain-list">
+        <div class="explain-item"><div class="explain-dot bg-blue">1</div><div><b>`cal*`</b><span>Календарь для панели создания и карточки задачи.</span></div></div>
+        <div class="explain-item"><div class="explain-dot bg-orange">2</div><div><b>`kb*`</b><span>Доска, drag/drop, создание, фильтры, иерархия.</span></div></div>
+        <div class="explain-item"><div class="explain-dot bg-purple">3</div><div><b>`tcm*`</b><span>Task Card Modal: открыть, отрисовать, сохранить, вложения, чат, история.</span></div></div>
+        <div class="explain-item"><div class="explain-dot bg-green">4</div><div><b>`rpt*` / help</b><span>Отчёт и справка: overlay + render данных.</span></div></div>
+      </div>
+    </div>
+    <div class="footer"><span>IE11-совместимость: `var`, обычные функции, без fetch/Promise/let/const</span><span class="page-num">05</span></div>
+  </section>
+
+  <section class="slide" data-slide="6">
+    <div class="section-label">bridge</div>
+    <div class="kicker">Главный мост JS ↔ C#</div>
+    <h2>`window.external.InvokeTemplate()` — это местная “шина команд”, не AJAX и не REST.</h2>
+    <div class="api-map">
+      <div class="big-pill"><b class="code">kanban.js</b><span>Собирает строку параметров, валидирует UI, вызывает метод backend.</span></div>
+      <div class="switchboard">
+        <div class="code-line" style="color:#172033; margin-bottom:14px;">InvokeTemplate(<span class="code-string">"MethodName"</span>, <span class="code-warn">"a|b|c"</span>)</div>
+        <div class="switch-row"><div class="method blue">"MoveTask"</div><div class="method green">DoMoveTask()</div></div>
+        <div class="switch-row"><div class="method blue">"CreateTask"</div><div class="method green">DoCreateTask()</div></div>
+        <div class="switch-row"><div class="method blue">"GetTaskDetails"</div><div class="method green">DoGetTaskDetails()</div></div>
+        <div class="switch-row"><div class="method blue">"GetReport"</div><div class="method green">DoGetReport()</div></div>
+        <div class="switch-row"><div class="method blue">"AddComment"</div><div class="method green">DoAddComment()</div></div>
+      </div>
+      <div class="big-pill"><b class="code">C# Invoke</b><span>`switch(methodName)` выбирает `Do*`, работает с PLM и возвращает `OK`, JSON, ключ или `ERROR:*`.</span></div>
+    </div>
+    <div class="footer"><span>Контракт хрупкий: если меняешь формат строки, меняй обе стороны сразу</span><span class="page-num">06</span></div>
+  </section>
+
+  <section class="slide" data-slide="7">
+    <div class="section-label">backend switchboard</div>
+    <div class="kicker">Карта backend-методов</div>
+    <h2>Главный C#-файл — диспетчер команд. Каждая строка `case` — публичная операция для JS.</h2>
+    <div class="stage grid-3">
+      <div class="file-card"><div class="tag bg-dark">lifecycle</div><b class="code">BeforeRender / RefreshBoard</b><p>Подготовить колонки, перерендерить экран.</p><div class="css-tags"><span class="css-tag">col_0..3</span><span class="css-tag">renderArgs</span></div></div>
+      <div class="file-card"><div class="tag bg-green">tasks</div><b class="code">CreateTask / MoveTask / SaveTask / DeleteTask</b><p>Создать, переместить, сохранить или удалить `KanbanTask`.</p><div class="css-tags"><span class="css-tag">DoCreateTask</span><span class="css-tag">DoSaveTask</span></div></div>
+      <div class="file-card"><div class="tag bg-blue">modal</div><b class="code">GetTaskDetails / GetTaskHistory</b><p>Данные карточки, история изменений, права редактирования.</p><div class="css-tags"><span class="css-tag">JSON</span><span class="css-tag">canFullEdit</span></div></div>
+      <div class="file-card"><div class="tag bg-purple">hierarchy</div><b class="code">GetHierarchyInfo / SetViewMode</b><p>Роль, подразделение, списки пользователей, текущий режим.</p><div class="css-tags"><span class="css-tag">_kbH</span><span class="css-tag">KbViewMode</span></div></div>
+      <div class="file-card"><div class="tag bg-orange">attachments</div><b class="code">Pick* / Add* / Remove* / Open*</b><p>Объекты и контейнеры PLM, поиск, открытие, лимиты.</p><div class="css-tags"><span class="css-tag">InfoObject</span><span class="css-tag">DataContainer</span></div></div>
+      <div class="file-card"><div class="tag bg-red">comments/report</div><b class="code">AddComment / GetReport</b><p>Чат карточки и агрегированные показатели за период.</p><div class="css-tags"><span class="css-tag">CommentsJSON</span><span class="css-tag">period|scope</span></div></div>
+    </div>
+    <div class="footer"><span>Точка входа: `SOYUZ_UPLOAD_KanbanScreen_script.cs: Invoke(String methodName, ...)`</span><span class="page-num">07</span></div>
+  </section>
+
+  <section class="slide" data-slide="8">
+    <div class="section-label">create flow</div>
+    <div class="kicker">Создание задачи</div>
+    <h2>Панель создания — самый показательный поток: HTML input → `doCreateTask` → C# create → optional attachments → refresh.</h2>
+    <div class="flow-lanes">
+      <div class="lane"><div><div class="flow-title bg-blue">HTML</div><h3 class="code">#kb-new-*</h3><p>Поля: title, status, priority, dueDate, details, tags, assignee.</p></div><div class="code-line">onclick="doCreateTask()"</div></div>
+      <div class="lane"><div><div class="flow-title bg-orange">JS</div><h3 class="code">doCreateTask()</h3><p>Тримит строки, проверяет дату, выбирает одиночный или групповой режим.</p></div><div class="code-line">title|status|priority|dueDate|details|tags|assignee</div></div>
+      <div class="lane"><div><div class="flow-title bg-green">C#</div><h3 class="code">CreateTask / CreateGroupTask</h3><p>Проверяет scope назначения, создаёт `KanbanTask`, заполняет атрибуты.</p></div><div class="code-line">return nameKey или ERROR:...</div></div>
+      <div class="lane"><div><div class="flow-title bg-purple">После</div><h3 class="code">AddAttachment / RefreshBoard</h3><p>Если были временные вложения, JS прикрепляет их к новой задаче и обновляет доску.</p></div><div class="code-line">_crtPendingAttachments[]</div></div>
+    </div>
+    <div class="footer"><span>Групповой режим создаёт отдельную задачу каждому выбранному исполнителю</span><span class="page-num">08</span></div>
+  </section>
+
+  <section class="slide" data-slide="9">
+    <div class="section-label">drag & drop</div>
+    <div class="kicker">Перемещение карточки</div>
+    <h2>Drag & drop не “двигает div навсегда”. Он вызывает `MoveTask`, а потом сервер заново отдаёт правильный порядок.</h2>
+    <div class="stage grid-5 arrow-row">
+      <div class="node"><div class="node-num bg-blue">1</div><b class="code">ondragstart</b><p>`kbDragStart(event, id)` кладёт id в `_draggedId`.</p></div>
+      <div class="node"><div class="node-num bg-orange">2</div><b class="code">ondrop</b><p>`kbDrop(event, newStatus)` читает `kb-body-X`.</p></div>
+      <div class="node"><div class="node-num bg-purple">3</div><b>Подтверждение</b><p>При входе/выходе из `Done` показывает confirm.</p></div>
+      <div class="node"><div class="node-num bg-green">4</div><b class="code">MoveTask</b><p>C# меняет `KanbanStatus` и дату завершения.</p></div>
+      <div class="node"><div class="node-num bg-dark">5</div><b class="code">RefreshBoard</b><p>Сервер сортирует и рендерит колонки заново.</p></div>
+    </div>
+    <div class="footer"><span>Ключевой контракт: `MoveTask` получает строку `taskId|newStatus`</span><span class="page-num">09</span></div>
+  </section>
+
+  <section class="slide" data-slide="10">
+    <div class="section-label">task modal</div>
+    <div class="kicker">Карточка задачи `tcm*`</div>
+    <h2>Модалка — отдельный мини-модуль внутри `kanban.js`: загрузка JSON, render формы, сохранение, чат, вложения, история.</h2>
+    <div class="modal-map">
+      <div class="modal-shell">
+        <div class="modal-header"><span>Карточка задачи</span><span class="pill" style="padding:6px 10px;">tcm</span></div>
+        <div class="field"></div>
+        <div class="field-row"><div class="field"></div><div class="field"></div></div>
+        <div class="field-row"><div class="field"></div><div class="field"></div></div>
+        <div class="field big"></div>
+        <div class="modal-bottom"><div class="field"></div><div class="field"></div></div>
+      </div>
+      <div class="sequence">
+        <div class="seq-row"><b>kbOpenTask()</b><span>Убирает бейдж «НОВАЯ», вызывает `tcmOpen(taskId)`.</span></div>
+        <div class="seq-row"><b>tcmOpen()</b><span>`GetTaskDetails` → JSON → `_tcmData` → `tcmRender()`.</span></div>
+        <div class="seq-row"><b>tcmRender()</b><span>Заполняет поля, применяет `canFullEdit`, рисует теги и метаданные.</span></div>
+        <div class="seq-row"><b>tcmSave()</b><span>`SaveTask`: `nameKey|title|status|prio|dueDate|tags|assignee|details`.</span></div>
+        <div class="seq-row"><b>tcmToggleRevs()</b><span>История грузится лениво через `GetTaskHistory` только при раскрытии.</span></div>
+      </div>
+    </div>
+    <div class="footer"><span>Все поля модалки привязаны к `id="tcm-..."` в HTML</span><span class="page-num">10</span></div>
+  </section>
+
+  <section class="slide" data-slide="11">
+    <div class="section-label">roles & filters</div>
+    <div class="kicker">Иерархия и режим просмотра</div>
+    <h2>Фильтры — это не просто select на клиенте. Выбранный режим сохраняется на сервере и применяется при `BeforeRender`.</h2>
+    <div class="mode-map">
+      <div class="state-card">
+        <h3 class="code">_kbH</h3>
+        <div class="state-line">role: "admin" | "headOfDept" | ...</div>
+        <div class="state-line">myKey / myContext</div>
+        <div class="state-line">viewMode: "my" | "sector" | ...</div>
+        <div class="state-line">divisions[] / sectors[] / users[]</div>
+      </div>
+      <div class="mode-list">
+        <div class="mode-item"><b>kbInitHierarchy()</b><span>`GetHierarchyInfo` загружает роль, контекст и списки для UI.</span></div>
+        <div class="mode-item"><b>kbApplyMode()</b><span>Собирает режим из dept/sector/user select.</span></div>
+        <div class="mode-item"><b>SetViewMode</b><span>Пишет режим в `obj.PropertyBag["KbViewMode"]`.</span></div>
+        <div class="mode-item"><b>RefreshBoard</b><span>Перезапускает render с новым scope.</span></div>
+        <div class="mode-item"><b>GetAllowedUserIdSet</b><span>Backend решает, какие Assignee можно показывать.</span></div>
+        <div class="mode-item"><b>view modes</b><span>`my`, `all`, `dept`, `sector`, `user:KEY`, `group:CTX`.</span></div>
+      </div>
+    </div>
+    <div class="footer"><span>UI помогает выбрать только допустимое, backend всё равно проверяет scope</span><span class="page-num">11</span></div>
+  </section>
+
+  <section class="slide" data-slide="12">
+    <div class="section-label">attachments & comments</div>
+    <div class="kicker">Вложения, чат, история</div>
+    <h2>У карточки есть два типа связей PLM и отдельный JSON-канал для комментариев.</h2>
+    <div class="stage grid-3">
+      <div class="file-card"><div class="tag bg-blue">objects</div><b class="code">InfoObject</b><p>`PickObjects`, `PickAndAttach`, `AddAttachment`, `RemoveAttachment`, `OpenObject`, `SearchObjects`.</p><div class="css-tags"><span class="css-tag">AttachedObjects</span><span class="css-tag">tcmAtt*</span></div></div>
+      <div class="file-card"><div class="tag bg-green">containers</div><b class="code">DataContainer</b><p>`PickContainers`, `PickAndAttachContainer`, `AddContainer`, `RemoveContainer`, `OpenContainer`.</p><div class="css-tags"><span class="css-tag">AttachedContainers</span><span class="css-tag">folder/project</span></div></div>
+      <div class="file-card"><div class="tag bg-orange">chat</div><b class="code">CommentsJSON</b><p>`GetComments`, `AddComment`, `DeleteComment`; UI рисует список через `tcmLoadComments`.</p><div class="css-tags"><span class="css-tag">tcm-chat</span><span class="css-tag">ChangeLog</span></div></div>
+    </div>
+    <div class="footer"><span>При создании вложения сначала лежат в `_crtPendingAttachments`, в модалке прикрепляются сразу</span><span class="page-num">12</span></div>
+  </section>
+
+  <section class="slide" data-slide="13">
+    <div class="section-label">report flow</div>
+    <div class="kicker">Отчёт</div>
+    <h2>Отчёт — отдельный overlay: JS собирает период и scope, backend считает задачи, JS рисует сводку и таблицу.</h2>
+    <div class="stage grid-5 arrow-row">
+      <div class="node"><div class="node-num bg-blue">1</div><b class="code">openReport()</b><p>Показывает `#reportOverlay` и готовит scope.</p></div>
+      <div class="node"><div class="node-num bg-orange">2</div><b class="code">loadReport()</b><p>Читает `reportPeriod` + `reportScope`.</p></div>
+      <div class="node"><div class="node-num bg-green">3</div><b class="code">GetReport</b><p>Backend считает total/done/overdue/inProgress.</p></div>
+      <div class="node"><div class="node-num bg-purple">4</div><b class="code">renderReport()</b><p>Заполняет `#reportSummary` и `#reportBody`.</p></div>
+      <div class="node"><div class="node-num bg-dark">5</div><b class="code">.rpt-*</b><p>CSS оформляет overlay, карточки, таблицу и progress bar.</p></div>
+    </div>
+    <div class="footer"><span>Контракт вызова: `GetReport`, payload `period|scope`</span><span class="page-num">13</span></div>
+  </section>
+
+  <section class="slide" data-slide="14">
+    <div class="section-label">css system</div>
+    <div class="kicker">Как читать `kanban.css`</div>
+    <h2>CSS разбит не по файлам, а по префиксам компонентов. JS часто не меняет style напрямую, а переключает классы-состояния.</h2>
+    <div class="css-map">
+      <div class="css-group"><h3><span class="swatch bg-blue"></span><span class="code">.kb-*</span></h3><div class="css-tags"><span class="css-tag">.kb-board</span><span class="css-tag">.kb-col</span><span class="css-tag">.kb-card</span><span class="css-tag">.kb-create-panel</span><span class="css-tag">.kb-cal</span><span class="css-tag">.kb-tag</span></div></div>
+      <div class="css-group"><h3><span class="swatch bg-purple"></span><span class="code">.tcm-*</span></h3><div class="css-tags"><span class="css-tag">.tcm-overlay.visible</span><span class="css-tag">.tcm-dialog</span><span class="css-tag">.tcm-att-list</span><span class="css-tag">.tcm-chat</span><span class="css-tag">.tcm-revs</span></div></div>
+      <div class="css-group"><h3><span class="swatch bg-orange"></span><span class="code">state classes</span></h3><div class="css-tags"><span class="css-tag">.drag-over</span><span class="css-tag">.kb-card-new</span><span class="css-tag">.pri-urgent</span><span class="css-tag">.kb-sel-urgent</span><span class="css-tag">.tcm-header-urgent</span></div></div>
+      <div class="css-group"><h3><span class="swatch bg-green"></span><span class="code">.rpt-* / .help-*</span></h3><div class="css-tags"><span class="css-tag">.rpt-overlay</span><span class="css-tag">.rpt-table</span><span class="css-tag">.rpt-bar-fill</span><span class="css-tag">.help-dialog</span><span class="css-tag">.help-table</span></div></div>
+    </div>
+    <div class="footer"><span>Цвета колонок заданы через `#kb-col-0..3 .kb-col-header` и inline в HTML для части колонок</span><span class="page-num">14</span></div>
+  </section>
+
+  <section class="slide" data-slide="15">
+    <div class="section-label">data model</div>
+    <div class="kicker">Данные, которые связывают всё вместе</div>
+    <h2>В UI карточка выглядит просто, но за ней стоит `KanbanTask` с атрибутами, справочниками и user-контекстом.</h2>
+    <div class="data-map">
+      <div class="data-box"><h3 class="code">Container</h3><div class="field-chip">All_Kanban_Tasks_Folder</div><div class="field-chip">template: All_Kanban_Tasks</div><p style="font-size:15px;color:#607088;line-height:1.25;">`BeforeRender` перебирает `RootInfoObjects` этого контейнера.</p></div>
+      <div class="data-box"><h3 class="code">KanbanTask fields</h3><div class="field-chip">TaskName / TaskDetails</div><div class="field-chip">KanbanStatus / Priority</div><div class="field-chip">DueDate / CompletedDate</div><div class="field-chip">Assignee / Creator</div><div class="field-chip">ChangeLog / CommentsJSON</div><div class="field-chip">AttachedObjects / AttachedContainers</div></div>
+      <div class="data-box"><h3 class="code">User + refs</h3><div class="field-chip">Comission</div><div class="field-chip">Context</div><div class="field-chip">Ref_KanbanStatus</div><div class="field-chip">Ref_KanbanPriority</div><div class="field-chip">Ref_KanbanTags</div><p style="font-size:15px;color:#607088;line-height:1.25;">Роли и фильтры завязаны на должность и подразделение.</p></div>
+    </div>
+    <div class="footer"><span>Если меняется модель данных, обновляй C#, HTML-render и JS-modal contract</span><span class="page-num">15</span></div>
+  </section>
+
+  <section class="slide" data-slide="16">
+    <div class="section-label">maintenance map</div>
+    <div class="kicker">Куда идти, если нужно что-то поменять</div>
+    <h2>Практическая навигация: начинай с симптома, потом открывай нужный слой.</h2>
+    <div class="edit-map">
+      <div class="edit-card"><b>Новая кнопка / поле</b><div class="code-line">HTML id/class → window.function → CSS</div><p>Добавить DOM, экспортировать JS-функцию, при необходимости стилизовать.</p></div>
+      <div class="edit-card"><b>Новое действие сервера</b><div class="code-line">JS InvokeTemplate → C# case → Do*</div><p>Сразу зафиксировать формат payload и формат ответа.</p></div>
+      <div class="edit-card"><b>Изменить карточку</b><div class="code-line">BuildCardData → Liquid card → .kb-card</div><p>Данные карточки приходят из C#, внешний вид живёт в HTML/CSS.</p></div>
+      <div class="edit-card"><b>Изменить модалку</b><div class="code-line">GetTaskDetails ↔ tcmRender ↔ SaveTask</div><p>Поля должны совпадать в JSON, DOM id и save payload.</p></div>
+      <div class="edit-card"><b>Изменить роли</b><div class="code-line">GetHierarchyInfo + GetAllowedUserIdSet + _kbH</div><p>Фронт показывает варианты, backend принимает окончательное решение.</p></div>
+      <div class="edit-card"><b>Только визуал</b><div class="code-line">kanban.css: .kb-* / .tcm-* / .rpt-*</div><p>Если не меняешь DOM и payload, C# трогать не нужно.</p></div>
+    </div>
+    <div class="footer"><span>Правило проекта: не ломать JS ↔ C# transport contract без синхронных изменений</span><span class="page-num">16</span></div>
+  </section>
+
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var slide = params.get("slide");
+      if (!slide) return;
+      document.body.className += " preview";
+      var selected = document.querySelector('[data-slide="' + slide + '"]');
+      if (selected) selected.className += " active";
+    })();
+  </script>
+</body>
+</html>

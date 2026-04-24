@@ -81,6 +81,29 @@
 
 Карточка для шаблона строится через `BuildCardData(...)`.
 
+## Lifecycle-хуки
+
+### `OnBeforeDisplayInUI(InfoObject obj, IPropertySheetCallback propertySheet)`
+Срабатывает у платформы перед отрисовкой экрана.
+Используется, чтобы доску можно было корректно открыть по внешней ссылке:
+
+- если `propertySheet.IsDialog == true` или родительская панель — это
+  `IPropertiesBrowserPanel` (экран открывается как карточка/в боковой панели),
+  скрываются штатные элементы оформления:
+  - `ToolStripVisibility = false`
+  - `TabStripVisibility = false`
+
+Для «штатного» открытия экрана иерархии (когда `propertySheet` — обычный таб)
+условие не срабатывает, оформление остаётся по умолчанию.
+
+### Связка с `GlobalLinkHandler`
+
+В репозитории лежит [`scripts/GlobalLinkHandler.txt`](../scripts/GlobalLinkHandler.txt) —
+глобальный обработчик внешних ссылок Soyuz-PLM. Он ловит клик по ссылке на
+объект канбан-доски (жёстко зашитый `Id = 804663UL`) и открывает его через
+`Service.UI.OpenPropertiesPane(io)`. Вместе с `OnBeforeDisplayInUI` это даёт
+чистое открытие доски без лишней обвязки тулбара/вкладок.
+
 ## Контракты основных методов
 
 ### `MoveTask`
