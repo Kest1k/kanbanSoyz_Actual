@@ -212,8 +212,8 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         {
             var root = Service.GetDataContainer( @"APSsServiceDataRootDirectory\UI" );
             var page =
-                Service.GetInfoObjectOrContainer( root, @"Screens\myKanbanTest" ) ??
-                Service.GetInfoObjectOrContainer( root, @"Custom\Screens\myKanbanTest" );
+                Service.GetInfoObjectOrContainer( root, @"Screens\Доска задач" ) ??
+                Service.GetInfoObjectOrContainer( root, @"Custom\Screens\Доска задач" );
             if( page != null )
             {
                 var panel = (IBrowserPanel)Service.UI.GetBrowserPanelsFromAllGroups()

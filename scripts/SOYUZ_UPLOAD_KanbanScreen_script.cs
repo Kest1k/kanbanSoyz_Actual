@@ -980,6 +980,13 @@ private bool IsWithinContext( string userCtx, string ownerCtx )
 {
     if( string.IsNullOrEmpty( userCtx ) ) return false;
     if( userCtx == ownerCtx ) return true;
+    
+    //Точечно: подструктура отделения 500кт (два зама 500.1 и 500.2 с нестандартными контекстами)
+    
+    if( ownerCtx == "500.1кт" && (userCtx == "510кт" || userCtx == "580кт")) return true;
+    if( ownerCtx == "500.2кт" && (userCtx == "520кт" || userCtx == "530кт")) return true;
+    if( ownerCtx == "500кт" && (userCtx == "500.1кт" || userCtx == "500.2кт")) return true; 
+
     return GetDivisionContext( userCtx ) == ownerCtx;
 }
 

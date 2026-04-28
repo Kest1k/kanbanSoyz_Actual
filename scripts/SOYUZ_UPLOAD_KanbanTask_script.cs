@@ -72,7 +72,6 @@ private void CheckAssigneeChanged( InfoObject obj )
     w[ "Subject" ] = string.IsNullOrEmpty( senderName )
         ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430: " + taskName + extra
         : "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430 \u00ab" + taskName + "\u00bb \u043e\u0442 " + senderName + extra;
-    w[ "TaskDetails" ] = obj.GetString( "TaskDetails" ) ?? ""; 
     w.StatusOperation = WorkItemBase.StatusEnum.Sent;
 }
 

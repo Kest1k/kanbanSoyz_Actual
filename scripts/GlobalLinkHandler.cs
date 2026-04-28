@@ -13,7 +13,10 @@ public override bool DoHandleExternalLink( ScriptingObject obj, String url, bool
       
     //if(io.GlobalIdentifier == new Guid("db816ce5-87bd-4c70-aea7-51b5d82a29f2"))
    
-    if(io != null && io.Id == 804663UL)
+    //14068UL - тестовый
+    //804663UL - основной сервер
+   
+    if(io != null && io.Id == 14068UL) 
     {
         Service.UI.OpenPropertiesPane(io);
         return true;
