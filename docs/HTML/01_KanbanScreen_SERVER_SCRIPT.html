@@ -205,12 +205,14 @@ Liquid-шаблон <code>col_0..col_3</code>, <code>kbRole</code>,
 обычный таб) условие не срабатывает, оформление остаётся по умолчанию.</p>
 <h3 id="связка-с-globallinkhandler">Связка с <code>GlobalLinkHandler</code></h3>
 <p>В репозитории лежит
-<a href="../../scripts/GlobalLinkHandler.txt"><code>scripts/GlobalLinkHandler.txt</code></a>
+<a href="../../scripts/GlobalLinkHandler.cs"><code>scripts/GlobalLinkHandler.cs</code></a>
 — глобальный обработчик внешних ссылок Soyuz-PLM. Он ловит клик по ссылке
-на объект канбан-доски (жёстко зашитый <code>Id = 804663UL</code>) и
-открывает его через <code>Service.UI.OpenPropertiesPane(io)</code>. Вместе
-с <code>OnBeforeDisplayInUI</code> это даёт чистое открытие доски без лишней
-обвязки тулбара/вкладок.</p>
+на объект канбан-доски (<code>Id = 14068UL</code> на тестовом сервере,
+<code>Id = 804663UL</code> на основном) и открывает его через
+<code>Service.UI.OpenPropertiesPane(io)</code>. После открытия обработчик
+подгружает свежие изменения клиента и вызывает <code>RefreshBoard</code>,
+чтобы доска не открывалась пустой. Вместе с <code>OnBeforeDisplayInUI</code>
+это даёт чистое открытие доски без лишней обвязки тулбара/вкладок.</p>
 <h2 id="контракты-основных-методов">Контракты основных методов</h2>
 <h3 id="movetask"><code>MoveTask</code></h3>
 <p><strong>Вход:</strong> <code>"nameKey|newStatus"</code><br />

@@ -72,7 +72,14 @@ private void CheckAssigneeChanged( InfoObject obj )
     w[ "Subject" ] = string.IsNullOrEmpty( senderName )
         ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430: " + taskName + extra
         : "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430 \u00ab" + taskName + "\u00bb \u043e\u0442 " + senderName + extra;
+
+    // Гасим штатное PLM/Windows-оповещение до отправки: наше окно покажет ExclamationKanban.OnUpdated.
+    try { w[ "SilentMode" ] = true; } catch { }
+    try { w.MarkAsViewedBy( newAssignee ); } catch { }
     w.StatusOperation = WorkItemBase.StatusEnum.Sent;
+
+    // Повторная отметка закрывает случаи, когда PLM пересобрал состояние при переводе в Sent.
+    try { w.MarkAsViewedBy( newAssignee ); } catch { }
 }
 
 // ─── Форматирование имени отправителя: «Иванова С.А.» ────────────────

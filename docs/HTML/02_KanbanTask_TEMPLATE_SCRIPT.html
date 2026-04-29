@@ -126,8 +126,9 @@
 <li>Если исполнитель изменился и это не самоназначение — создаёт <code>WorkItem</code> из шаблона <code>ExclamationKanban</code></li>
 <li>Очищает <code>SeenByList</code> — новый исполнитель увидит бейдж «НОВАЯ» на доске</li>
 <li>В Subject передаёт: название задачи, имя отправителя (в родительном падеже), приоритет</li>
+<li>Сразу помечает WorkItem просмотренным для исполнителя через <code>MarkAsViewedBy(User)</code>, чтобы штатная PLM-почта/оповещение не дублировала кастомное окно.</li>
 </ol>
-<p><strong>Шаблон уведомления:</strong> <code>WorkLoads\BASIC\Message\ExclamationKanban</code> — кастомный дубликат Exclamation с RTF-форматированием и кликабельной ссылкой на доску.</p>
+<p><strong>Шаблон уведомления:</strong> <code>WorkLoads\BASIC\Message\ExclamationKanban</code> — кастомный дубликат Exclamation с RTF-форматированием и кнопкой открытия доски.</p>
 <h2 id="ajax">AJAX-обработчики</h2>
 <h3 id="getcard"><code>getCard</code> — Получение данных карточки</h3>
 <pre><code>Параметры: taskId

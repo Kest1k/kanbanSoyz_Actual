@@ -98,11 +98,13 @@
 
 ### Связка с `GlobalLinkHandler`
 
-В репозитории лежит [`scripts/GlobalLinkHandler.txt`](../scripts/GlobalLinkHandler.txt) —
+В репозитории лежит [`scripts/GlobalLinkHandler.cs`](../scripts/GlobalLinkHandler.cs) —
 глобальный обработчик внешних ссылок Soyuz-PLM. Он ловит клик по ссылке на
-объект канбан-доски (жёстко зашитый `Id = 804663UL`) и открывает его через
-`Service.UI.OpenPropertiesPane(io)`. Вместе с `OnBeforeDisplayInUI` это даёт
-чистое открытие доски без лишней обвязки тулбара/вкладок.
+объект канбан-доски (`Id = 14068UL` на тестовом сервере, `Id = 804663UL` на
+основном) и открывает его через `Service.UI.OpenPropertiesPane(io)`. После
+открытия обработчик подгружает свежие изменения клиента и вызывает
+`RefreshBoard`, чтобы доска не открывалась пустой. Вместе с `OnBeforeDisplayInUI`
+это даёт чистое открытие доски без лишней обвязки тулбара/вкладок.
 
 ## Контракты основных методов
 
