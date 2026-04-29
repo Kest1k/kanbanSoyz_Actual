@@ -1,13 +1,25 @@
 public override void OnUpdated( WorkItem obj, bool isFirst )
 {
-    if( !isFirst || !obj.IsNewForCurrentUser
-        || !obj.IsUserRecipient( Service.GetCurrentUser() )
+    if( !isFirst ) return;
+
+    // Guard: если нет Subject — это не наш WorkItem (пустые оповещения кэша).
+    var subject = "";
+    try { subject = ( obj.GetValue<string>( "Subject" ) ?? "" ).Trim(); } catch { }
+    if( string.IsNullOrEmpty( subject ) ) return;
+
+    // Kanban-нагрузка заранее помечается просмотренной на сервере,
+    // чтобы штатный Exclamation не попал в PLM-почту/оповещения.
+    if( !obj.IsUserRecipient( Service.GetCurrentUser() )
         || Math.Abs( ( obj.DateActivated - DateTime.Now ).TotalMinutes ) >= 180.0 )
         return;
 
+    // Дублируем отметку на клиенте, чтобы уведомление не оставалось новым
+    // при любых расхождениях серверного/клиентского кэша.
+    try { obj.MarkAsViewedByCurrentUser(); } catch { }
+
     System.Console.Beep( 250, 500 );
 
-    var subject = obj.GetValue<string>( "Subject" ) ?? "Новая задача";
+    subject = obj.GetValue<string>( "Subject" ) ?? "Новая задача";
     var taskDetails = "";
     try { taskDetails = ( obj.GetValue<string>( "TaskDetails" ) ?? "" ).Trim(); }
     catch { taskDetails = ""; }
@@ -143,11 +155,13 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             form.MaximizeBox     = false;
             form.MinimizeBox     = false;
             form.ShowInTaskbar   = false;
+            form.TopMost         = true;
             form.KeyPreview      = true;
             form.StartPosition   = System.Windows.Forms.FormStartPosition.CenterScreen;
             form.ClientSize      = new System.Drawing.Size( formWidth, formHeight );
             form.Font            = new System.Drawing.Font( "Segoe UI", 9f );
             form.BackColor       = System.Drawing.Color.White;
+            form.Shown          += ( s, e ) => { try { form.Activate(); form.BringToFront(); } catch {} };
             form.KeyDown        += ( s, e ) => { if( e.KeyCode == System.Windows.Forms.Keys.Escape ) form.Close(); };
 
             // ── Нижняя панель с кнопкой по центру ─────────────────────
@@ -171,7 +185,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             btnOpen.Size         = new System.Drawing.Size( btnWidth, btnHeight );
             btnOpen.Anchor       = System.Windows.Forms.AnchorStyles.None;   // ← ключевое: центр в ячейке TLP
             btnOpen.Margin       = new System.Windows.Forms.Padding( 0 );
-            btnOpen.DialogResult = System.Windows.Forms.DialogResult.OK;
+            btnOpen.DialogResult = System.Windows.Forms.DialogResult.None;
             btnOpen.Font         = new System.Drawing.Font( "Segoe UI", 9f, System.Drawing.FontStyle.Bold );
             btnOpen.FlatStyle    = System.Windows.Forms.FlatStyle.Flat;
             btnOpen.BackColor    = System.Drawing.Color.FromArgb( 0, 120, 215 );
@@ -179,7 +193,11 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             btnOpen.FlatAppearance.BorderSize = 0;
             btnOpen.Cursor       = System.Windows.Forms.Cursors.Hand;
             btnOpen.UseVisualStyleBackColor = false;
-            btnOpen.Click       += ( s, e ) => { navigateToBoard = true; };
+            btnOpen.Click       += ( s, e ) =>
+            {
+                navigateToBoard = true;
+                form.Close();
+            };
             
             buttonPanel.Controls.Add( btnOpen, 0, 0 );
             // ── Текстовая область ─────────────────────────────────────
@@ -206,32 +224,252 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             form.ShowDialog();
         }
 
-        obj.MarkAsViewedByCurrentUser();
+        try { obj.MarkAsViewedByCurrentUser(); } catch { }
 
         if( navigateToBoard )
         {
-            var root = Service.GetDataContainer( @"APSsServiceDataRootDirectory\UI" );
-            var page =
-                Service.GetInfoObjectOrContainer( root, @"Screens\Доска задач" ) ??
-                Service.GetInfoObjectOrContainer( root, @"Custom\Screens\Доска задач" );
-            if( page != null )
-            {
-                var panel = (IBrowserPanel)Service.UI.GetBrowserPanelsFromAllGroups()
-                    .OfType<IScriptingObject>()
-                    .FirstOrDefault( o => o.ScriptingObject == page );
-                if( panel != null )
-                    panel.Activate();
-                else
-                    Service.UI.OpenPropertiesPane( page );
-            }
+            OpenBoardFromNotification();
         }
         return;
     }
     catch { }
 
     Service.UI.ShowMessage( subject );
-    obj.MarkAsViewedByCurrentUser();
+    try { obj.MarkAsViewedByCurrentUser(); } catch { }
 }
+
+private void OpenBoardFromNotification()
+{
+    var page = GetBoardPage();
+    if( page == null ) return;
+
+    try
+    {
+        var ctrl = Service.UI.SyncControl;
+        if( ctrl != null )
+        {
+            ctrl.BeginInvoke( (Action)( () =>
+            {
+                OpenBoardAndRefresh( page );
+                ScheduleBringPlmToFront( 250 );
+            } ) );
+            return;
+        }
+    }
+    catch { }
+
+    OpenBoardAndRefresh( page );
+    ScheduleBringPlmToFront( 250 );
+}
+
+public override void ManageMailShortcuts( WorkItem obj, UserItemLink creatorLink, UserItemLink[] recipientLinks )
+{
+    try { obj[ "SilentMode" ] = true; } catch { }
+
+    try
+    {
+        if( recipientLinks == null ) return;
+
+        for( int i = 0; i < recipientLinks.Length; i++ )
+        {
+            var link = recipientLinks[i];
+            if( link == null || link.User == null ) continue;
+            try { obj.MarkAsViewedBy( link.User ); } catch { }
+
+            // Отменяем штатный ярлык во входящих уведомлениях PLM.
+            // WorkItem остаётся нагрузкой получателя, поэтому OnUpdated всё равно покажет наше окно.
+            recipientLinks[i] = null;
+        }
+    }
+    catch { }
+}
+
+private InfoObject GetBoardPage()
+{
+    try
+    {
+        var root = Service.GetDataContainer( @"APSsServiceDataRootDirectory\UI" );
+        var byPath =
+            Service.GetInfoObjectOrContainer( root, @"Screens\myKanbanTest" ) ??
+            Service.GetInfoObjectOrContainer( root, @"Custom\Screens\myKanbanTest" ) ??
+            Service.GetInfoObjectOrContainer( root, @"Screens\Доска задач" ) ??
+            Service.GetInfoObjectOrContainer( root, @"Custom\Screens\Доска задач" );
+
+        var pageByPath = byPath as InfoObject;
+        if( pageByPath != null ) return pageByPath;
+    }
+    catch { }
+
+    try
+    {
+        var page = Service.GetInfoObject( 804663UL );
+        if( page != null ) return page;
+    }
+    catch { }
+
+    try
+    {
+        var page = Service.GetInfoObject( 14068UL );
+        if( page != null ) return page;
+    }
+    catch { }
+    return null;
+}
+
+private void BringPlmToFront()
+{
+    BringFormToFront( GetPlmMainForm() );
+
+    try
+    {
+        foreach( System.Windows.Forms.Form form in System.Windows.Forms.Application.OpenForms )
+        {
+            if( form == null || form.IsDisposed || form.Text == "Новая задача" )
+                continue;
+            BringFormToFront( form );
+        }
+    }
+    catch { }
+
+    try
+    {
+        var process = System.Diagnostics.Process.GetCurrentProcess();
+        process.Refresh();
+        var hWnd = process.MainWindowHandle;
+        if( hWnd != IntPtr.Zero )
+        {
+            ShowWindow( hWnd, SW_RESTORE );
+            SetForegroundWindow( hWnd );
+        }
+    }
+    catch { }
+}
+
+private System.Windows.Forms.Form GetPlmMainForm()
+{
+    try
+    {
+        var ctrl = Service.UI.SyncControl;
+        var form = ( ctrl != null ) ? ctrl.FindForm() : null;
+        if( form != null ) return form;
+    }
+    catch { }
+
+    try
+    {
+        foreach( System.Windows.Forms.Form form in System.Windows.Forms.Application.OpenForms )
+        {
+            if( form == null || form.IsDisposed || form.Text == "Новая задача" )
+                continue;
+            return form;
+        }
+    }
+    catch { }
+
+    return null;
+}
+
+private void BringFormToFront( System.Windows.Forms.Form form )
+{
+    if( form == null || form.IsDisposed ) return;
+
+    try
+    {
+        if( form.WindowState == System.Windows.Forms.FormWindowState.Minimized )
+            form.WindowState = System.Windows.Forms.FormWindowState.Normal;
+
+        ShowWindow( form.Handle, SW_RESTORE );
+        form.Show();
+        form.Activate();
+        form.BringToFront();
+        form.Focus();
+
+        var wasTopMost = form.TopMost;
+        form.TopMost = true;
+        form.TopMost = wasTopMost;
+
+        SetForegroundWindow( form.Handle );
+    }
+    catch { }
+}
+
+private void ScheduleBringPlmToFront( int interval )
+{
+    try
+    {
+        var timer = new System.Windows.Forms.Timer();
+        timer.Interval = interval;
+        timer.Tick += ( s, e ) =>
+        {
+            timer.Stop();
+            timer.Dispose();
+            BringPlmToFront();
+        };
+        timer.Start();
+    }
+    catch { }
+}
+
+private void OpenBoardAndRefresh( InfoObject page )
+{
+    BringPlmToFront();
+    try { Service.UI.DoUIEventsDispatching(); } catch { }
+
+    try { Service.UI.OpenPropertiesPane( page ); } catch { }
+    try { Service.UI.DoUIEventsDispatching(); } catch { }
+
+    BringPlmToFront();
+    RefreshBoardWithDelay( page );
+}
+
+private void RefreshBoardWithDelay( InfoObject page )
+{
+    try
+    {
+        var ctrl = Service.UI.SyncControl;
+        if( ctrl == null )
+        {
+            RefreshBoardNow( page );
+            return;
+        }
+
+        ctrl.BeginInvoke( (Action)( () =>
+        {
+            BringPlmToFront();
+            RefreshBoardNow( page );
+
+            var timer = new System.Windows.Forms.Timer();
+            timer.Interval = 900;
+            timer.Tick += ( s, e ) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                RefreshBoardNow( page );
+            };
+            timer.Start();
+        } ) );
+    }
+    catch
+    {
+        RefreshBoardNow( page );
+    }
+}
+
+private void RefreshBoardNow( InfoObject page )
+{
+    try { Service.UI.LoadChangesFromServer( true ); } catch { }
+    try { Service.UI.DoUIEventsDispatching(); } catch { }
+    try { page.Invoke( "RefreshBoard", null ); } catch { }
+    try { page.Invoke( "Refresh", null ); } catch { }
+}
+
+private const int SW_RESTORE = 9;
+
+[System.Runtime.InteropServices.DllImport( "user32.dll" )]
+private static extern bool ShowWindow( IntPtr hWnd, int nCmdShow );
+
+[System.Runtime.InteropServices.DllImport( "user32.dll" )]
+private static extern bool SetForegroundWindow( IntPtr hWnd );
 
 private string RtfEncode( string text )
 {
