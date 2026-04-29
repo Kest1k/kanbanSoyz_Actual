@@ -94,6 +94,22 @@ private void BringPlmToFrontInternal()
 {
     try
     {
+        using (var invisibleForm = new System.Windows.Forms.Form())
+        {
+            invisibleForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            invisibleForm.ShowInTaskbar = false;
+            invisibleForm.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+            invisibleForm.Location = new System.Drawing.Point(-20000, -20000);
+            invisibleForm.Size = new System.Drawing.Size(1, 1);
+            invisibleForm.Opacity = 0;
+            invisibleForm.Shown += (s, e) => invisibleForm.Close();
+            invisibleForm.ShowDialog();
+        }
+    }
+    catch { }
+
+    try
+    {
         var ctrl = Service.UI.SyncControl;
         var mainForm = (ctrl != null) ? ctrl.FindForm() : null;
 
