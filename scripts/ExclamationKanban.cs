@@ -337,6 +337,15 @@ private void BringPlmToFrontInternal()
     {
         var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
 
+        string diag = "MainWindow: " + (mainForm == null ? "NULL" : ("[" + mainForm.Text + "] Vis:" + mainForm.Visible)) + "\nOpenForms:\n";
+        foreach(System.Windows.Forms.Form f in System.Windows.Forms.Application.OpenForms)
+        {
+            if (f != null)
+                diag += "- [" + f.Text + "] Vis:" + f.Visible + " Taskbar:" + f.ShowInTaskbar + "\n";
+        }
+
+        try { Service.UI.ShowMessage(diag); } catch {}
+
         if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
         {
             mainForm = System.Windows.Forms.Application.OpenForms[0];
