@@ -94,11 +94,12 @@ private void BringPlmToFrontInternal()
 {
     try
     {
-        var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
+        var ctrl = Service.UI.SyncControl;
+        var mainForm = (ctrl != null) ? ctrl.FindForm() : null;
 
-        if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
+        if (mainForm == null)
         {
-            mainForm = System.Windows.Forms.Application.OpenForms[0];
+            mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
         }
 
         if (mainForm != null)
@@ -114,8 +115,6 @@ private void BringPlmToFrontInternal()
             mainForm.BringToFront();
             SetForegroundWindow(mainForm.Handle);
         }
-
-
     }
     catch (Exception ex)
     {
