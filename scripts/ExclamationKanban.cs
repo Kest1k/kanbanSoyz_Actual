@@ -1,3 +1,5 @@
+private static System.Collections.Generic.HashSet<ulong> _notifiedItems = new System.Collections.Generic.HashSet<ulong>();
+
 public override void OnUpdated( WorkItem obj, bool isFirst )
 {
     if( !isFirst ) return;
@@ -13,8 +15,11 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         || Math.Abs( ( obj.DateActivated - DateTime.Now ).TotalMinutes ) >= 180.0 )
         return;
 
+    // Защита от дублей
+    if (_notifiedItems.Contains(obj.Id)) return;
+    _notifiedItems.Add(obj.Id);
+
     // Дублируем отметку на клиенте, чтобы уведомление не оставалось новым
-    // при любых расхождениях серверного/клиентского кэша.
     try { obj.MarkAsViewedByCurrentUser(); } catch { }
 
     System.Console.Beep( 250, 500 );
@@ -183,7 +188,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             var btnOpen = new System.Windows.Forms.Button();
             btnOpen.Text         = "Открыть доску";
             btnOpen.Size         = new System.Drawing.Size( btnWidth, btnHeight );
-            btnOpen.Anchor       = System.Windows.Forms.AnchorStyles.None;   // ← ключевое: центр в ячейке TLP
+            btnOpen.Anchor       = System.Windows.Forms.AnchorStyles.None;
             btnOpen.Margin       = new System.Windows.Forms.Padding( 0 );
             btnOpen.DialogResult = System.Windows.Forms.DialogResult.None;
             btnOpen.Font         = new System.Drawing.Font( "Segoe UI", 9f, System.Drawing.FontStyle.Bold );
@@ -196,10 +201,12 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             btnOpen.Click       += ( s, e ) =>
             {
                 navigateToBoard = true;
+                BringPlmToFront(); // ВЫТАСКИВАЕМ ОКНО ДО ЗАКРЫТИЯ ДИАЛОГА
                 form.Close();
             };
             
             buttonPanel.Controls.Add( btnOpen, 0, 0 );
+            
             // ── Текстовая область ─────────────────────────────────────
             var rtb = new System.Windows.Forms.RichTextBox();
             rtb.Dock        = System.Windows.Forms.DockStyle.Fill;
@@ -251,7 +258,6 @@ private void OpenBoardFromNotification()
             ctrl.BeginInvoke( (Action)( () =>
             {
                 OpenBoardAndRefresh( page );
-                ScheduleBringPlmToFront( 250 );
             } ) );
             return;
         }
@@ -259,7 +265,6 @@ private void OpenBoardFromNotification()
     catch { }
 
     OpenBoardAndRefresh( page );
-    ScheduleBringPlmToFront( 250 );
 }
 
 public override void ManageMailShortcuts( WorkItem obj, UserItemLink creatorLink, UserItemLink[] recipientLinks )
@@ -275,9 +280,6 @@ public override void ManageMailShortcuts( WorkItem obj, UserItemLink creatorLink
             var link = recipientLinks[i];
             if( link == null || link.User == null ) continue;
             try { obj.MarkAsViewedBy( link.User ); } catch { }
-
-            // Отменяем штатный ярлык во входящих уведомлениях PLM.
-            // WorkItem остаётся нагрузкой получателя, поэтому OnUpdated всё равно покажет наше окно.
             recipientLinks[i] = null;
         }
     }
@@ -319,63 +321,87 @@ private InfoObject GetBoardPage()
 private void BringPlmToFront()
 {
     var ctrl = Service.UI.SyncControl;
-    if (ctrl == null) return;
+    if (ctrl != null && ctrl.InvokeRequired)
+    {
+        ctrl.BeginInvoke((Action)BringPlmToFrontInternal);
+        return;
+    }
+    BringPlmToFrontInternal();
+}
 
-    ctrl.BeginInvoke((Action)(() =>
+private void BringPlmToFrontInternal()
+{
+    var pid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+
+    try
+    {
+        using (var invisibleForm = new System.Windows.Forms.Form())
+        {
+            invisibleForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            invisibleForm.ShowInTaskbar = false;
+            invisibleForm.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+            invisibleForm.Location = new System.Drawing.Point(-20000, -20000);
+            invisibleForm.Size = new System.Drawing.Size(1, 1);
+            invisibleForm.Opacity = 0;
+            invisibleForm.Shown += (s, e) => invisibleForm.Close();
+            invisibleForm.ShowDialog();
+        }
+    }
+    catch { }
+
+    IntPtr targetHandle = IntPtr.Zero;
+
+    if (Service.UI.MainWindow != null)
+        targetHandle = Service.UI.MainWindow.Handle;
+
+    if (targetHandle == IntPtr.Zero)
+    {
+        try { targetHandle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle; } catch { }
+    }
+
+    if (targetHandle == IntPtr.Zero)
+    {
+        EnumWindows((hwnd, lParam) =>
+        {
+            GetWindowThreadProcessId(hwnd, out uint wPid);
+            if (wPid == pid)
+            {
+                var sb = new System.Text.StringBuilder(512);
+                GetWindowText(hwnd, sb, sb.Capacity);
+                string title = sb.ToString();
+                if (title.Contains("Союз-PLM") || title.Contains("Sojuz-PLM") || title.Contains("PLM"))
+                {
+                    targetHandle = hwnd;
+                    return false; 
+                }
+            }
+            return true; 
+        }, IntPtr.Zero);
+    }
+
+    if (targetHandle != IntPtr.Zero)
     {
         try
         {
-            var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
-
-            if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
-            {
-                mainForm = System.Windows.Forms.Application.OpenForms[0];
-            }
-
+            var mainForm = System.Windows.Forms.Control.FromHandle(targetHandle) as System.Windows.Forms.Form;
             if (mainForm != null)
             {
-                if (!mainForm.Visible)
-                {
-                    mainForm.Visible = true;
-                }
+                Action restoreNetProps = () => {
+                    if (!mainForm.Visible) mainForm.Visible = true;
+                    if (!mainForm.ShowInTaskbar) mainForm.ShowInTaskbar = true;
+                    if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
+                        mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
+                };
 
-                if (!mainForm.ShowInTaskbar)
-                {
-                    mainForm.ShowInTaskbar = true;
-                }
-
-                if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
-                {
-                    mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
-                }
-
-                mainForm.Show();
-                mainForm.BringToFront();
-                mainForm.Activate();
+                if (mainForm.InvokeRequired) mainForm.Invoke(restoreNetProps);
+                else restoreNetProps();
             }
         }
-        catch (Exception ex)
-        {
-            Service.HandleException(ex, "Ошибка при восстановлении главного окна PLM");
-        }
-    }));
-}
+        catch { }
 
-private void ScheduleBringPlmToFront( int interval )
-{
-    try
-    {
-        var timer = new System.Windows.Forms.Timer();
-        timer.Interval = interval;
-        timer.Tick += ( s, e ) =>
-        {
-            timer.Stop();
-            timer.Dispose();
-            BringPlmToFront();
-        };
-        timer.Start();
+        ShowWindow(targetHandle, 9); // SW_RESTORE жестко заменен на 9
+        SetForegroundWindow(targetHandle);
     }
-    catch { }
 }
 
 private void OpenBoardAndRefresh( InfoObject page )
@@ -383,7 +409,41 @@ private void OpenBoardAndRefresh( InfoObject page )
     BringPlmToFront();
     try { Service.UI.DoUIEventsDispatching(); } catch { }
 
-    try { Service.UI.OpenPropertiesPane( page ); } catch { }
+    try 
+    { 
+        bool tabActivated = false;
+        var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
+        if (allPanels != null)
+        {
+            var existingTab = allPanels.FirstOrDefault(p => 
+            {
+                try
+                {
+                    var prop = p.GetType().GetProperty("ScriptingObject");
+                    if (prop != null)
+                    {
+                        var obj = prop.GetValue(p, null) as ScriptingObject;
+                        if (obj != null && obj.Id == page.Id) return true;
+                    }
+                }
+                catch { }
+                return false;
+            });
+
+            if (existingTab != null)
+            {
+                existingTab.Activate();
+                tabActivated = true;
+            }
+        }
+
+        if (!tabActivated)
+        {
+            Service.UI.OpenPropertiesPane( page );
+        }
+    } 
+    catch { }
+
     try { Service.UI.DoUIEventsDispatching(); } catch { }
 
     BringPlmToFront();
@@ -403,16 +463,16 @@ private void RefreshBoardWithDelay( InfoObject page )
 
         ctrl.BeginInvoke( (Action)( () =>
         {
-            BringPlmToFront();
-            RefreshBoardNow( page );
+            // Мы убрали мгновенный RefreshBoardNow( page ); отсюда, 
+            // чтобы не было двойного моргания.
 
             var timer = new System.Windows.Forms.Timer();
-            timer.Interval = 900;
+            timer.Interval = 300; // 300 мс вполне достаточно для прогрузки UI
             timer.Tick += ( s, e ) =>
             {
                 timer.Stop();
                 timer.Dispose();
-                RefreshBoardNow( page );
+                RefreshBoardNow( page ); // Однократное обновление
             };
             timer.Start();
         } ) );
@@ -425,13 +485,54 @@ private void RefreshBoardWithDelay( InfoObject page )
 
 private void RefreshBoardNow( InfoObject page )
 {
+    // 1. Подтягиваем свежие данные (новые задачи) с сервера
     try { Service.UI.LoadChangesFromServer( true ); } catch { }
     try { Service.UI.DoUIEventsDispatching(); } catch { }
+    
+    // 2. Ставим флаг, который обычно слушают HTML-экраны в PLM
+    try { page.PropertyBag["RefreshRequested"] = true; } catch { }
+    
+    // 3. Системная команда ядру PLM: "Сбрось кэш отрисовки этого объекта"
+    try { Service.UI.RefreshObject( page ); } catch { }
+    
+    // 4. Ваши кастомные методы (оставляем как было)
     try { page.Invoke( "RefreshBoard", null ); } catch { }
     try { page.Invoke( "Refresh", null ); } catch { }
+
+    // 5. БРОНЕБОЙНЫЙ РЕБИЛД ОТКРЫТОЙ ВКЛАДКИ (UI)
+    try
+    {
+        var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
+        if (allPanels != null)
+        {
+            var existingTab = allPanels.FirstOrDefault(p => 
+            {
+                try
+                {
+                    var prop = p.GetType().GetProperty("ScriptingObject");
+                    if (prop != null)
+                    {
+                        var o = prop.GetValue(p, null) as ScriptingObject;
+                        if (o != null && o.Id == page.Id) return true;
+                    }
+                }
+                catch { }
+                return false;
+            });
+
+            if (existingTab != null)
+            {
+                // Вытаскиваем IPropertySheetCallback и принудительно перестраиваем интерфейс
+                var propSheet = existingTab.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
+                if (propSheet != null)
+                {
+                    propSheet.Rebuild();
+                }
+            }
+        }
+    }
+    catch { }
 }
-
-
 
 private string RtfEncode( string text )
 {
@@ -448,3 +549,21 @@ private string RtfEncode( string text )
     }
     return sb.ToString();
 }
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+[return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);

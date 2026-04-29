@@ -1,11 +1,3 @@
-/// <summary>
-/// Вызывается при получении клиентом запроса на открытие внешней ссылки
-/// </summary>
-/// <param name="obj">Объект для открытия</param>
-/// <param name="url">Полный URL внешней ссылки, переданной для открытия в клиенте</param>
-/// <param name="openTree">true, если предполагается, что объект должен быть открыт в дереве 
-/// (фактически используется true во всех случаях)</param>
-/// <returns>true, если запрос обработан и другие обработчики, а так же штатное поведение, вызывать не следует</returns>
 public override bool DoHandleExternalLink( ScriptingObject obj, String url, bool openTree )
 {
     var io = obj as InfoObject;
@@ -27,7 +19,41 @@ private void OpenBoardAndRefresh( InfoObject page )
     BringPlmToFront();
     try { Service.UI.DoUIEventsDispatching(); } catch { }
 
-    try { Service.UI.OpenPropertiesPane( page ); } catch { }
+    try 
+    { 
+        bool tabActivated = false;
+        var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
+        if (allPanels != null)
+        {
+            var existingTab = allPanels.FirstOrDefault(p => 
+            {
+                try
+                {
+                    var prop = p.GetType().GetProperty("ScriptingObject");
+                    if (prop != null)
+                    {
+                        var o = prop.GetValue(p, null) as ScriptingObject;
+                        if (o != null && o.Id == page.Id) return true;
+                    }
+                }
+                catch { }
+                return false;
+            });
+
+            if (existingTab != null)
+            {
+                existingTab.Activate();
+                tabActivated = true;
+            }
+        }
+
+        if (!tabActivated)
+        {
+            Service.UI.OpenPropertiesPane( page );
+        }
+    } 
+    catch { }
+
     try { Service.UI.DoUIEventsDispatching(); } catch { }
 
     BringPlmToFront();
@@ -47,16 +73,16 @@ private void RefreshBoardWithDelay( InfoObject page )
 
         ctrl.BeginInvoke( (Action)( () =>
         {
-            BringPlmToFront();
-            RefreshBoardNow( page );
+            // Мы убрали мгновенный RefreshBoardNow( page ); отсюда, 
+            // чтобы не было двойного моргания.
 
             var timer = new System.Windows.Forms.Timer();
-            timer.Interval = 900;
+            timer.Interval = 300; // 300 мс вполне достаточно для прогрузки UI
             timer.Tick += ( s, e ) =>
             {
                 timer.Stop();
                 timer.Dispose();
-                RefreshBoardNow( page );
+                RefreshBoardNow( page ); // Однократное обновление
             };
             timer.Start();
         } ) );
@@ -69,53 +95,155 @@ private void RefreshBoardWithDelay( InfoObject page )
 
 private void RefreshBoardNow( InfoObject page )
 {
+    // 1. Подтягиваем свежие данные (новые задачи) с сервера
     try { Service.UI.LoadChangesFromServer( true ); } catch { }
     try { Service.UI.DoUIEventsDispatching(); } catch { }
+    
+    // 2. Ставим флаг, который обычно слушают HTML-экраны в PLM
+    try { page.PropertyBag["RefreshRequested"] = true; } catch { }
+    
+    // 3. Системная команда ядру PLM: "Сбрось кэш отрисовки этого объекта"
+    try { Service.UI.RefreshObject( page ); } catch { }
+    
+    // 4. Ваши кастомные методы (оставляем как было)
     try { page.Invoke( "RefreshBoard", null ); } catch { }
     try { page.Invoke( "Refresh", null ); } catch { }
+
+    // 5. БРОНЕБОЙНЫЙ РЕБИЛД ОТКРЫТОЙ ВКЛАДКИ (UI)
+    try
+    {
+        var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
+        if (allPanels != null)
+        {
+            var existingTab = allPanels.FirstOrDefault(p => 
+            {
+                try
+                {
+                    var prop = p.GetType().GetProperty("ScriptingObject");
+                    if (prop != null)
+                    {
+                        var o = prop.GetValue(p, null) as ScriptingObject;
+                        if (o != null && o.Id == page.Id) return true;
+                    }
+                }
+                catch { }
+                return false;
+            });
+
+            if (existingTab != null)
+            {
+                // Вытаскиваем IPropertySheetCallback и принудительно перестраиваем интерфейс
+                var propSheet = existingTab.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
+                if (propSheet != null)
+                {
+                    propSheet.Rebuild();
+                }
+            }
+        }
+    }
+    catch { }
 }
 
 private void BringPlmToFront()
 {
     var ctrl = Service.UI.SyncControl;
-    if (ctrl == null) return;
+    if (ctrl != null && ctrl.InvokeRequired)
+    {
+        ctrl.BeginInvoke((Action)BringPlmToFrontInternal);
+        return;
+    }
+    BringPlmToFrontInternal();
+}
 
-    ctrl.BeginInvoke((Action)(() =>
+private void BringPlmToFrontInternal()
+{
+    var pid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+
+    try
+    {
+        using (var invisibleForm = new System.Windows.Forms.Form())
+        {
+            invisibleForm.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            invisibleForm.ShowInTaskbar = false;
+            invisibleForm.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+            invisibleForm.Location = new System.Drawing.Point(-20000, -20000);
+            invisibleForm.Size = new System.Drawing.Size(1, 1);
+            invisibleForm.Opacity = 0;
+            invisibleForm.Shown += (s, e) => invisibleForm.Close();
+            invisibleForm.ShowDialog();
+        }
+    }
+    catch { }
+
+    IntPtr targetHandle = IntPtr.Zero;
+
+    if (Service.UI.MainWindow != null)
+        targetHandle = Service.UI.MainWindow.Handle;
+
+    if (targetHandle == IntPtr.Zero)
+    {
+        try { targetHandle = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle; } catch { }
+    }
+
+    if (targetHandle == IntPtr.Zero)
+    {
+        EnumWindows((hwnd, lParam) =>
+        {
+            GetWindowThreadProcessId(hwnd, out uint wPid);
+            if (wPid == pid)
+            {
+                var sb = new System.Text.StringBuilder(512);
+                GetWindowText(hwnd, sb, sb.Capacity);
+                string title = sb.ToString();
+                if (title.Contains("Союз-PLM") || title.Contains("Sojuz-PLM") || title.Contains("PLM"))
+                {
+                    targetHandle = hwnd;
+                    return false; 
+                }
+            }
+            return true; 
+        }, IntPtr.Zero);
+    }
+
+    if (targetHandle != IntPtr.Zero)
     {
         try
         {
-            var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
-
-            if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
-            {
-                mainForm = System.Windows.Forms.Application.OpenForms[0];
-            }
-
+            var mainForm = System.Windows.Forms.Control.FromHandle(targetHandle) as System.Windows.Forms.Form;
             if (mainForm != null)
             {
-                if (!mainForm.Visible)
-                {
-                    mainForm.Visible = true;
-                }
+                Action restoreNetProps = () => {
+                    if (!mainForm.Visible) mainForm.Visible = true;
+                    if (!mainForm.ShowInTaskbar) mainForm.ShowInTaskbar = true;
+                    if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
+                        mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
+                };
 
-                if (!mainForm.ShowInTaskbar)
-                {
-                    mainForm.ShowInTaskbar = true;
-                }
-
-                if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
-                {
-                    mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
-                }
-
-                mainForm.Show();
-                mainForm.BringToFront();
-                mainForm.Activate();
+                if (mainForm.InvokeRequired) mainForm.Invoke(restoreNetProps);
+                else restoreNetProps();
             }
         }
-        catch (Exception ex)
-        {
-            Service.HandleException(ex, "Ошибка при восстановлении главного окна PLM");
-        }
-    }));
+        catch { }
+
+        ShowWindow(targetHandle, 9); // SW_RESTORE
+        SetForegroundWindow(targetHandle);
+    }
 }
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+[return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+[System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
