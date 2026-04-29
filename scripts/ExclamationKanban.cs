@@ -318,47 +318,63 @@ private InfoObject GetBoardPage()
 
 private void BringPlmToFront()
 {
-    var ctrl = Service.UI.SyncControl;
-    if (ctrl == null) return;
-
-    ctrl.BeginInvoke((Action)(() =>
+    try
     {
-        try
+        var ctrl = Service.UI.SyncControl;
+        if (ctrl != null && ctrl.InvokeRequired)
         {
-            var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
-
-            if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
-            {
-                mainForm = System.Windows.Forms.Application.OpenForms[0];
-            }
-
-            if (mainForm != null)
-            {
-                if (!mainForm.Visible)
-                {
-                    mainForm.Visible = true;
-                }
-
-                if (!mainForm.ShowInTaskbar)
-                {
-                    mainForm.ShowInTaskbar = true;
-                }
-
-                if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
-                {
-                    mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
-                }
-
-                mainForm.Show();
-                mainForm.BringToFront();
-                mainForm.Activate();
-            }
+            ctrl.Invoke((Action)(BringPlmToFrontInternal));
+            return;
         }
-        catch (Exception ex)
+        BringPlmToFrontInternal();
+    }
+    catch { }
+}
+
+private void BringPlmToFrontInternal()
+{
+    try
+    {
+        var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
+
+        if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
         {
-            Service.HandleException(ex, "Ошибка при восстановлении главного окна PLM");
+            mainForm = System.Windows.Forms.Application.OpenForms[0];
         }
-    }));
+
+        if (mainForm != null)
+        {
+            if (!mainForm.Visible) mainForm.Visible = true;
+            if (!mainForm.ShowInTaskbar) mainForm.ShowInTaskbar = true;
+            if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
+                mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
+
+            ShowWindow(mainForm.Handle, SW_RESTORE);
+            mainForm.Show();
+            mainForm.Activate();
+            mainForm.BringToFront();
+            SetForegroundWindow(mainForm.Handle);
+        }
+
+
+    }
+    catch (Exception ex)
+    {
+        try { Service.HandleException(ex, "Ошибка при восстановлении главного окна PLM"); } catch { }
+    }
+
+    try
+    {
+        var process = System.Diagnostics.Process.GetCurrentProcess();
+        process.Refresh();
+        var hWnd = process.MainWindowHandle;
+        if( hWnd != IntPtr.Zero )
+        {
+            ShowWindow( hWnd, SW_RESTORE );
+            SetForegroundWindow( hWnd );
+        }
+    }
+    catch { }
 }
 
 private void ScheduleBringPlmToFront( int interval )
@@ -448,3 +464,12 @@ private string RtfEncode( string text )
     }
     return sb.ToString();
 }
+
+
+private const int SW_RESTORE = 9;
+
+[System.Runtime.InteropServices.DllImport( "user32.dll" )]
+private static extern bool ShowWindow( IntPtr hWnd, int nCmdShow );
+
+[System.Runtime.InteropServices.DllImport( "user32.dll" )]
+private static extern bool SetForegroundWindow( IntPtr hWnd );
