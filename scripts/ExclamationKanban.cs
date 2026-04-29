@@ -318,79 +318,47 @@ private InfoObject GetBoardPage()
 
 private void BringPlmToFront()
 {
-    BringFormToFront( GetPlmMainForm() );
+    var ctrl = Service.UI.SyncControl;
+    if (ctrl == null) return;
 
-    try
+    ctrl.BeginInvoke((Action)(() =>
     {
-        foreach( System.Windows.Forms.Form form in System.Windows.Forms.Application.OpenForms )
+        try
         {
-            if( form == null || form.IsDisposed || form.Text == "Новая задача" )
-                continue;
-            BringFormToFront( form );
-        }
-    }
-    catch { }
+            var mainForm = Service.UI.MainWindow as System.Windows.Forms.Form;
 
-    try
-    {
-        var process = System.Diagnostics.Process.GetCurrentProcess();
-        process.Refresh();
-        var hWnd = process.MainWindowHandle;
-        if( hWnd != IntPtr.Zero )
+            if (mainForm == null && System.Windows.Forms.Application.OpenForms.Count > 0)
+            {
+                mainForm = System.Windows.Forms.Application.OpenForms[0];
+            }
+
+            if (mainForm != null)
+            {
+                if (!mainForm.Visible)
+                {
+                    mainForm.Visible = true;
+                }
+
+                if (!mainForm.ShowInTaskbar)
+                {
+                    mainForm.ShowInTaskbar = true;
+                }
+
+                if (mainForm.WindowState == System.Windows.Forms.FormWindowState.Minimized)
+                {
+                    mainForm.WindowState = System.Windows.Forms.FormWindowState.Normal;
+                }
+
+                mainForm.Show();
+                mainForm.BringToFront();
+                mainForm.Activate();
+            }
+        }
+        catch (Exception ex)
         {
-            ShowWindow( hWnd, SW_RESTORE );
-            SetForegroundWindow( hWnd );
+            Service.HandleException(ex, "Ошибка при восстановлении главного окна PLM");
         }
-    }
-    catch { }
-}
-
-private System.Windows.Forms.Form GetPlmMainForm()
-{
-    try
-    {
-        var ctrl = Service.UI.SyncControl;
-        var form = ( ctrl != null ) ? ctrl.FindForm() : null;
-        if( form != null ) return form;
-    }
-    catch { }
-
-    try
-    {
-        foreach( System.Windows.Forms.Form form in System.Windows.Forms.Application.OpenForms )
-        {
-            if( form == null || form.IsDisposed || form.Text == "Новая задача" )
-                continue;
-            return form;
-        }
-    }
-    catch { }
-
-    return null;
-}
-
-private void BringFormToFront( System.Windows.Forms.Form form )
-{
-    if( form == null || form.IsDisposed ) return;
-
-    try
-    {
-        if( form.WindowState == System.Windows.Forms.FormWindowState.Minimized )
-            form.WindowState = System.Windows.Forms.FormWindowState.Normal;
-
-        ShowWindow( form.Handle, SW_RESTORE );
-        form.Show();
-        form.Activate();
-        form.BringToFront();
-        form.Focus();
-
-        var wasTopMost = form.TopMost;
-        form.TopMost = true;
-        form.TopMost = wasTopMost;
-
-        SetForegroundWindow( form.Handle );
-    }
-    catch { }
+    }));
 }
 
 private void ScheduleBringPlmToFront( int interval )
@@ -463,13 +431,7 @@ private void RefreshBoardNow( InfoObject page )
     try { page.Invoke( "Refresh", null ); } catch { }
 }
 
-private const int SW_RESTORE = 9;
 
-[System.Runtime.InteropServices.DllImport( "user32.dll" )]
-private static extern bool ShowWindow( IntPtr hWnd, int nCmdShow );
-
-[System.Runtime.InteropServices.DllImport( "user32.dll" )]
-private static extern bool SetForegroundWindow( IntPtr hWnd );
 
 private string RtfEncode( string text )
 {
