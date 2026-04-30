@@ -1463,7 +1463,7 @@
     var _tcmStNames = ["Надо сделать", "В работе", "Ожидание", "Готово"];
     var _tcmStClasses = ["tcm-s0", "tcm-s1", "tcm-s2", "tcm-s3"];
 
-    window.tcmOpen = function (nameKey) {
+    window.tcmOpen = function (nameKey, targetTab) {
         var overlay = document.getElementById("tcmOverlay");
         if (!overlay) return;
 
@@ -1481,8 +1481,13 @@
             }
             _tcmData = JSON.parse(String(res));
             tcmRender(_tcmData);
-            tcmSwitchTab('main');
+            
+            // СНАЧАЛА делаем оверлей видимым (чтобы у элементов появилась высота)
             overlay.className = "tcm-overlay visible";
+            
+            // ЗАТЕМ переключаем вкладку (иначе scrollHeight в чате будет равен 0)
+            tcmSwitchTab(targetTab || 'main'); 
+            
         } catch (e) {
             alert("Ошибка: " + (e.message || e));
         }
@@ -2153,11 +2158,15 @@
     // Авто-открытие карточки из уведомлений
     var autoOpenEl = document.getElementById("kb-auto-open-task");
     if (autoOpenEl && autoOpenEl.value) {
-        var targetKey = autoOpenEl.value;
+        var rawVal = autoOpenEl.value.replace(/^\s+|\s+$/g, "");
+        var parts = rawVal.split('|');
+        var targetKey = parts[0];
+        var targetTab = parts.length > 1 ? parts[1] : 'main';
+        
         try { window.external.InvokeTemplate("ClearAutoOpen", ""); } catch (e) {}
         setTimeout(function () {
             if (typeof tcmOpen === "function") {
-                tcmOpen(targetKey);
+                tcmOpen(targetKey, targetTab);
             }
         }, 500);
     }

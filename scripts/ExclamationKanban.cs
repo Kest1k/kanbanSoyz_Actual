@@ -24,10 +24,21 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
 
     System.Console.Beep( 250, 500 );
 
-    subject = obj.GetValue<string>( "Subject" ) ?? "Новая задача";
+    subject = obj.GetValue<string>( "Subject" ) ?? "Уведомление Kanban";
     var taskDetails = "";
     try { taskDetails = ( obj.GetValue<string>( "TaskDetails" ) ?? "" ).Trim(); }
     catch { taskDetails = ""; }
+    var taskKey = (obj.Params ?? "").Trim();
+
+    // Определяем тип уведомления по началу строки Subject
+    bool isComment = subject.StartsWith("Новый комментарий", StringComparison.OrdinalIgnoreCase);
+    string windowTitle = isComment ? "Новый комментарий" : "Новая задача";
+
+    // Если это комментарий, текст уже есть в Subject. Очищаем TaskDetails, чтобы скрыть блок "Содержание"
+    if (isComment)
+    {
+        taskDetails = ""; 
+    }
 
     try
     {
@@ -155,7 +166,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
 
         using( var form = new System.Windows.Forms.Form() )
         {
-            form.Text            = "Новая задача";
+            form.Text            = windowTitle;
             form.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             form.MaximizeBox     = false;
             form.MinimizeBox     = false;
@@ -186,7 +197,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             };
             
             var btnOpen = new System.Windows.Forms.Button();
-            btnOpen.Text         = "Открыть доску";
+            btnOpen.Text         = string.IsNullOrEmpty( taskKey ) ? "Открыть доску" : "Открыть карточку";
             btnOpen.Size         = new System.Drawing.Size( btnWidth, btnHeight );
             btnOpen.Anchor       = System.Windows.Forms.AnchorStyles.None;
             btnOpen.Margin       = new System.Windows.Forms.Padding( 0 );
@@ -201,7 +212,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             btnOpen.Click       += ( s, e ) =>
             {
                 navigateToBoard = true;
-                BringPlmToFront(); // ВЫТАСКИВАЕМ ОКНО ДО ЗАКРЫТИЯ ДИАЛОГА
+                BringPlmToFront();
                 form.Close();
             };
             
@@ -235,7 +246,11 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
 
         if( navigateToBoard )
         {
-            OpenBoardFromNotification();
+            // Проверяем тему письма для определения вкладки (надежно через IndexOf)
+            bool isComm = subject.IndexOf("Новый комментарий", StringComparison.OrdinalIgnoreCase) >= 0;
+            string targetTab = isComm ? "chat" : "main";
+
+            OpenBoardFromNotification( taskKey, targetTab );
         }
         return;
     }
@@ -245,26 +260,52 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
     try { obj.MarkAsViewedByCurrentUser(); } catch { }
 }
 
-private void OpenBoardFromNotification()
+private void OpenBoardFromNotification( string taskKey, string targetTab )
 {
-    var page = GetBoardPage();
-    if( page == null ) return;
+    var boardObj = GetBoardPage();
+    if( boardObj == null ) return;
 
-    try
+    BringPlmToFront();
+    try { Service.UI.DoUIEventsDispatching(); } catch { }
+
+    var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
+    var existingTab = allPanels.FirstOrDefault( p => {
+        var sheet = p.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
+        return sheet != null && sheet.ScriptingObject != null && sheet.ScriptingObject.Id == boardObj.Id;
+    } );
+
+    if( existingTab != null )
     {
-        var ctrl = Service.UI.SyncControl;
-        if( ctrl != null )
+        existingTab.Activate();
+
+        var sheet = existingTab.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
+        if( sheet != null && sheet.ScriptingObject != null )
         {
-            ctrl.BeginInvoke( (Action)( () =>
+            var io = sheet.ScriptingObject as InfoObject;
+            if( io != null )
             {
-                OpenBoardAndRefresh( page );
-            } ) );
-            return;
+                var web = io.PropertyBag["Viewer"] as System.Windows.Forms.WebBrowser;
+                if( web != null && web.Document != null )
+                {
+                    try
+                    {
+                        // Передаем ДВА параметра в JS массив
+                        web.Document.InvokeScript( "tcmOpen", new object[] { taskKey, targetTab } );
+                    }
+                    catch( Exception ex )
+                    {
+                        Service.WriteToServerLog( "KanbanExclamation", "JS Error: " + ex.Message );
+                    }
+                }
+            }
         }
     }
-    catch { }
-
-    OpenBoardAndRefresh( page );
+    else
+    {
+        // Записываем ключ и вкладку через разделитель |
+        boardObj.PropertyBag["AutoOpenTask"] = taskKey + "|" + targetTab;
+        Service.UI.OpenPropertiesPane( boardObj );
+    }
 }
 
 public override void ManageMailShortcuts( WorkItem obj, UserItemLink creatorLink, UserItemLink[] recipientLinks )
@@ -404,135 +445,6 @@ private void BringPlmToFrontInternal()
     }
 }
 
-private void OpenBoardAndRefresh( InfoObject page )
-{
-    BringPlmToFront();
-    try { Service.UI.DoUIEventsDispatching(); } catch { }
-
-    try 
-    { 
-        bool tabActivated = false;
-        var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
-        if (allPanels != null)
-        {
-            var existingTab = allPanels.FirstOrDefault(p => 
-            {
-                try
-                {
-                    var prop = p.GetType().GetProperty("ScriptingObject");
-                    if (prop != null)
-                    {
-                        var obj = prop.GetValue(p, null) as ScriptingObject;
-                        if (obj != null && obj.Id == page.Id) return true;
-                    }
-                }
-                catch { }
-                return false;
-            });
-
-            if (existingTab != null)
-            {
-                existingTab.Activate();
-                tabActivated = true;
-            }
-        }
-
-        if (!tabActivated)
-        {
-            Service.UI.OpenPropertiesPane( page );
-        }
-    } 
-    catch { }
-
-    try { Service.UI.DoUIEventsDispatching(); } catch { }
-
-    BringPlmToFront();
-    RefreshBoardWithDelay( page );
-}
-
-private void RefreshBoardWithDelay( InfoObject page )
-{
-    try
-    {
-        var ctrl = Service.UI.SyncControl;
-        if( ctrl == null )
-        {
-            RefreshBoardNow( page );
-            return;
-        }
-
-        ctrl.BeginInvoke( (Action)( () =>
-        {
-            // Мы убрали мгновенный RefreshBoardNow( page ); отсюда, 
-            // чтобы не было двойного моргания.
-
-            var timer = new System.Windows.Forms.Timer();
-            timer.Interval = 300; // 300 мс вполне достаточно для прогрузки UI
-            timer.Tick += ( s, e ) =>
-            {
-                timer.Stop();
-                timer.Dispose();
-                RefreshBoardNow( page ); // Однократное обновление
-            };
-            timer.Start();
-        } ) );
-    }
-    catch
-    {
-        RefreshBoardNow( page );
-    }
-}
-
-private void RefreshBoardNow( InfoObject page )
-{
-    // 1. Подтягиваем свежие данные (новые задачи) с сервера
-    try { Service.UI.LoadChangesFromServer( true ); } catch { }
-    try { Service.UI.DoUIEventsDispatching(); } catch { }
-    
-    // 2. Ставим флаг, который обычно слушают HTML-экраны в PLM
-    try { page.PropertyBag["RefreshRequested"] = true; } catch { }
-    
-    // 3. Системная команда ядру PLM: "Сбрось кэш отрисовки этого объекта"
-    try { Service.UI.RefreshObject( page ); } catch { }
-    
-    // 4. Ваши кастомные методы (оставляем как было)
-    try { page.Invoke( "RefreshBoard", null ); } catch { }
-    try { page.Invoke( "Refresh", null ); } catch { }
-
-    // 5. БРОНЕБОЙНЫЙ РЕБИЛД ОТКРЫТОЙ ВКЛАДКИ (UI)
-    try
-    {
-        var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
-        if (allPanels != null)
-        {
-            var existingTab = allPanels.FirstOrDefault(p => 
-            {
-                try
-                {
-                    var prop = p.GetType().GetProperty("ScriptingObject");
-                    if (prop != null)
-                    {
-                        var o = prop.GetValue(p, null) as ScriptingObject;
-                        if (o != null && o.Id == page.Id) return true;
-                    }
-                }
-                catch { }
-                return false;
-            });
-
-            if (existingTab != null)
-            {
-                // Вытаскиваем IPropertySheetCallback и принудительно перестраиваем интерфейс
-                var propSheet = existingTab.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
-                if (propSheet != null)
-                {
-                    propSheet.Rebuild();
-                }
-            }
-        }
-    }
-    catch { }
-}
 
 private string RtfEncode( string text )
 {
