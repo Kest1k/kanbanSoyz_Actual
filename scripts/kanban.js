@@ -424,6 +424,15 @@
             var items = JSON.parse(String(res || "[]"));
 
             if (cnt) cnt.innerHTML = items.length > 0 ? "(" + items.length + ")" : "";
+            var tabBadge = document.getElementById("tcm-tab-chat-badge");
+            if (tabBadge) {
+                if (items.length > 0) {
+                    tabBadge.innerHTML = items.length;
+                    tabBadge.style.display = 'inline-block';
+                } else {
+                    tabBadge.style.display = 'none';
+                }
+            }
 
             if (items.length === 0) {
                 list.innerHTML = '<div class="tcm-chat-empty">Нет комментариев</div>';
@@ -1460,7 +1469,7 @@
 
         _tcmRevsLoaded = false;
         var rb = document.getElementById("tcm-revs-body");
-        if (rb) { rb.className = "tcm-revs-body"; rb.innerHTML = "Загрузка..."; }
+        if (rb) { rb.innerHTML = "Загрузка..."; }
         var attSearch = document.getElementById("tcm-att-search");
         if (attSearch) attSearch.className = "tcm-att-search";
         tcmHideMsg();
@@ -1472,8 +1481,8 @@
             }
             _tcmData = JSON.parse(String(res));
             tcmRender(_tcmData);
+            tcmSwitchTab('main');
             overlay.className = "tcm-overlay visible";
-            tcmAutoResize(document.getElementById("tcm-details"));
         } catch (e) {
             alert("Ошибка: " + (e.message || e));
         }
@@ -1509,13 +1518,6 @@
             })(available[i]);
             cont.appendChild(span);
         }
-    }
-
-    function tcmAutoResize(el) {
-        if (!el) return;
-        el.style.height = "auto";
-        var sh = el.scrollHeight;
-        if (sh > 80) el.style.height = sh + "px";
     }
 
     function tcmRender(d) {
@@ -1788,8 +1790,8 @@
     // Инвалидирует кэш истории изменений и перезагружает её, если вкладка открыта
     function tcmInvalidateRevsCache() {
         _tcmRevsLoaded = false;
-        var body = document.getElementById("tcm-revs-body");
-        if (body && body.className.indexOf("visible") >= 0) {
+        var histTab = document.getElementById("tcm-tab-hist");
+        if (histTab && histTab.className.indexOf("active") >= 0) {
             _tcmRevsLoaded = true;
             tcmLoadRevs();
         }
@@ -2102,15 +2104,6 @@
         window.attachEvent("onresize", kbFitBoard);
     }
 
-    // Авто-ресайз textarea описания при вводе
-    var _detailsTA = document.getElementById("tcm-details");
-    if (_detailsTA) {
-        if (_detailsTA.addEventListener) {
-            _detailsTA.addEventListener("input", function () { tcmAutoResize(_detailsTA); });
-        } else if (_detailsTA.attachEvent) {
-            _detailsTA.attachEvent("onpropertychange", function () { tcmAutoResize(_detailsTA); });
-        }
-    }
 
     // ── Справка ──────────────────────────────────────────────────────────
     window.openHelp = function () {
@@ -2123,6 +2116,49 @@
         if (overlay) overlay.className = "help-overlay";
     };
 
+    window.openWhatsNew = function () {
+        var overlay = document.getElementById("whatsNewOverlay");
+        if (overlay) overlay.className = "help-overlay visible";
+    };
+
+    window.closeWhatsNew = function () {
+        var overlay = document.getElementById("whatsNewOverlay");
+        if (overlay) overlay.className = "help-overlay";
+    };
+
+    window.tcmSwitchTab = function (tabId) {
+        var contents = document.querySelectorAll('.tcm-tab-content');
+        for (var i = 0; i < contents.length; i++) contents[i].className = 'tcm-tab-content';
+        var tabs = document.querySelectorAll('.tcm-tab');
+        for (var i = 0; i < tabs.length; i++) tabs[i].className = 'tcm-tab';
+
+        var tContent = document.getElementById('tcm-tab-' + tabId);
+        var tBtn = document.getElementById('tab-btn-' + tabId);
+        if (tContent) tContent.className = 'tcm-tab-content active';
+        if (tBtn) tBtn.className = 'tcm-tab active';
+
+        if (tabId === 'chat') {
+            var list = document.getElementById("tcm-chat-list");
+            if (list) list.scrollTop = list.scrollHeight;
+        }
+        if (tabId === 'hist' && !_tcmRevsLoaded) {
+            _tcmRevsLoaded = true;
+            tcmLoadRevs();
+        }
+    };
+
     // Вызов после того, как все функции определены
     kbInitHierarchy();
+
+    // Авто-открытие карточки из уведомлений
+    var autoOpenEl = document.getElementById("kb-auto-open-task");
+    if (autoOpenEl && autoOpenEl.value) {
+        var targetKey = autoOpenEl.value;
+        try { window.external.InvokeTemplate("ClearAutoOpen", ""); } catch (e) {}
+        setTimeout(function () {
+            if (typeof tcmOpen === "function") {
+                tcmOpen(targetKey);
+            }
+        }, 500);
+    }
 
