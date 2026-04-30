@@ -1828,6 +1828,22 @@
 /* ── Скрытие элементов ── */
     .kb-hidden { display: none !important; }
 
+/* ── Горячие клавиши (kbd внутри справки) ──────────────────── */
+    .help-table kbd {
+        display: inline-block;
+        min-width: 18px;
+        padding: 2px 6px;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 11px;
+        border: 1px solid #b3b3b3;
+        border-bottom-width: 2px;
+        border-radius: 3px;
+        background: #f8f8f8;
+        color: #333;
+        line-height: 1.2;
+        text-align: center;
+    }
+
 /* ── Справка / Help overlay ── */
     .help-overlay {
         display: none;

@@ -114,6 +114,10 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 catch { }
                 renderArgs["availableTags"] = tagsList;
 
+                var autoOpen = obj.PropertyBag["AutoOpenTask"] as string;
+                if( !string.IsNullOrEmpty( autoOpen ) )
+                    renderArgs["autoOpenTask"] = autoOpen;
+
                 break;
             }
 
@@ -152,6 +156,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "DeleteComment": return DoDeleteComment( inputParams );
             case "EditComment":   return DoEditComment( inputParams );
             case "GetCardCommentCount": return DoGetCardCommentCount( inputParams );
+            case "ClearAutoOpen": obj.PropertyBag.Remove( "AutoOpenTask" ); return "OK";
         }
     }
     catch( Exception ex )
@@ -2554,7 +2559,12 @@ private System.Collections.Generic.List<System.Collections.Generic.Dictionary<st
                 vEnd++;
             }
             var val = obj.Substring( vStart + 1, vEnd - vStart - 1 )
-                         .Replace( "\\\"", "\"" ).Replace( "\\\\", "\\" );
+                         .Replace( "\\\\", "\x01" )
+                         .Replace( "\\\"", "\"" )
+                         .Replace( "\\n",  "\n"  )
+                         .Replace( "\\r",  "\r"  )
+                         .Replace( "\\t",  "\t"  )
+                         .Replace( "\x01", "\\"  );
             dict[key] = val;
             p = vEnd + 1;
         }
@@ -2832,7 +2842,7 @@ private void SendCommentNotification( InfoObject task, User author, string text 
     var subject  = "Новый комментарий в задаче «" + taskName + "»: " + preview;
 
     foreach( var u in recipients )
-        SendWorkItemNotify( tmpl, u, subject, preview );
+        SendWorkItemNotify( tmpl, u, subject, preview, task.NameKey );
 }
 
 private User TryFindUserByKey( string key )
@@ -2851,7 +2861,7 @@ private User TryFindUserByKey( string key )
     return null;
 }
 
-private void SendWorkItemNotify( Template tmpl, User recipient, string subject, string details )
+private void SendWorkItemNotify( Template tmpl, User recipient, string subject, string details, string taskKey )
 {
     try
     {
@@ -2859,6 +2869,7 @@ private void SendWorkItemNotify( Template tmpl, User recipient, string subject, 
         w[ "Subject" ] = subject;
         try { w[ "TaskDetails" ] = details; } catch { }
         try { w[ "SilentMode"  ] = true;    } catch { }
+        w.Params     = taskKey;
         w.IsBySystem = true;
         w.Send();
         try { w.MarkAsViewedBy( recipient ); } catch { }

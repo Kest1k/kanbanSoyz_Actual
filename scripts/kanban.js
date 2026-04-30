@@ -1975,8 +1975,6 @@
             }
             if (_tcmData) { _tcmData.status = st; }
             tcmShowMsg("ok", "");
-            // Обновляем доску в фоне
-            try { window.external.InvokeTemplate("RefreshBoard", ""); } catch (e2) { }
         } catch (e) {
             tcmShowMsg("err", "Ошибка: " + (e.message || e));
         }
@@ -2169,5 +2167,105 @@
                 tcmOpen(targetKey, targetTab);
             }
         }, 500);
+    }
+
+    // ── Hotkeys: глобальные горячие клавиши доски ───────────────────────
+    function kbIsTypingTarget(target) {
+        if (!target || !target.tagName) return false;
+        var tag = String(target.tagName).toLowerCase();
+        if (tag === "input" || tag === "textarea" || tag === "select") return true;
+        if (target.isContentEditable) return true;
+        return false;
+    }
+
+    function kbIsTextareaTarget(target) {
+        if (!target || !target.tagName) return false;
+        return String(target.tagName).toLowerCase() === "textarea";
+    }
+
+    function kbIsOverlayVisible(id) {
+        var el = document.getElementById(id);
+        return !!(el && el.className && el.className.indexOf("visible") !== -1);
+    }
+
+    function kbIsCreatePanelOpen() {
+        var el = document.getElementById("kb-create-panel");
+        return !!(el && el.style.display && el.style.display !== "none");
+    }
+
+    function kbHotkeyEscape() {
+        if (kbIsOverlayVisible("whatsNewOverlay")) { closeWhatsNew();  return; }
+        if (kbIsOverlayVisible("helpOverlay"))     { closeHelp();      return; }
+        if (kbIsOverlayVisible("tcmOverlay"))      { tcmClose();       return; }
+        if (kbIsOverlayVisible("reportOverlay"))   { closeReport();    return; }
+        if (kbIsCreatePanelOpen())                 { hideCreateTask(); return; }
+    }
+
+    function kbOnGlobalKeydown(e) {
+        if (!e) e = window.event;
+        var target = e.target || e.srcElement;
+        var code   = e.keyCode || e.which;
+
+        if (code === 116) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopPropagation) e.stopPropagation();
+            e.keyCode = 0;
+            e.returnValue = false;
+            if (typeof kbRefreshBoard === "function") kbRefreshBoard();
+            return false;
+        }
+
+        if (code === 112) {
+            if (e.preventDefault) e.preventDefault();
+            e.keyCode = 0;
+            e.returnValue = false;
+            if (!kbIsTypingTarget(target) && !kbIsOverlayVisible("reportOverlay") && !kbIsOverlayVisible("whatsNewOverlay") && !kbIsOverlayVisible("tcmOverlay") && !kbIsCreatePanelOpen()) {
+                if (kbIsOverlayVisible("helpOverlay")) { closeHelp(); }
+                else { openHelp(); }
+            }
+            return false;
+        }
+
+        if (code === 27) {
+            if (kbIsTypingTarget(target)) {
+                try { target.blur(); } catch (er) {}
+            } else {
+                kbHotkeyEscape();
+                if (e.preventDefault) e.preventDefault();
+            }
+            return;
+        }
+
+        if (code === 13 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+            if (kbIsOverlayVisible("tcmOverlay") && !kbIsTextareaTarget(target)) {
+                if (target && target.id === "tcm-chat-text") return;
+                if (typeof tcmSave === "function") tcmSave();
+                if (e.preventDefault) e.preventDefault();
+                return;
+            }
+        }
+
+        if (code === 83 && e.ctrlKey && !e.shiftKey && !e.altKey) {
+            if (kbIsOverlayVisible("tcmOverlay")) {
+                if (e.preventDefault) e.preventDefault();
+                if (typeof tcmSave === "function") tcmSave();
+                if (typeof tcmClose === "function") tcmClose();
+                return false;
+            }
+        }
+
+        if (code === 78 && !e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+            if (!kbIsTypingTarget(target) && !kbIsOverlayVisible("helpOverlay") && !kbIsOverlayVisible("whatsNewOverlay") && !kbIsOverlayVisible("reportOverlay") && !kbIsOverlayVisible("tcmOverlay") && !kbIsCreatePanelOpen()) {
+                if (typeof showCreateTask === "function") showCreateTask();
+                if (e.preventDefault) e.preventDefault();
+                return false;
+            }
+        }
+    }
+
+    if (document.addEventListener) {
+        document.addEventListener("keydown", kbOnGlobalKeydown, false);
+    } else if (document.attachEvent) {
+        document.attachEvent("onkeydown", kbOnGlobalKeydown);
     }
 

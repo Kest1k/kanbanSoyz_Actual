@@ -75,6 +75,7 @@ private void CheckAssigneeChanged( InfoObject obj )
 
     // Гасим штатное PLM/Windows-оповещение до отправки: наше окно покажет ExclamationKanban.OnUpdated.
     try { w[ "SilentMode" ] = true; } catch { }
+    w.Params = obj.NameKey;
     try { w.MarkAsViewedBy( newAssignee ); } catch { }
     w.StatusOperation = WorkItemBase.StatusEnum.Sent;
 
