@@ -14,8 +14,14 @@
 </ul>
 <div style="position:absolute;right:20px;top:8px;">
     <button type="button" onclick="openHelp()" style="padding:5px 14px;font-size:12px;font-weight:600;
-        height:30px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#4a6fa5;cursor:pointer;">
+        height:30px;border:1px solid #bfdbfe;border-radius:6px;background:#eff6ff;color:#1d4ed8;cursor:pointer;">
         <i class="fa fa-question-circle fa-fw"></i> Справка
+    </button>
+</div>
+<div style="position:absolute;right:130px;top:8px;">
+    <button type="button" onclick="openWhatsNew()" style="padding:5px 14px;font-size:12px;font-weight:600;
+        height:30px;border:1px solid #dcfce7;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;">
+        <i class="fa fa-bullhorn fa-fw"></i> Что нового
     </button>
 </div>
 <!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
@@ -54,6 +60,9 @@
 {% block bottomNavigation %}{% endblock %}
 
 {% block content %}
+{% if autoOpenTask != null and autoOpenTask != "" %}
+<input type="hidden" id="kb-auto-open-task" value="{{ autoOpenTask }}">
+{% endif %}
 <!-- Create panel -->
 <div class="kb-create-panel" id="kb-create-panel">
     <table style="border-collapse:separate;border-spacing:6px 0;width:auto;">
@@ -518,6 +527,12 @@
         <div class="tcm-body">
             <div id="tcm-overdue" class="kb-overdue" style="display:none;margin:0 0 8px;"></div>
             <input type="hidden" id="tcm-key">
+            <div class="tcm-tabs">
+                <div id="tab-btn-main" class="tcm-tab active" onclick="tcmSwitchTab('main')">Основное</div>
+                <div id="tab-btn-chat" class="tcm-tab" onclick="tcmSwitchTab('chat')">Обсуждение <span id="tcm-tab-chat-badge" class="tcm-tab-badge" style="display:none;">0</span></div>
+                <div id="tab-btn-hist" class="tcm-tab" onclick="tcmSwitchTab('hist')">История</div>
+            </div>
+            <div id="tcm-tab-main" class="tcm-tab-content active">
             <div class="tcm-fg">
                 <label class="tcm-lbl">Название</label>
                 <input type="text" id="tcm-title" class="form-control input-sm">
@@ -548,7 +563,7 @@
                     </div>
                 </div>
             </div>
-            <div class="tcm-fg">
+            <div class="tcm-fg" id="tcm-details-group">
                 <label class="tcm-lbl">Описание</label>
                 <textarea id="tcm-details" class="form-control"></textarea>
             </div>
@@ -574,8 +589,9 @@
                     <div class="tcm-att-results" id="tcm-att-results"></div>
                 </div>
             </div>
+            </div>
+            <div id="tcm-tab-chat" class="tcm-tab-content">
             <div class="tcm-chat" id="tcm-chat">
-                <div class="tcm-lbl">ОБСУЖДЕНИЕ <span class="tcm-chat-count" id="tcm-chat-count"></span></div>
                 <div class="tcm-chat-list" id="tcm-chat-list"></div>
                 <div class="tcm-chat-input">
                     <textarea id="tcm-chat-text" class="tcm-area" placeholder="Написать комментарий..."
@@ -584,9 +600,11 @@
                         style="padding:6px 14px; font-size:12px;">Отправить</button>
                 </div>
             </div>
+            </div>
+            <div id="tcm-tab-hist" class="tcm-tab-content">
             <div class="tcm-revs">
-                <div class="tcm-revs-hdr" onclick="tcmToggleRevs()">&#9660; История изменений</div>
-                <div class="tcm-revs-body" id="tcm-revs-body">Загрузка...</div>
+                <div class="tcm-revs-body visible" id="tcm-revs-body">Загрузка...</div>
+            </div>
             </div>
         </div>
         <div class="tcm-footer">
@@ -712,6 +730,31 @@
         </div>
         <div class="help-footer">
             <button type="button" class="tcm-btn tcm-btn-primary" onclick="closeHelp()">Понятно!</button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Что нового (Changelog) ── -->
+<div id="whatsNewOverlay" class="help-overlay">
+    <div class="help-dialog">
+        <div class="help-header">
+            <span class="help-title"><i class="fa fa-bullhorn"></i> Что нового на доске</span>
+            <button type="button" class="tcm-close" onclick="closeWhatsNew()" title="Закрыть">&#215;</button>
+        </div>
+        <div class="help-body">
+            <div style="margin-bottom: 20px; border-left: 3px solid #16a34a; padding-left: 15px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Вкладки в карточке и уведомления</div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">29.04.2026</div>
+                <ul class="help-tips">
+                    <li>В карточке задачи появилось разделение на вкладки: "Основное", "Обсуждение" и "История".</li>
+                    <li>Свой комментарий теперь можно отредактировать</li>
+                    <li>При добавлении комментария приходит всплывающее уведомление.</li>
+                    <li>Из уведомления о комментарии или новой задаче теперь можно в 1 клик открыть саму карточку.</li>
+                </ul>
+            </div>
+        </div>
+        <div class="help-footer">
+            <button type="button" class="tcm-btn tcm-btn-primary" onclick="closeWhatsNew()">Закрыть</button>
         </div>
     </div>
 </div>
