@@ -1302,6 +1302,7 @@
         color: #374151;
         padding-left: 34px;
         word-break: break-word;
+        white-space: pre-wrap;
         margin-top: 2px;
         line-height: 1.45;
     }
@@ -1331,6 +1332,67 @@
         visibility: visible;
         color: #e74c3c;
     }
+
+    .tcm-msg-edit-btn {
+        position: absolute;
+        top: 8px;
+        right: 26px;
+        background: none;
+        border: none;
+        color: #d1d5db;
+        font-size: 13px;
+        cursor: pointer;
+        padding: 0 3px;
+        visibility: hidden;
+        line-height: 1;
+    }
+    .tcm-msg-item:hover .tcm-msg-edit-btn {
+        visibility: visible;
+        color: #4a6fa5;
+    }
+
+    .tcm-msg-edited {
+        font-size: 10px;
+        color: #9ca3af;
+        margin-left: 6px;
+        font-style: italic;
+    }
+
+    .tcm-msg-edit-area {
+        padding-left: 34px;
+        margin-top: 4px;
+    }
+
+    .tcm-edit-textarea {
+        width: 100%;
+        min-height: 60px;
+        max-height: 180px;
+        font-size: 13px;
+        font-family: inherit;
+        border: 1px solid #4a6fa5;
+        border-radius: 4px;
+        padding: 5px 8px;
+        resize: vertical;
+        box-sizing: border-box;
+    }
+
+    .tcm-edit-actions {
+        margin-top: 4px;
+        display: -ms-flexbox;
+        display: flex;
+        gap: 6px;
+    }
+
+    .tcm-edit-save, .tcm-edit-cancel {
+        font-size: 12px;
+        padding: 3px 10px;
+        border: 1px solid #4a6fa5;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #fff;
+    }
+    .tcm-edit-save { background: #4a6fa5; color: #fff; border-color: #4a6fa5; }
+    .tcm-edit-cancel { color: #6b7280; border-color: #d1d5db; }
 
     .tcm-chat-input {
         display: -ms-flexbox;

@@ -150,6 +150,8 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "AddComment":    return DoAddComment( inputParams );
             case "GetComments":   return DoGetComments( inputParams );
             case "DeleteComment": return DoDeleteComment( inputParams );
+            case "EditComment":   return DoEditComment( inputParams );
+            case "GetCardCommentCount": return DoGetCardCommentCount( inputParams );
         }
     }
     catch( Exception ex )
@@ -2610,7 +2612,7 @@ private object DoAddComment( object inputParams )
         return "ERROR:EmptyParams";
 
     if( text.Length > 2000 ) text = text.Substring( 0, 2000 );
-    text = HtmlEnc( text );
+    text = NormalizeCommentText( text );
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
@@ -2636,12 +2638,15 @@ private object DoAddComment( object inputParams )
     task["CommentsJSON"] = SerializeComments( items );
     task.Save();
 
+    try { SendCommentNotification( task, currentUser, text ); } catch { }
+
     var initials = GetInitials( userName );
     return "{\"text\":\"" + JsonEscape( text ) + "\","
          + "\"author\":\"" + JsonEscape( userKey ) + "\","
          + "\"authorName\":\"" + JsonEscape( userName ) + "\","
          + "\"initials\":\"" + JsonEscape( initials ) + "\","
          + "\"date\":\"" + JsonEscape( newItem["date"] ) + "\","
+         + "\"editedAt\":\"\","
          + "\"isMine\":true,"
          + "\"index\":" + (items.Count - 1) + "}";
 }
@@ -2670,11 +2675,17 @@ private object DoGetComments( object inputParams )
     {
         if( i > 0 ) sb.Append( "," );
 
-        string aText = "", aAuthor = "", aAuthorName = "", aDate = "";
+        string aText = "", aAuthor = "", aAuthorName = "", aDate = "", aEdited = "";
         items[i].TryGetValue( "text", out aText );
         items[i].TryGetValue( "author", out aAuthor );
         items[i].TryGetValue( "authorName", out aAuthorName );
         items[i].TryGetValue( "date", out aDate );
+        items[i].TryGetValue( "editedAt", out aEdited );
+
+        // Обратная совместимость: legacy-записи прошли через HtmlEnc и
+        // содержат &quot; / &lt; / &gt; / &#39; / &amp;. Декодируем при
+        // чтении — клиент ВСЁ РАВНО заново экранирует на рендере.
+        aText = DecodeLegacyHtmlEnc( aText ?? "" );
 
         var initials = GetInitials( aAuthorName ?? "" );
         var isMine   = aAuthor == myKey;
@@ -2684,6 +2695,7 @@ private object DoGetComments( object inputParams )
                  + "\"authorName\":\"" + JsonEscape( aAuthorName ?? "" ) + "\","
                  + "\"initials\":\"" + JsonEscape( initials ) + "\","
                  + "\"date\":\"" + JsonEscape( aDate ?? "" ) + "\","
+                 + "\"editedAt\":\"" + JsonEscape( aEdited ?? "" ) + "\","
                  + "\"isMine\":" + (isMine ? "true" : "false") + ","
                  + "\"index\":" + i + "}" );
     }
@@ -2726,6 +2738,137 @@ private object DoDeleteComment( object inputParams )
     return "OK";
 }
 
+// ─── EditComment ────────────────────────────────────────────────────
+// inputParams: "taskKey|index|newText"
+// Редактирование разрешено только автору комментария.
+// При успехе ставит editedAt = DateTime.Now.
+private object DoEditComment( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 3 );
+    if( parts.Length < 3 ) return "ERROR:BadFormat";
+
+    var taskKey = parts[0].Trim();
+    int index;
+    if( !int.TryParse( parts[1].Trim(), out index ) ) return "ERROR:BadIndex";
+
+    // ВНИМАНИЕ: текст НЕ Trim() — пользователь мог намеренно оставить
+    // переносы / пробелы в начале и конце.
+    var newText = parts[2];
+    if( string.IsNullOrEmpty( newText ) || newText.Trim().Length == 0 )
+        return "ERROR:EmptyText";
+
+    if( newText.Length > 2000 ) newText = newText.Substring( 0, 2000 );
+    newText = NormalizeCommentText( newText );
+
+    var task = GetTaskByKeyOrNull( taskKey );
+    if( task == null ) return "ERROR:TaskNotFound";
+
+    var json  = task.GetString( "CommentsJSON" ) ?? "";
+    var items = ParseComments( json );
+    if( index < 0 || index >= items.Count ) return "ERROR:IndexOutOfRange";
+
+    var currentUser = Service.GetCurrentUser();
+    var myKey = currentUser != null
+              ? (string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.AccountId : currentUser.NameKey)
+              : "";
+    string commentAuthor = "";
+    items[index].TryGetValue( "author", out commentAuthor );
+    if( commentAuthor != myKey ) return "ERROR:NotOwner";
+
+    items[index]["text"]     = newText;
+    items[index]["editedAt"] = DateTime.Now.ToString( "dd.MM.yyyy HH:mm" );
+
+    task["CommentsJSON"] = SerializeComments( items );
+    task.Save();
+
+    return "{\"text\":\""    + JsonEscape( newText )                  + "\","
+         + "\"editedAt\":\"" + JsonEscape( items[index]["editedAt"] ) + "\","
+         + "\"index\":"      + index + "}";
+}
+
+// ─── GetCardCommentCount ────────────────────────────────────────────
+// Лёгкий метод для синхронизации бейджа карточки на доске после
+// AddComment / DeleteComment без полного RefreshBoard.
+private object DoGetCardCommentCount( object inputParams )
+{
+    var nameKey = GetParamStr( inputParams );
+    var task    = GetTaskByKeyOrNull( nameKey );
+    if( task == null ) return "0";
+    return GetCommentCount( task ).ToString();
+}
+
+// ─── Уведомление о новом комментарии (Exclamation) ───────────────────
+private const string COMMENT_MSG_TEMPLATE_PATH = @"WorkLoads\BASIC\Message\ExclamationKanban";
+
+private void SendCommentNotification( InfoObject task, User author, string text )
+{
+    if( task == null || author == null ) return;
+
+    Template tmpl = Service.GetTemplate( COMMENT_MSG_TEMPLATE_PATH );
+    if( tmpl == null ) return;
+
+    User assignee = null;
+    try { assignee = task.GetUser( "Assignee" ); } catch { }
+
+    var creatorKey = task.GetString( "Creator" ) ?? "";
+    User creator = null;
+    if( !string.IsNullOrEmpty( creatorKey ) )
+        creator = TryFindUserByKey( creatorKey );
+
+    var recipients = new System.Collections.Generic.List<User>();
+
+    if( assignee != null && assignee.Id != author.Id )
+        recipients.Add( assignee );
+
+    if( creator != null && creator.Id != author.Id
+        && ( assignee == null || creator.Id != assignee.Id ) )
+        recipients.Add( creator );
+
+    if( recipients.Count == 0 ) return;
+
+    var taskName = task.GetString( "TaskName" ) ?? task.ToString();
+    var preview  = text.Length > 300 ? text.Substring( 0, 300 ) + "…" : text;
+    var subject  = "Новый комментарий в задаче «" + taskName + "»: " + preview;
+
+    foreach( var u in recipients )
+        SendWorkItemNotify( tmpl, u, subject, preview );
+}
+
+private User TryFindUserByKey( string key )
+{
+    if( string.IsNullOrEmpty( key ) ) return null;
+    try
+    {
+        foreach( var u in Service.AllUsers )
+        {
+            if( u == null || u.IsGroup ) continue;
+            var k = string.IsNullOrEmpty( u.NameKey ) ? u.AccountId : u.NameKey;
+            if( k == key ) return u;
+        }
+    }
+    catch { }
+    return null;
+}
+
+private void SendWorkItemNotify( Template tmpl, User recipient, string subject, string details )
+{
+    try
+    {
+        var w = new WorkItem( tmpl, recipient );
+        w[ "Subject" ] = subject;
+        try { w[ "TaskDetails" ] = details; } catch { }
+        try { w[ "SilentMode"  ] = true;    } catch { }
+        w.IsBySystem = true;
+        w.Send();
+        try { w.MarkAsViewedBy( recipient ); } catch { }
+    }
+    catch( Exception ex )
+    {
+        Service.WriteToServerLog( "KanbanNotify", "Error sending comment notification: " + ex.Message );
+    }
+}
+
 // ─── JSON-экранирование строки ────────────────────────────────────────
 private string JsonEscape( string s )
 {
@@ -2735,6 +2878,32 @@ private string JsonEscape( string s )
             .Replace( "\n", "\\n"  )
             .Replace( "\r", "\\r"  )
             .Replace( "\t", "\\t"  );
+}
+
+// ─── Нейтрализация текста комментария ─────────────────────────────────
+// Используется в DoAddComment / DoEditComment ВМЕСТО HtmlEnc, чтобы
+// не плодить «&quot;» в уже сохранённом тексте: клиент всё равно
+// экранирует через tcmChatEsc на рендере. Здесь только подменяем
+// '<' и '>' на типографические аналоги — это блокирует XSS-вектор
+// и сохраняет сырые кавычки/амперсанды.
+private string NormalizeCommentText( string s )
+{
+    if( string.IsNullOrEmpty( s ) ) return "";
+    return s.Replace( "<", "‹" ).Replace( ">", "›" );
+}
+
+// ─── Декодирование legacy-комментариев ────────────────────────────────
+// Используется только при ЧТЕНИИ (DoGetComments). В БД ничего не
+// перезаписываем. Обратное преобразование того, что делал старый
+// HtmlEnc-путь.
+private string DecodeLegacyHtmlEnc( string s )
+{
+    if( string.IsNullOrEmpty( s ) ) return "";
+    return s.Replace( "&quot;", "\"" )
+            .Replace( "&#39;",  "'"  )
+            .Replace( "&lt;",   "‹"  )
+            .Replace( "&gt;",   "›"  )
+            .Replace( "&amp;",  "&"  );
 }
 
 // Обрезает описание до ~120 символов по границе слова

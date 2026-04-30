@@ -441,23 +441,34 @@
         }
     }
 
+    function tcmFormatCommentText(s) {
+        if (!s) return "";
+        return tcmChatEsc(s).replace(/\n/g, "<br>");
+    }
+
     function tcmRenderComment(c) {
         var div = document.createElement("div");
         div.className = "tcm-msg-item" + (c.isMine ? " tcm-msg-mine" : "");
+        div.setAttribute("data-idx", c.index);
 
-        var delBtn = "";
+        var actionBtns = "";
         if (c.isMine) {
-            delBtn = '<button class="tcm-msg-del-btn" onclick="tcmDeleteComment(' + c.index + '); return false;" title="Удалить">&times;</button>';
+            actionBtns =
+                '<button class="tcm-msg-edit-btn" onclick="tcmEditComment(' + c.index + '); return false;" title="Редактировать">&#9998;</button>' +
+                '<button class="tcm-msg-del-btn" onclick="tcmDeleteComment(' + c.index + '); return false;" title="Удалить">&times;</button>';
         }
+
+        var editedMark = c.editedAt ? ' <span class="tcm-msg-edited">(изм.)</span>' : '';
 
         div.innerHTML =
             '<div class="tcm-msg-header">' +
             '<span class="tcm-msg-avatar" title="' + tcmChatEsc(c.authorName) + '">' + tcmChatEsc(c.initials || "") + '</span>' +
             '<span class="tcm-msg-author">' + tcmChatEsc(c.authorName) + '</span>' +
             '<span class="tcm-msg-time">' + tcmChatEsc(c.date) + '</span>' +
+            editedMark +
             '</div>' +
-            '<div class="tcm-msg-text">' + tcmChatEsc(c.text) + '</div>' +
-            delBtn;
+            '<div class="tcm-msg-text" data-raw="' + tcmChatEsc(c.text) + '">' + tcmFormatCommentText(c.text) + '</div>' +
+            actionBtns;
 
         return div;
     }
@@ -502,6 +513,7 @@
                 cnt.innerHTML = "(" + (cur + 1) + ")";
             }
 
+            tcmSyncCardCommentBadge();
             textarea.value = "";
         } catch (e) {
             alert("Ошибка: " + (e.message || e));
@@ -517,6 +529,7 @@
             var s = String(res);
             if (s === "OK") {
                 tcmLoadComments(_tcmData);
+                tcmSyncCardCommentBadge();
             } else if (s === "ERROR:NotOwner") {
                 alert("Вы можете удалять только свои комментарии");
             } else {
@@ -526,6 +539,123 @@
             alert("Ошибка: " + (e.message || e));
         }
     };
+
+    window.tcmEditComment = function (index) {
+        if (!_tcmData || !_tcmData.nameKey) return;
+
+        var itemDiv = document.querySelector('[data-idx="' + index + '"]');
+        if (!itemDiv) return;
+
+        var textDiv = itemDiv.querySelector('.tcm-msg-text');
+        if (!textDiv || itemDiv.querySelector('.tcm-msg-edit-area')) return;
+
+        var rawText = textDiv.getAttribute('data-raw') || "";
+        textDiv.style.display = 'none';
+
+        var editArea = document.createElement('div');
+        editArea.className = 'tcm-msg-edit-area';
+        editArea.innerHTML =
+            '<textarea class="tcm-edit-textarea" id="tcm-edit-txt-' + index + '" maxlength="2000">' +
+            tcmChatEsc(rawText) +
+            '</textarea>' +
+            '<div class="tcm-edit-actions">' +
+            '<button class="tcm-edit-save" onclick="tcmSaveEdit(' + index + '); return false;">Сохранить</button>' +
+            '<button class="tcm-edit-cancel" onclick="tcmCancelEdit(' + index + '); return false;">Отмена</button>' +
+            '</div>';
+
+        itemDiv.insertBefore(editArea, textDiv.nextSibling);
+
+        var ta = document.getElementById('tcm-edit-txt-' + index);
+        if (ta) { ta.focus(); ta.select(); }
+    };
+
+    window.tcmSaveEdit = function (index) {
+        if (!_tcmData || !_tcmData.nameKey) return;
+
+        var ta = document.getElementById('tcm-edit-txt-' + index);
+        if (!ta) return;
+
+        var newText = ta.value.replace(/\r\n/g, "\n").replace(/^\s+|\s+$/g, "");
+        if (!newText) { alert("Комментарий не может быть пустым"); return; }
+        if (newText.length > 2000) { alert("Комментарий не должен превышать 2000 символов"); return; }
+
+        try {
+            var res = window.external.InvokeTemplate("EditComment", _tcmData.nameKey + "|" + index + "|" + newText);
+            var s = String(res);
+
+            if (s === "ERROR:NotOwner") { alert("Можно редактировать только свои комментарии"); tcmCancelEdit(index); return; }
+            if (s === "ERROR:EmptyText") { alert("Комментарий не может быть пустым"); return; }
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка: " + s); return; }
+
+            var updated = JSON.parse(s);
+            var itemDiv = document.querySelector('[data-idx="' + index + '"]');
+            if (itemDiv) {
+                var textDiv = itemDiv.querySelector('.tcm-msg-text');
+                if (textDiv) {
+                    textDiv.setAttribute('data-raw', tcmChatEsc(updated.text));
+                    textDiv.innerHTML = tcmFormatCommentText(updated.text);
+                    textDiv.style.display = '';
+                }
+
+                var header = itemDiv.querySelector('.tcm-msg-header');
+                if (header) {
+                    var oldMark = header.querySelector('.tcm-msg-edited');
+                    if (oldMark) header.removeChild(oldMark);
+                    if (updated.editedAt) {
+                        var span = document.createElement('span');
+                        span.className = 'tcm-msg-edited';
+                        span.innerHTML = '(изм.)';
+                        header.appendChild(span);
+                    }
+                }
+
+                var editArea = itemDiv.querySelector('.tcm-msg-edit-area');
+                if (editArea) itemDiv.removeChild(editArea);
+            }
+        } catch (e) {
+            alert("Ошибка: " + (e.message || e));
+        }
+    };
+
+    window.tcmCancelEdit = function (index) {
+        var itemDiv = document.querySelector('[data-idx="' + index + '"]');
+        if (!itemDiv) return;
+
+        var textDiv = itemDiv.querySelector('.tcm-msg-text');
+        if (textDiv) textDiv.style.display = '';
+
+        var editArea = itemDiv.querySelector('.tcm-msg-edit-area');
+        if (editArea) itemDiv.removeChild(editArea);
+    };
+
+    function tcmSyncCardCommentBadge() {
+        if (!_tcmData || !_tcmData.nameKey) return;
+        try {
+            var res = window.external.InvokeTemplate("GetCardCommentCount", _tcmData.nameKey);
+            var count = parseInt(String(res), 10) || 0;
+            var card = document.getElementById("kbc_" + _tcmData.nameKey);
+            if (!card) return;
+            var meta = card.querySelector(".kb-card-meta");
+            if (!meta) return;
+            var badge = meta.querySelector(".kb-comment-badge");
+            if (count > 0) {
+                if (!badge) {
+                    badge = document.createElement("span");
+                    badge.className = "kb-comment-badge";
+                    var attachBadge = meta.querySelector(".kb-attach-badge");
+                    if (attachBadge) {
+                        meta.insertBefore(badge, attachBadge);
+                    } else {
+                        meta.appendChild(badge);
+                    }
+                }
+                badge.title = "Комментарии: " + count;
+                badge.innerHTML = '<i class="fa fa-comment-o"></i> ' + count;
+            } else {
+                if (badge) badge.parentNode.removeChild(badge);
+            }
+        } catch (e) {}
+    }
 
     window.tcmChatKeydown = function (e) {
         if ((e.keyCode === 13 || e.which === 13) && e.ctrlKey) {
