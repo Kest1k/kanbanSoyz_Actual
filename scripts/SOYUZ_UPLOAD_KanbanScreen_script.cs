@@ -60,16 +60,9 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 renderArgs["kbViewMode"] = viewMode;
 
                 // Колонки 0-2: сортировка по приоритету (urgent → high → medium → low),
-                // внутри одного приоритета — по Id убывающе (новые выше)
+                // внутри одного приоритета — по DateCreated убывающе (новые выше)
                 for( int i = 0; i < STATUS_DONE; i++ )
-                    raw[i].Sort( (a, b) => {
-                        var aPrio = a.GetNamedValue("Priority")?.GetValue<string>() ?? "medium";
-                        var bPrio = b.GetNamedValue("Priority")?.GetValue<string>() ?? "medium";
-                        int aRank = PriorityRank( aPrio );
-                        int bRank = PriorityRank( bPrio );
-                        if( aRank != bRank ) return aRank.CompareTo( bRank );
-                        return b.Id.CompareTo( a.Id );
-                    });
+                    raw[i].Sort( CompareActiveTasks );
 
                 // Колонка 3 (Готово): сортируем по CompletedDate убывающе (с учётом времени)
                 raw[STATUS_DONE].Sort( (a, b) => {
@@ -607,6 +600,29 @@ private int PriorityRank( string prio )
     if( prio == "medium" ) return 2;
     if( prio == "low"    ) return 3;
     return 2; // unknown → как medium
+}
+
+// Компаратор для колонок «Надо сделать», «В работе», «Ожидание»:
+//   1) Приоритет: urgent → high → medium → low
+//   2) Дата создания убывающе (новые сверху) — системное свойство DateCreated
+//   3) Id убывающе (страховочный tie-breaker при совпадении даты до миллисекунды)
+private int CompareActiveTasks( InfoObject a, InfoObject b )
+{
+    var aPrio = a.GetNamedValue("Priority")?.GetValue<string>() ?? "medium";
+    var bPrio = b.GetNamedValue("Priority")?.GetValue<string>() ?? "medium";
+    int aRank = PriorityRank( aPrio );
+    int bRank = PriorityRank( bPrio );
+
+    if( aRank != bRank )
+        return aRank.CompareTo( bRank );
+
+    // Дата создания — системное свойство Союз-PLM, всегда заполнено
+    int dateCmp = b.DateCreated.CompareTo( a.DateCreated );
+    if( dateCmp != 0 )
+        return dateCmp;
+
+    // Страховочный tie-breaker, если объекты созданы в одну миллисекунду
+    return b.Id.CompareTo( a.Id );
 }
 
 // Читает статус из задачи → возвращает индекс колонки (0-3)
