@@ -35,7 +35,7 @@ for( int i = 0; i < STATUS_DONE; i++ )
 
 ### 1.3. В чём тогда фича?
 
-Задача из backlog — **закрепить и формализовать** сортировку, заменив неявный tie-breaker по `Id` на **явный** tie-breaker по `CreationDate` (атрибут платформы) и убедиться, что это надёжно работает для legacy-задач, у которых `CreationDate` может быть пуст.
+Задача из backlog — **закрепить и формализовать** сортировку, заменив неявный tie-breaker по `Id` на **явный** tie-breaker по `DateCreated` — нативному системному свойству `InfoObject` в Союз-PLM. `DateCreated` — это системная колонка БД БИС; она **всегда заполнена** у любого сохранённого объекта, чтение происходит напрямую из кэшированной SCR-оболочки за O(1).
 
 Дополнительно:
 1. Вынести компаратор в отдельный метод `CompareActiveTasks(a, b)` — лучше тестируется и переиспользуется (например, в `DoSearchTasks` из плана 05).
@@ -53,7 +53,7 @@ for( int i = 0; i < STATUS_DONE; i++ )
 
 | Путь | Что меняем |
 |------|------------|
-| `scripts/SOYUZ_UPLOAD_KanbanScreen_script.cs` | Заменить inline-лямбду в `BeforeRender` на вызов нового приватного `CompareActiveTasks(a, b)`; добавить helper `GetTaskCreationDate(task)` |
+| `scripts/SOYUZ_UPLOAD_KanbanScreen_script.cs` | Заменить inline-лямбду в `BeforeRender` на вызов нового приватного `CompareActiveTasks(a, b)` |
 | `docs/01_KanbanScreen_SERVER_SCRIPT.md` | Описать порядок сортировки в разделе «Первичный рендер доски» |
 
 JS / HTML / CSS не трогаем.
@@ -92,48 +92,29 @@ for( int i = 0; i < STATUS_DONE; i++ )
 ```csharp
 // Компаратор для колонок «Надо сделать», «В работе», «Ожидание»:
 //   1) Приоритет: urgent → high → medium → low
-//   2) Дата создания убывающе (новые сверху)
-//   3) Id убывающе (страховка для legacy без CreationDate)
+//   2) Дата создания убывающе (новые сверху) — системное свойство DateCreated
+//   3) Id убывающе (страховочный tie-breaker при совпадении даты до миллисекунды)
 private int CompareActiveTasks( InfoObject a, InfoObject b )
 {
     var aPrio = a.GetNamedValue("Priority")?.GetValue<string>() ?? "medium";
     var bPrio = b.GetNamedValue("Priority")?.GetValue<string>() ?? "medium";
     int aRank = PriorityRank( aPrio );
     int bRank = PriorityRank( bPrio );
-    if( aRank != bRank ) return aRank.CompareTo( bRank );
 
-    var aCreated = GetTaskCreationDate( a );
-    var bCreated = GetTaskCreationDate( b );
-    int cmp = bCreated.CompareTo( aCreated );    // новые сверху
-    if( cmp != 0 ) return cmp;
+    if( aRank != bRank )
+        return aRank.CompareTo( bRank );
 
-    return b.Id.CompareTo( a.Id );               // страховочный tie-breaker
+    // Дата создания — системное свойство Союз-PLM, всегда заполнено
+    int dateCmp = b.DateCreated.CompareTo( a.DateCreated );
+    if( dateCmp != 0 )
+        return dateCmp;
+
+    // Страховочный tie-breaker, если объекты созданы в одну миллисекунду
+    return b.Id.CompareTo( a.Id );
 }
 ```
 
-### 3.3. Helper `GetTaskCreationDate`
-
-```csharp
-private DateTime GetTaskCreationDate( InfoObject task )
-{
-    if( task == null ) return DateTime.MinValue;
-    try
-    {
-        // Системный атрибут CreationDate всегда заполнен после первого Save.
-        var dt = task.GetValue<DateTime>( "CreationDate" );
-        if( dt != default(DateTime) ) return dt;
-    }
-    catch { }
-    // Fallback: для legacy-задач без CreationDate используем «дату из Id».
-    // Id монотонно растёт, поэтому сортировка эквивалентна.
-    // Возвращаем искусственный DateTime, чтобы не ломать сравнение.
-    return DateTime.MinValue.AddTicks( task.Id );
-}
-```
-
-> ⚠ Если в Soyuz-PLM (BIS v3) системный атрибут называется иначе (например, `Created`, `DateCreated`, `StorageDate` — встречаются разные имена в платформах) — **уточнить на стенде** и поправить строку имени. Если такого атрибута нет вообще — оставить только fallback по `Id` (который и сейчас работает).
-
-### 3.4. Колонка `Готово` — без изменений
+### 3.3. Колонка `Готово` — без изменений
 
 Сортировка `raw[STATUS_DONE].Sort(...)` по `CompletedDate desc` остаётся как есть.
 
@@ -149,44 +130,31 @@ private DateTime GetTaskCreationDate( InfoObject task )
 
 | # | Шаг | Файлы | Smoke |
 |---|-----|-------|-------|
-| 1 | Добавить `GetTaskCreationDate(task)` (с try/catch + fallback по Id) | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | Сборка ОК. Проверить в логе, что `CreationDate` читается без исключений на тестовых задачах. |
-| 2 | Добавить `CompareActiveTasks(a, b)` и заменить inline-лямбду в `BeforeRender` | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | Доска отображается, новые задачи внутри одного приоритета сверху, регрессий нет. |
-| 3 | Документация: обновить раздел «Первичный рендер доски» в `docs/01_*.md` | `docs/01_*.md` | — |
-| 4 | Snapshot конфигурации | `Kanban Конфигурация-1.0.0.4.pmszcfg` | Деплой на тестовый сервер |
+| 1 | Добавить `CompareActiveTasks(a, b)` и заменить inline-лямбду в `BeforeRender` | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | Доска отображается, новые задачи внутри одного приоритета сверху, регрессий нет. |
+| 2 | Документация: обновить раздел «Первичный рендер доски» в `docs/01_*.md` | `docs/01_*.md` | — |
+| 3 | Snapshot конфигурации | `Kanban Конфигурация-1.0.0.4.pmszcfg` | Деплой на тестовый сервер |
 
 ---
 
 ## 6. Риски и технические ограничения
 
-1. **Имя атрибута даты создания** в BIS v3 надо подтвердить (`CreationDate` / `Created` / другое). Если не уверены — оставляем `task.Id` как первичный tie-breaker (текущее поведение), а `GetTaskCreationDate` помечаем как опциональный шаг.
-2. **`task.GetValue<DateTime>` исключения** при отсутствии значения — обёрнуты в try/catch с fallback.
-3. **Производительность.** На каждую пару `(a, b)` в `Sort` теперь 2 чтения `CreationDate`. На колонке из 200 задач это ~ N log N ≈ 1500 пар × 2 = 3000 чтений атрибута. Для устранения — кэш в `Dictionary<long, DateTime>` перед сортировкой:
+1. **DotLiquid** — не задействован.
 
-   ```csharp
-   var cdCache = new Dictionary<long, DateTime>();
-   foreach( var t in raw[i] ) cdCache[ t.Id ] = GetTaskCreationDate( t );
-   raw[i].Sort( (a, b) => {
-       /* читать из cdCache[a.Id]/cdCache[b.Id] */
-   });
-   ```
+2. **Регрессия отчётов**: `DoGetReport` строит свои выборки независимо от `BeforeRender`. Не затрагивается.
 
-   В Phase 1 можно начать без кэша; если замер покажет деградацию >50 мс — добавить кэш отдельным коммитом.
+3. **Drag-and-drop**: при перетаскивании клиент дёргает `MoveTask`, после чего `RefreshBoard` пересчитывает колонки. Новый порядок применяется автоматически.
 
-4. **DotLiquid** — не задействован.
+4. **Stable sort**: `List<T>.Sort` в .NET — НЕ stable. Если у двух задач совпадают приоритет, `DateCreated` (до миллисекунды) и `Id` — они могут поменяться местами. Митигация: тройной tie-breaker делает совпадение всех трёх невозможным (`Id` уникальный).
 
-5. **Регрессия отчётов**: `DoGetReport` строит свои выборки независимо от `BeforeRender`. Не затрагивается.
-
-6. **Drag-and-drop**: при перетаскивании клиент дёргает `MoveTask`, после чего `RefreshBoard` пересчитывает колонки. Новый порядок применяется автоматически.
-
-7. **Stable sort**: `List<T>.Sort` в .NET — НЕ stable. Если у двух задач совпадают приоритет, дата создания и Id — они могут поменяться местами. Митигация: тройной tie-breaker делает совпадение всех трёх крайне маловероятным (Id уникальный).
+5. **Производительность**: `DateCreated` читается напрямую из кэшированной SCR-оболочки объекта за O(1). Даже при 3000 сравнений (колонка из ~200 задач) общее время — доли миллисекунды в оперативной памяти. Никакого дополнительного кэширования не требуется.
 
 ---
 
 ## 7. Критерии приёмки
 
 - [ ] В колонках 0–2 задачи отсортированы по приоритету (`urgent → high → medium → low`).
-- [ ] Внутри одного приоритета — новые задачи сверху.
-- [ ] Если у двух задач одинаковые приоритет и `CreationDate` — порядок стабилен (по `Id desc`).
+- [ ] Внутри одного приоритета — новые задачи сверху (по `DateCreated`).
+- [ ] Если у двух задач одинаковые приоритет и `DateCreated` — порядок стабилен (по `Id desc`).
 - [ ] В колонке `Готово` сортировка `CompletedDate` desc (без изменений).
 - [ ] Отчёты не сломаны.
 - [ ] Производительность `BeforeRender` на 200+ задач — без заметных регрессий.
@@ -224,9 +192,4 @@ private DateTime GetTaskCreationDate( InfoObject task )
 ### Сценарий 6 — производительность
 
 1. На контейнере с 500 активных задач замерить время `BeforeRender` (через лог / визуально).
-2. **Ожидаемо:** прирост < 100 мс.
-
-### Сценарий 7 — legacy без CreationDate
-
-1. Сэмулировать (или взять реальную) задачу без `CreationDate`.
-2. **Ожидаемо:** не падает, fallback по `Id` ставит её в правильное место по новизне.
+2. **Ожидаемо:** прирост < 50 мс.
