@@ -19,20 +19,22 @@
 
 Фильтр периода **требует перезапроса данных**, потому что мы не отрисовываем задачи вне выбранного периода — они физически отсутствуют в DOM. Поэтому:
 
-1. UI: два поля `<input type="date">` (DateFrom, DateTo) в верхнем тулбаре + кнопка «Применить» + кнопка «Сбросить».
-2. Изменение полей → JS вызывает `window.external.InvokeTemplate("SetPeriodFilter", dateFrom + "|" + dateTo)`.
-3. Сервер сохраняет даты в `screenObj.PropertyBag["KbPeriodFrom"]` и `["KbPeriodTo"]`.
+1. UI: два текстовых поля `<input type="text">` с **кастомным календарём** (через существующую функцию `calToggle('id')`, см. `KanbanBoard_HTML.html` строка 552) в верхнем тулбаре + кнопка «Применить» + кнопка «Сбросить». Формат — `ДД.ММ.ГГГГ` (русская локаль). **Нативный `<input type="date">` запрещён** — IE11 рендерит его как обычный текстовый инпут без датапикера.
+2. Изменение полей → JS вызывает `window.external.InvokeTemplate("SetPeriodFilter", dateFrom + "|" + dateTo)` где даты в формате `dd.MM.yyyy`.
+3. Сервер сохраняет даты (как строки `dd.MM.yyyy`) в `screenObj.PropertyBag["KbPeriodFrom"]` и `["KbPeriodTo"]`.
 4. JS вызывает `kbRefreshBoard()` (существующая функция в `kanban.js`, строка ~246).
-5. `BeforeRender` читает PropertyBag и при формировании списков `cols[0..3]` отсекает задачи, у которых `Created` (или `CompletedDate` для колонки «Готово») вне периода.
+5. `BeforeRender` читает PropertyBag и при формировании списков `cols[0..3]` отсекает задачи, у которых `task.DateCreated` (или `task.GetValue<DateTime>("CompletedDate")` для колонки «Готово») вне периода.
 
 ### 1.3. Логика отсечения
 
-| Колонка | Поле для сравнения с периодом |
-|---------|--------------------------------|
-| 0 «Надо сделать» | `Created` |
-| 1 «В работе» | `Created` |
-| 2 «Ожидание» | `Created` |
-| 3 «Готово» | `CompletedDate` (если задано) иначе `Created` |
+| Колонка | Поле для сравнения с периодом | Способ чтения в C# |
+|---------|--------------------------------|---------------------|
+| 0 «Надо сделать» | `DateCreated` | `task.DateCreated` (системное свойство) |
+| 1 «В работе» | `DateCreated` | `task.DateCreated` |
+| 2 «Ожидание» | `DateCreated` | `task.DateCreated` |
+| 3 «Готово» | `CompletedDate` (если задано) иначе `DateCreated` | `task.GetValue<DateTime>("CompletedDate")` / `task.DateCreated` |
+
+> **Важно:** `task.GetString("Created")` или `task.GetString("CompletedDate")` использовать **запрещено** — это системные/типизированные даты, читаются строго через `task.DateCreated` и `task.GetValue<DateTime>(...)`.
 
 Логика: «покажи всё, что создано в марте» + «покажи, что закрыто в марте». Задача, созданная в феврале, но завершённая в марте, попадёт в фильтр «март».
 
@@ -42,7 +44,7 @@
 
 ### 1.5. Что НЕ делаем
 
-- Не вводим новые типы атрибутов в InfoType `KanbanTask`. Поля `Created` и `CompletedDate` уже существуют.
+- Не вводим новые типы атрибутов в InfoType `KanbanTask`. `DateCreated` — системное свойство платформы; `CompletedDate` — уже существующий типизированный атрибут.
 - Не делаем «прокатываемый» фильтр по неделям (UX-сахар, Phase 3).
 - Не сохраняем фильтр между сессиями экрана. PropertyBag в рамках сессии — приемлемо.
 
@@ -53,7 +55,7 @@
 | Путь | Что меняем |
 |------|------------|
 | `scripts/SOYUZ_UPLOAD_KanbanScreen_script.cs` | Новый Invoke-метод `SetPeriodFilter`. Расширение `BeforeRender`. Хелпер `IsTaskInPeriod`. Расширение `DoGetReport` на ветку `custom`. |
-| `scripts/kanban.js` | Блок `kbPeriodFilter*`: init, onchange, apply, reset. Подвязка к `kbInitHierarchy`. |
+| `scripts/kanban.js` | Блок `kbPeriodFilter*`: init, onchange, apply, reset. Подвязка к `kbInitHierarchy`. **Обновление `calEl()` и `document.onclick`** для поддержки новых ID календарей (`kb-cal-kb-period-from`, `kb-cal-kb-period-to`). |
 | `scripts/KanbanBoard_HTML.html` | Два `<input type="date">` + кнопка «Применить» + «Сбросить» в верхнем тулбаре. |
 | `scripts/kanban.css` | Стили блока фильтра. |
 
@@ -73,7 +75,7 @@ case "SetPeriodFilter": return DoSetPeriodFilter( obj, inputParams );
 
 ```csharp
 // ─── SetPeriodFilter ───────────────────────────────────────────────
-// inputParams: "yyyy-MM-dd|yyyy-MM-dd"
+// inputParams: "dd.MM.yyyy|dd.MM.yyyy"  (русский формат, приходит с кастомного календаря)
 // Пустые значения = «без фильтра» с этой стороны.
 // Возвращает "OK" или "ERROR:Format".
 private object DoSetPeriodFilter( InfoObject screenObj, object inputParams )
@@ -95,7 +97,7 @@ private object DoSetPeriodFilter( InfoObject screenObj, object inputParams )
         if( !string.IsNullOrEmpty( sFrom ) )
         {
             DateTime dFrom;
-            if( !DateTime.TryParseExact( sFrom, "yyyy-MM-dd",
+            if( !DateTime.TryParseExact( sFrom, "dd.MM.yyyy",
                 System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.None, out dFrom ) )
                 return "ERROR:Format";
@@ -106,7 +108,7 @@ private object DoSetPeriodFilter( InfoObject screenObj, object inputParams )
         if( !string.IsNullOrEmpty( sTo ) )
         {
             DateTime dTo;
-            if( !DateTime.TryParseExact( sTo, "yyyy-MM-dd",
+            if( !DateTime.TryParseExact( sTo, "dd.MM.yyyy",
                 System.Globalization.CultureInfo.InvariantCulture,
                 System.Globalization.DateTimeStyles.None, out dTo ) )
                 return "ERROR:Format";
@@ -131,8 +133,13 @@ private object DoSetPeriodFilter( InfoObject screenObj, object inputParams )
 ```csharp
 // ─── Проверка попадания задачи в период (для BeforeRender) ─────────
 // statusIdx: 0..3 (как в GetStatusIndex)
-// Колонка «Готово» (3): по CompletedDate если есть, иначе Created.
-// Остальные: по Created.
+// Колонка «Готово» (3): по CompletedDate если задано, иначе DateCreated.
+// Остальные: по DateCreated.
+//
+// ВАЖНО: системные даты в Soyuz-PLM читаются строго:
+//   - DateCreated  = task.DateCreated         (системное свойство)
+//   - CompletedDate = task.GetValue<DateTime>("CompletedDate")
+// task.GetString("Created") / task.GetString("CompletedDate") НЕ работают для дат.
 private bool IsTaskInPeriod( InfoObject task, int statusIdx,
                              DateTime? from, DateTime? to )
 {
@@ -141,21 +148,16 @@ private bool IsTaskInPeriod( InfoObject task, int statusIdx,
     DateTime? d = null;
     if( statusIdx == 3 )
     {
-        var sCompleted = task.GetString( "CompletedDate" );
-        if( !string.IsNullOrEmpty( sCompleted ) )
+        try
         {
-            DateTime tmp;
-            if( DateTime.TryParse( sCompleted, out tmp ) ) d = tmp;
+            var cd = task.GetValue<DateTime>( "CompletedDate" );
+            if( cd != DateTime.MinValue ) d = cd;
         }
+        catch { /* атрибут не задан — fallback на DateCreated */ }
     }
     if( !d.HasValue )
     {
-        var sCreated = task.GetString( "Created" );
-        if( !string.IsNullOrEmpty( sCreated ) )
-        {
-            DateTime tmp;
-            if( DateTime.TryParse( sCreated, out tmp ) ) d = tmp;
-        }
+        d = task.DateCreated;
     }
     if( !d.HasValue ) return true;   // нет даты — не отсекаем
 
@@ -171,7 +173,7 @@ private bool IsTaskInPeriod( InfoObject task, int statusIdx,
 В блоке формирования `cols[0..3]` перед `cols[statusIdx].Add( task )`:
 
 ```csharp
-// Считываем фильтр периода один раз перед циклом задач
+// Считываем фильтр периода один раз перед циклом задач (формат dd.MM.yyyy)
 DateTime? periodFrom = null, periodTo = null;
 {
     var sFrom = screenObj.PropertyBag["KbPeriodFrom"] as string;
@@ -179,7 +181,7 @@ DateTime? periodFrom = null, periodTo = null;
     if( !string.IsNullOrEmpty( sFrom ) )
     {
         DateTime tmp;
-        if( DateTime.TryParseExact( sFrom, "yyyy-MM-dd",
+        if( DateTime.TryParseExact( sFrom, "dd.MM.yyyy",
             System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out tmp ) )
             periodFrom = tmp;
@@ -187,7 +189,7 @@ DateTime? periodFrom = null, periodTo = null;
     if( !string.IsNullOrEmpty( sTo ) )
     {
         DateTime tmp;
-        if( DateTime.TryParseExact( sTo, "yyyy-MM-dd",
+        if( DateTime.TryParseExact( sTo, "dd.MM.yyyy",
             System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out tmp ) )
             periodTo = tmp;
@@ -214,11 +216,11 @@ case "custom":
     if( parts.Length >= 3 )
     {
         DateTime tmpFrom, tmpTo;
-        if( DateTime.TryParseExact( parts[1], "yyyy-MM-dd",
+        if( DateTime.TryParseExact( parts[1], "dd.MM.yyyy",
             System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out tmpFrom ) )
             from = tmpFrom;
-        if( DateTime.TryParseExact( parts[2], "yyyy-MM-dd",
+        if( DateTime.TryParseExact( parts[2], "dd.MM.yyyy",
             System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out tmpTo ) )
             to = tmpTo;
@@ -272,17 +274,24 @@ window.kbPeriodFilterInit = function () {
 ### 4.3. Применение фильтра
 
 ```javascript
+// inFrom.value / inTo.value уже содержат строку формата "dd.MM.yyyy"
+// (заполняется кастомным календарём calToggle). Отправляем на сервер БЕЗ изменений.
 window.kbPeriodApply = function () {
     var inFrom = document.getElementById("kb-period-from");
     var inTo   = document.getElementById("kb-period-to");
     if (!inFrom || !inTo) return;
 
-    var sFrom = inFrom.value || "";
-    var sTo   = inTo.value   || "";
+    var sFrom = inFrom.value || "";    // "dd.MM.yyyy" или ""
+    var sTo   = inTo.value   || "";    // "dd.MM.yyyy" или ""
 
-    if (sFrom && sTo && sFrom > sTo) {
-        alert("Дата «С» должна быть раньше даты «По»");
-        return;
+    // Валидация порядка: парсим dd.MM.yyyy локально для сравнения
+    if (sFrom && sTo) {
+        var pf = kbParseDmyToTs(sFrom);
+        var pt = kbParseDmyToTs(sTo);
+        if (pf > 0 && pt > 0 && pf > pt) {
+            alert("Дата «С» должна быть раньше даты «По»");
+            return;
+        }
     }
 
     var safeFrom = String(sFrom).replace(/\|/g, "");
@@ -299,6 +308,15 @@ window.kbPeriodApply = function () {
         kbRefreshBoard();
     } catch (e) { /* no-op */ }
 };
+
+// Хелпер: "dd.MM.yyyy" → timestamp (для локального сравнения порядка)
+function kbParseDmyToTs(s) {
+    if (!s) return 0;
+    var m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (!m) return 0;
+    var d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+    return d.getTime();
+}
 ```
 
 ### 4.4. Сброс фильтра
@@ -326,34 +344,109 @@ window.kbPeriodReset = function () {
 if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
 ```
 
+### 4.6. Обновление `calEl()` — поддержка новых ID календарей
+
+В HTML (раздел 5) добавляются два новых `<div class="kb-cal">` с ID `kb-cal-kb-period-from` и `kb-cal-kb-period-to`. Существующая функция `calEl()` в `kanban.js` жёстко привязана к старым ID и не знает про новые. **Обязательное обновление:**
+
+```javascript
+// Обновлённая calEl() — поддерживает календари фильтра периода
+function calEl() {
+    if (_calTargetId === "tcm-duedate") return document.getElementById("kb-cal-tcm");
+    if (_calTargetId === "kb-period-from") return document.getElementById("kb-cal-kb-period-from");
+    if (_calTargetId === "kb-period-to") return document.getElementById("kb-cal-kb-period-to");
+    return document.getElementById("kb-cal");
+}
+```
+
+### 4.7. Обновление `document.onclick` — закрытие новых календарей по клику вне
+
+Глобальный обработчик `document.onclick` в `kanban.js` жёстко привязан к старым ID. Без обновления клик вне нового календаря не закроет попап. **Обязательное обновление:**
+
+```javascript
+// Обновлённый document.onclick — поддерживает все календари проекта
+document.onclick = function (e) {
+    if (_calSkipClose) { _calSkipClose = false; return; }
+    var tgt = e.target || e.srcElement;
+
+    // Массив всех возможных календарей
+    var cals = [
+        document.getElementById("kb-cal"),
+        document.getElementById("kb-cal-tcm"),
+        document.getElementById("kb-cal-kb-period-from"),
+        document.getElementById("kb-cal-kb-period-to")
+    ];
+
+    for (var ci = 0; ci < cals.length; ci++) {
+        var cal = cals[ci];
+        if (!cal || cal.style.display !== "block") continue;
+        var node = tgt;
+        var inside = false;
+        while (node) {
+            if (node === cal) { inside = true; break; }
+            if (node.id === "kb-new-duedate" || node.id === "tcm-duedate" || node.id === "kb-period-from" || node.id === "kb-period-to") { inside = true; break; }
+            if (node.className && node.className.indexOf("kb-date-btn") !== -1) { inside = true; break; }
+            node = node.parentNode;
+        }
+        if (!inside) cal.style.display = "none";
+    }
+};
+```
+
+> **Совместимость с IE11:** код использует только `var`, `indexOf`, `while` — без `forEach`, `Array.prototype.find`, arrow functions или `classList`.
+
 ---
 
 ## 5. HTML — что и где менять (`KanbanBoard_HTML.html`)
 
-В верхний тулбар (рядом с блоком иерархии `kb-hier-panel`):
+В верхний тулбар (рядом с блоком иерархии `kb-hier-panel`). **Используем существующий кастомный календарь** через `calToggle('id')` — он уже подключён в проекте (см. `KanbanBoard_HTML.html` строка 552 для срока задачи). Поля `readonly` — пользователь редактирует только через календарь, что исключает ошибки ввода.
 
 ```html
 <div id="kb-period-wrap" class="kb-period-wrap">
     <span class="kb-period-label">Период:</span>
-    <input type="date"
-           id="kb-period-from"
-           class="kb-period-input"
-           data-init="{{ KbPeriodFrom }}"
-           placeholder="yyyy-MM-dd"
-           title="Дата «с»">
+
+    <div class="kb-date-wrap" style="display:inline-block; vertical-align:middle;">
+        <input type="text"
+               id="kb-period-from"
+               class="form-control input-sm kb-period-input"
+               placeholder="ДД.ММ.ГГГГ"
+               data-init="{{ KbPeriodFrom }}"
+               readonly
+               style="padding-right:28px;" />
+        <button type="button"
+                class="kb-date-btn"
+                onclick="calToggle('kb-period-from')"
+                title="Выбрать дату начала">
+            <i class="fa fa-calendar"></i>
+        </button>
+        <div id="kb-cal-kb-period-from" class="kb-cal"></div>
+    </div>
+
     <span class="kb-period-sep">—</span>
-    <input type="date"
-           id="kb-period-to"
-           class="kb-period-input"
-           data-init="{{ KbPeriodTo }}"
-           placeholder="yyyy-MM-dd"
-           title="Дата «по»">
+
+    <div class="kb-date-wrap" style="display:inline-block; vertical-align:middle;">
+        <input type="text"
+               id="kb-period-to"
+               class="form-control input-sm kb-period-input"
+               placeholder="ДД.ММ.ГГГГ"
+               data-init="{{ KbPeriodTo }}"
+               readonly
+               style="padding-right:28px;" />
+        <button type="button"
+                class="kb-date-btn"
+                onclick="calToggle('kb-period-to')"
+                title="Выбрать дату конца">
+            <i class="fa fa-calendar"></i>
+        </button>
+        <div id="kb-cal-kb-period-to" class="kb-cal"></div>
+    </div>
+
     <button type="button" id="kb-period-apply" class="kb-period-btn">Применить</button>
     <button type="button" id="kb-period-reset" class="kb-period-btn kb-period-btn-reset">Сбросить</button>
 </div>
 ```
 
-> DotLiquid: `{{ KbPeriodFrom }}` / `{{ KbPeriodTo }}` — пустая строка если не установлено.
+> DotLiquid: `{{ KbPeriodFrom }}` / `{{ KbPeriodTo }}` — пустая строка если не установлено. Формат значения — `dd.MM.yyyy` (то же, что отдаёт `calToggle`).
+> **Важно:** проверить, что `calToggle` пишет в инпут именно строку `dd.MM.yyyy` (а не `yyyy-MM-dd`). Если в проекте формат другой — выровнять контракт парсинга на сервере.
 
 ---
 
@@ -411,25 +504,25 @@ if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
 | # | Шаг | Файлы | Smoke-тест | Сообщение коммита |
 |---|-----|-------|------------|-------------------|
 | 1 | C#: хелпер `IsTaskInPeriod` (без подключения) | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | Стенд собирается, поведение доски без изменений | `feat(kanban): add IsTaskInPeriod helper` |
-| 2 | C#: метод `DoSetPeriodFilter` + ветка `case "SetPeriodFilter":` | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | `InvokeTemplate("SetPeriodFilter","2026-01-01|2026-01-31")` → `OK`, в PropertyBag появляются ключи | `feat(kanban): server SetPeriodFilter method` |
+| 2 | C#: метод `DoSetPeriodFilter` + ветка `case "SetPeriodFilter":` | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | `InvokeTemplate("SetPeriodFilter","01.01.2026|31.01.2026")` → `OK`, в PropertyBag появляются ключи | `feat(kanban): server SetPeriodFilter method` |
 | 3 | C#: подключение фильтра в `BeforeRender` + проброс в Liquid | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | После установки периода доска показывает только задачи в периоде | `feat(kanban): clamp tasks by period in BeforeRender` |
 | 4 | HTML+CSS: блок фильтра в тулбаре | `KanbanBoard_HTML.html`, `kanban.css` | Поля и кнопки видны | `feat(kanban): period filter UI in toolbar` |
-| 5 | JS: `kbPeriodFilterInit` + Apply + Reset, подвязка в `kbInitHierarchy` | `kanban.js` | Изменение полей → `RefreshBoard` → доска отфильтрована | `feat(kanban): wire period filter client logic` |
-| 6 | C#: `DoGetReport` ветка `custom|from|to` | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | `InvokeTemplate("GetReport","custom|2026-03-01|2026-03-31")` возвращает данные за март | `feat(kanban): GetReport custom date range` |
+| 5 | JS: `kbPeriodFilterInit` + Apply + Reset, подвязка в `kbInitHierarchy` + **обновление `calEl()` и `document.onclick`** (§4.6, §4.7) | `kanban.js` | Календари фильтра открываются/закрываются корректно, изменение полей → `RefreshBoard` → доска отфильтрована | `feat(kanban): wire period filter client logic + calEl update` |
+| 6 | C#: `DoGetReport` ветка `custom|from|to` | `SOYUZ_UPLOAD_KanbanScreen_script.cs` | `InvokeTemplate("GetReport","custom|01.03.2026|31.03.2026")` возвращает данные за март | `feat(kanban): GetReport custom date range` |
 | 7 | Документация `docs/06_*.md` | docs | — | `docs(kanban): document period filter` |
 
 ---
 
 ## 8. Возможные риски и технические ограничения
 
-1. **`<input type="date">` в IE11.** IE11 не поддерживает нативно — рендерит обычный текстовый инпут без датапикера. Митигация: использовать существующий датапикер Soyuz-PLM (см. `kbCal*` в `kanban.js`, есть `calToggle` в HTML строки 552). Либо принять ручной ввод формата `yyyy-MM-dd` с `placeholder`. На стенде проверить целевые браузеры.
+1. **Кастомный календарь.** `<input type="date">` запрещён (IE11 рендерит как обычный текст). Используем существующий `calToggle('id')` + `<div id="kb-cal-...">` (см. HTML строка 552 для `tcm-duedate`). Поля `readonly` — пользователь не может ввести битую дату вручную. Формат — `dd.MM.yyyy`.
 2. **PropertyBag и сессия.** Живёт пока экран открыт. Закрытие/открытие сбрасывает фильтр. Согласовано с бэклогом.
 3. **Регрессия со счётчиками `.kb-cnt`.** После применения фильтра `BeforeRender` отдаёт меньше задач — счётчик в Liquid обновится автоматически. При активном поиске (§2.5) сработает `kbRecountColumns` поверх отфильтрованного DOM.
 4. **Производительность `BeforeRender`.** Парсинг даты периода — один раз до цикла. На 2000 задач — ~50 мс. Приемлемо.
 5. **Отсутствие `CompletedDate`.** Fallback на `Created`. Допустимо.
 6. **Часовые пояса.** Все даты считаем в `DateTime.Date`. Часовые пояса не учитываем.
 7. **`from > to`.** Защита на JS (alert). Сервер просто вернёт пустую доску.
-8. **Защита разделителя `|`.** Дата `yyyy-MM-dd` не содержит `|`, но `replace(/\|/g, "")` оставляем для единообразия.
+8. **Защита разделителя `|`.** Дата `dd.MM.yyyy` не содержит `|`, но `replace(/\|/g, "")` оставляем для единообразия.
 9. **DotLiquid `{{ KbPeriodFrom }}`.** Передаём строкой через `templateInfo[...] = (string)...`.
 10. **Отчёты.** Если UI отчёта не передаёт `custom|from|to` — добавить отдельным коммитом.
 
@@ -455,22 +548,22 @@ if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
 ### Сценарий 1 — фильтр по созданию
 
 1. Доска с 50 задачами (январь–март 2026).
-2. `from=2026-02-01`, `to=2026-02-28`. Применить.
+2. `from=01.02.2026`, `to=28.02.2026`. Применить.
 3. Видны только задачи февраля.
 
 ### Сценарий 2 — фильтр по завершению
 
-1. T1 создана 2026-01-15, переведена в «Готово» 2026-03-10 (`CompletedDate=2026-03-10`).
-2. `from=2026-03-01`, `to=2026-03-31` → T1 видна в «Готово».
-3. `from=2026-01-01`, `to=2026-01-31` → T1 не видна (закрыта в марте).
+1. T1 создана 15.01.2026, переведена в «Готово» 10.03.2026 (`CompletedDate=10.03.2026`).
+2. `from=01.03.2026`, `to=31.03.2026` → T1 видна в «Готово».
+3. `from=01.01.2026`, `to=31.01.2026` → T1 не видна (закрыта в марте).
 
 ### Сценарий 3 — только нижняя граница
 
-1. `from=2026-04-01`, `to=` пусто → видны задачи с 1 апреля и позже.
+1. `from=01.04.2026`, `to=` пусто → видны задачи с 1 апреля и позже.
 
 ### Сценарий 4 — только верхняя граница
 
-1. `from=` пусто, `to=2026-02-28` → видны задачи до конца февраля.
+1. `from=` пусто, `to=28.02.2026` → видны задачи до конца февраля.
 
 ### Сценарий 5 — Сброс
 
@@ -479,11 +572,11 @@ if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
 
 ### Сценарий 6 — `from > to`
 
-1. `from=2026-04-01`, `to=2026-01-01` → alert, фильтр не применён.
+1. `from=01.04.2026`, `to=01.01.2026` → alert, фильтр не применён.
 
 ### Сценарий 7 — Отчёт за период
 
-1. UI отчёта вызывает `InvokeTemplate("GetReport","custom|2026-03-01|2026-03-31")`.
+1. UI отчёта вызывает `InvokeTemplate("GetReport","custom|01.03.2026|31.03.2026")`.
 2. Возвращается JSON задач марта.
 
 ### Сценарий 8 — Регрессия `RefreshBoard`
