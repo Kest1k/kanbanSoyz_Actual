@@ -499,7 +499,7 @@ private object DoDeleteTask( object inputParams )
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound";
 
-    // Только создатель задачи может её удалить
+    // Создатель или начальник подчинённого может удалить задачу
     try
     {
         var creatorKey  = task.GetString( "Creator" ) ?? "";
@@ -508,7 +508,22 @@ private object DoDeleteTask( object inputParams )
         {
             if( currentUser == null ) return "ERROR:NotOwner";
             var curKey = string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.AccountId : currentUser.NameKey;
-            if( creatorKey != curKey ) return "ERROR:NotOwner";
+            if( creatorKey != curKey )
+            {
+                var delRole = GetUserRole( currentUser );
+                if( delRole == "admin" )
+                { /* разрешаем */ }
+                else if( delRole == "headOfDept" || HasSectorScopeRole( delRole ) )
+                {
+                    var creatorUser = FindUserByKeyOrNull( creatorKey );
+                    if( creatorUser == null || !CanAssignUserInScope( currentUser, delRole, creatorUser ) )
+                        return "ERROR:NotOwner";
+                }
+                else
+                {
+                    return "ERROR:NotOwner";
+                }
+            }
         }
         // Legacy-задачи без Creator — разрешаем удаление
     }
@@ -825,6 +840,21 @@ private object BuildCardData( InfoObject task, int status )
                 isOwner = "1";
             else if( string.IsNullOrEmpty( creatorKey ) )
                 isOwner = "1"; // Legacy-задачи без Creator — разрешаем
+            else
+            {
+                // Начальники могут удалять задачи подчинённых
+                var ownerRole = GetUserRole( curUser );
+                if( ownerRole == "admin" )
+                {
+                    isOwner = "1";
+                }
+                else if( ownerRole == "headOfDept" || HasSectorScopeRole( ownerRole ) )
+                {
+                    var creatorUser = FindUserByKeyOrNull( creatorKey );
+                    if( creatorUser != null && CanAssignUserInScope( curUser, ownerRole, creatorUser ) )
+                        isOwner = "1";
+                }
+            }
         }
 
         // Если исполнитель = текущий пользователь — инициалы не нужны
@@ -1545,8 +1575,25 @@ private object DoGetTaskDetails( object inputParams )
             }
             else
             {
-                isOwner     = false;
-                canFullEdit = false;
+                // Начальники могут редактировать и удалять задачи подчинённых
+                var curRole = GetUserRole( curUser );
+                if( curRole == "admin" )
+                {
+                    isOwner     = true;
+                    canFullEdit = true;
+                }
+                else if( curRole == "headOfDept" || HasSectorScopeRole( curRole ) )
+                {
+                    var creatorUser = FindUserByKeyOrNull( creatorKey );
+                    var inScope = creatorUser != null && CanAssignUserInScope( curUser, curRole, creatorUser );
+                    isOwner     = inScope;
+                    canFullEdit = inScope;
+                }
+                else
+                {
+                    isOwner     = false;
+                    canFullEdit = false;
+                }
             }
         }
         else
@@ -1776,7 +1823,22 @@ private object DoSaveTask( object inputParams )
         {
             var curKey = string.IsNullOrEmpty( curUser.NameKey ) ? curUser.AccountId : curUser.NameKey;
             if( creatorKey != curKey )
-                canFullEdit = false;
+            {
+                // Начальники могут редактировать задачи подчинённых
+                if( curRole == "admin" )
+                {
+                    canFullEdit = true;
+                }
+                else if( curRole == "headOfDept" || HasSectorScopeRole( curRole ) )
+                {
+                    var creatorUser = FindUserByKeyOrNull( creatorKey );
+                    canFullEdit = creatorUser != null && CanAssignUserInScope( curUser, curRole, creatorUser );
+                }
+                else
+                {
+                    canFullEdit = false;
+                }
+            }
         }
     }
     catch { }
