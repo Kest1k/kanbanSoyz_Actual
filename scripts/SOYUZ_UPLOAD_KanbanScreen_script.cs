@@ -41,6 +41,29 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 var viewMode    = (obj.PropertyBag["KbViewMode"] as string) ?? "my";
                 var allowedIds  = GetAllowedUserIdSet( currentUser, role, viewMode );
 
+                // ─── Фильтр по периоду (из PropertyBag, формат dd.MM.yyyy) ───
+                DateTime? periodFrom = null, periodTo = null;
+                {
+                    var sFrom = obj.PropertyBag["KbPeriodFrom"] as string;
+                    var sTo   = obj.PropertyBag["KbPeriodTo"]   as string;
+                    if( !string.IsNullOrEmpty( sFrom ) )
+                    {
+                        DateTime tmp;
+                        if( DateTime.TryParseExact( sFrom, "dd.MM.yyyy",
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None, out tmp ) )
+                            periodFrom = tmp;
+                    }
+                    if( !string.IsNullOrEmpty( sTo ) )
+                    {
+                        DateTime tmp;
+                        if( DateTime.TryParseExact( sTo, "dd.MM.yyyy",
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            System.Globalization.DateTimeStyles.None, out tmp ) )
+                            periodTo = tmp;
+                    }
+                }
+
                 foreach( var task in container.RootInfoObjects )
                 {
                     var assignee = task.GetUser( "Assignee" );
@@ -52,12 +75,20 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
 
                     int status = GetStatusIndex( task );
                     if( status < 0 || status > 3 ) status = 0;
+
+                    // Фильтр по периоду
+                    if( !IsTaskInPeriod( task, status, periodFrom, periodTo ) ) continue;
+
                     raw[status].Add( task );
                 }
 
                 // Передаём роль и режим в шаблон (для инициализации JS-иерархии)
                 renderArgs["kbRole"]     = role;
                 renderArgs["kbViewMode"] = viewMode;
+
+                // Передаём даты периода в Liquid (для восстановления в UI)
+                renderArgs["KbPeriodFrom"] = (obj.PropertyBag["KbPeriodFrom"] as string) ?? "";
+                renderArgs["KbPeriodTo"]   = (obj.PropertyBag["KbPeriodTo"]   as string) ?? "";
 
                 // Колонки 0-2: сортировка по приоритету (urgent → high → medium → low),
                 // внутри одного приоритета — по DateCreated убывающе (новые выше)
@@ -126,6 +157,18 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             }
             case "GetHierarchyInfo": return DoGetHierarchyInfo( obj, inputParams );
             case "SetViewMode":      return DoSetViewMode( obj, inputParams );
+            case "SetPeriodFilter":
+            {
+                // 1) Записываем PropertyBag (sync). 2) Сразу триггерим Refresh
+                //    в одном Invoke, чтобы BeforeRender гарантированно увидел
+                //    свежие KbPeriodFrom/KbPeriodTo. Раздельные вызовы из JS
+                //    давали гонку на некоторых стендах.
+                var result = DoSetPeriodFilter( obj, inputParams );
+                var s = result as string;
+                if( s != null && s.IndexOf( "ERROR" ) == 0 ) return s;
+                Service.UI.SyncControl.BeginInvoke( (Action)( () => obj.Invoke( "Refresh", null ) ) );
+                return "OK";
+            }
             case "GetReport":        return DoGetReport( inputParams );
             case "GetTaskDetails":   return DoGetTaskDetails( inputParams );
             case "SaveTask":         return DoSaveTask( inputParams );
@@ -642,6 +685,80 @@ private int GetStatusIndex( InfoObject task )
     return 0; // По умолчанию «Надо сделать»
 }
 
+// ─── Проверка попадания задачи в период (для BeforeRender) ─────────
+private bool IsTaskInPeriod( InfoObject task, int statusIdx,
+                             DateTime? from, DateTime? to )
+{
+    if( !from.HasValue && !to.HasValue ) return true;
+
+    DateTime? d = null;
+    if( statusIdx == STATUS_DONE )
+    {
+        try
+        {
+            var cd = task.GetValue<DateTime>( "CompletedDate" );
+            if( cd != DateTime.MinValue ) d = cd;
+        }
+        catch { }
+    }
+    if( !d.HasValue )
+    {
+        d = task.DateCreated;
+    }
+    if( !d.HasValue ) return true;
+
+    var dt = d.Value.Date;
+    if( from.HasValue && dt < from.Value.Date ) return false;
+    if( to.HasValue && dt > to.Value.Date ) return false;
+    return true;
+}
+
+// ─── SetPeriodFilter ───────────────────────────────────────────────
+private object DoSetPeriodFilter( InfoObject screenObj, object inputParams )
+{
+    var raw = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    string sFrom = (parts.Length > 0 ? parts[0] : "").Trim();
+    string sTo   = (parts.Length > 1 ? parts[1] : "").Trim();
+
+    try
+    {
+        if( string.IsNullOrEmpty( sFrom ) && string.IsNullOrEmpty( sTo ) )
+        {
+            screenObj.PropertyBag.Remove( "KbPeriodFrom" );
+            screenObj.PropertyBag.Remove( "KbPeriodTo" );
+            return "OK";
+        }
+        if( !string.IsNullOrEmpty( sFrom ) )
+        {
+            DateTime dFrom;
+            if( !DateTime.TryParseExact( sFrom, "dd.MM.yyyy",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out dFrom ) )
+                return "ERROR:Format";
+            screenObj.PropertyBag["KbPeriodFrom"] = sFrom;
+        }
+        else screenObj.PropertyBag.Remove( "KbPeriodFrom" );
+
+        if( !string.IsNullOrEmpty( sTo ) )
+        {
+            DateTime dTo;
+            if( !DateTime.TryParseExact( sTo, "dd.MM.yyyy",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out dTo ) )
+                return "ERROR:Format";
+            screenObj.PropertyBag["KbPeriodTo"] = sTo;
+        }
+        else screenObj.PropertyBag.Remove( "KbPeriodTo" );
+        return "OK";
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoSetPeriodFilter: " + ex.Message );
+        return "ERROR:Internal";
+    }
+}
+
 // Записывает статус в задачу по индексу колонки (0-3)
 private void SetTaskStatus( InfoObject task, int columnIndex )
 {
@@ -857,6 +974,7 @@ private static readonly string[] ADMIN_POS = {
 
 private static readonly string[] DEPT_HEAD_POS = {
     "nachOtdelen",           // Начальник отделения (универсальная)
+    "nachOtdelenNauch",      // Начальник научно-технического отдела 
     "nachOtdelen500",        // Начальник отделения 500кт (до миграции)
     "nachOtdelen600",        // Начальник отделения 600кт (до миграции)
     "zamNachOtd",            // Заместитель начальника отделения
@@ -1162,11 +1280,31 @@ private object DoGetReport( object inputParams )
 
     var now  = DateTime.Now;
     DateTime from;
+    DateTime to   = DateTime.MaxValue;
     switch( period )
     {
         case "week":    from = now.AddDays( -7 );   break;
         case "month":   from = now.AddMonths( -1 ); break;
         case "quarter": from = now.AddMonths( -3 ); break;
+        case "custom":
+            // custom|from|to|scope — парсим даты из частей
+            from = DateTime.MinValue;
+            {
+                var rp = ParsePipeArgs( raw, 4 );
+                if( rp.Length >= 3 )
+                {
+                    DateTime tmpFrom, tmpTo;
+                    if( DateTime.TryParseExact( rp[1], "dd.MM.yyyy",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out tmpFrom ) )
+                        from = tmpFrom;
+                    if( DateTime.TryParseExact( rp[2], "dd.MM.yyyy",
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out tmpTo ) )
+                        to = tmpTo.Date.AddDays(1).AddTicks(-1); // конец дня
+                }
+            }
+            break;
         default:        from = DateTime.MinValue;   break; // "all"
     }
 
@@ -1199,13 +1337,13 @@ private object DoGetReport( object inputParams )
         userStats[aName][0]++;
 
         // Создана в периоде?
-        try { if( task.DateCreated >= from ) createdInPeriod++; } catch { }
+        try { if( task.DateCreated >= from && task.DateCreated <= to ) createdInPeriod++; } catch { }
 
         // Выполнена в периоде?
         try
         {
             var cd = task.GetValue<DateTime>( "CompletedDate" );
-            if( cd != default(DateTime) && cd >= from )
+            if( cd != default(DateTime) && cd >= from && cd <= to )
             { completedInPeriod++; userStats[aName][1]++; }
         }
         catch { }

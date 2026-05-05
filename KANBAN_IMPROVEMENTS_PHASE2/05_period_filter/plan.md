@@ -19,10 +19,14 @@
 
 Фильтр периода **требует перезапроса данных**, потому что мы не отрисовываем задачи вне выбранного периода — они физически отсутствуют в DOM. Поэтому:
 
-1. UI: два текстовых поля `<input type="text">` с **кастомным календарём** (через существующую функцию `calToggle('id')`, см. `KanbanBoard_HTML.html` строка 552) в верхнем тулбаре + кнопка «Применить» + кнопка «Сбросить». Формат — `ДД.ММ.ГГГГ` (русская локаль). **Нативный `<input type="date">` запрещён** — IE11 рендерит его как обычный текстовый инпут без датапикера.
-2. Изменение полей → JS вызывает `window.external.InvokeTemplate("SetPeriodFilter", dateFrom + "|" + dateTo)` где даты в формате `dd.MM.yyyy`.
-3. Сервер сохраняет даты (как строки `dd.MM.yyyy`) в `screenObj.PropertyBag["KbPeriodFrom"]` и `["KbPeriodTo"]`.
-4. JS вызывает `kbRefreshBoard()` (существующая функция в `kanban.js`, строка ~246).
+1. UI: **компактная одиночная кнопка-toggle** «📅 Период» в верхнем тулбаре. Клик открывает dropdown-панель с:
+   - 5 пресет-кнопками: «На этой неделе», «В этом месяце», «Последние 3 месяца», «Последние полгода», «Последний год».
+   - Двумя текстовыми полями `<input type="text" readonly>` с кастомным календарём (`calToggle('id')`) для произвольного диапазона.
+   - Кнопками «Применить» / «Сбросить».
+   Формат — `ДД.ММ.ГГГГ` (русская локаль). **Нативный `<input type="date">` запрещён** (IE11). **`position: absolute` у `.kb-period-wrap` запрещено** — даёт наезд на «Что нового» / «Справка» при сужении окна. Используем `float: left` и располагаем dropdown через `position: absolute` от обёртки.
+2. Изменение пресета или клик «Применить» → JS вызывает `window.external.InvokeTemplate("SetPeriodFilter", dateFrom + "|" + dateTo)` где даты в формате `dd.MM.yyyy`.
+3. Серверная ветка `case "SetPeriodFilter"` **выполняет 2 вещи в одном Invoke**: (a) пишет PropertyBag, (b) сразу триггерит `obj.Invoke("Refresh", null)` через `Service.UI.SyncControl.BeginInvoke`. Это устраняет гонку PropertyBag, которая возникала при раздельных вызовах `SetPeriodFilter` + `RefreshBoard`.
+4. JS **НЕ вызывает** `kbRefreshBoard()` после `SetPeriodFilter` — Refresh уже идёт с сервера.
 5. `BeforeRender` читает PropertyBag и при формировании списков `cols[0..3]` отсекает задачи, у которых `task.DateCreated` (или `task.GetValue<DateTime>("CompletedDate")` для колонки «Готово») вне периода.
 
 ### 1.3. Логика отсечения
@@ -56,7 +60,7 @@
 |------|------------|
 | `scripts/SOYUZ_UPLOAD_KanbanScreen_script.cs` | Новый Invoke-метод `SetPeriodFilter`. Расширение `BeforeRender`. Хелпер `IsTaskInPeriod`. Расширение `DoGetReport` на ветку `custom`. |
 | `scripts/kanban.js` | Блок `kbPeriodFilter*`: init, onchange, apply, reset. Подвязка к `kbInitHierarchy`. **Обновление `calEl()` и `document.onclick`** для поддержки новых ID календарей (`kb-cal-kb-period-from`, `kb-cal-kb-period-to`). |
-| `scripts/KanbanBoard_HTML.html` | Два `<input type="date">` + кнопка «Применить» + «Сбросить» в верхнем тулбаре. |
+| `scripts/KanbanBoard_HTML.html` | Два `<input type="text" readonly>` с кастомным календарём (`calToggle`) + кнопка «Применить» + «Сбросить» в верхнем тулбаре. |
 | `scripts/kanban.css` | Стили блока фильтра. |
 
 ---

@@ -55,6 +55,74 @@
         oninput="kbOnSelSearch()" style="display:none;
               width:140px; margin-left:4px; vertical-align:middle;">
 </div>
+<!-- Фильтр по периоду (компактный toggle + выпадающая панель) -->
+<div id="kb-period-wrap" class="kb-period-wrap">
+    <button type="button" id="kb-period-toggle" class="kb-period-toggle"
+            onclick="kbPeriodToggle()" title="Фильтр по периоду">
+        <i class="fa fa-calendar"></i>
+        <span id="kb-period-toggle-label">Период</span>
+        <i class="fa fa-caret-down" style="margin-left:4px;"></i>
+    </button>
+
+    <div id="kb-period-panel" class="kb-period-panel" style="display:none;">
+        <div class="kb-period-panel-title">Быстрый выбор</div>
+        <div class="kb-period-presets">
+            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('week')">На этой неделе</button>
+            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('month')">В этом месяце</button>
+            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('3mo')">Последние 3 месяца</button>
+            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('6mo')">Последние полгода</button>
+            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('year')">Последний год</button>
+        </div>
+        <div class="kb-period-divider"></div>
+        <div class="kb-period-panel-title">Свой диапазон</div>
+        <div class="kb-period-custom">
+            <div class="kb-period-row">
+                <span class="kb-period-row-lbl">С:</span>
+                <div class="kb-date-wrap kb-period-row-wrap">
+                    <input type="text"
+                           id="kb-period-from"
+                           class="form-control input-sm kb-period-input"
+                           placeholder="ДД.ММ.ГГГГ"
+                           data-init="{{ KbPeriodFrom }}"
+                           readonly
+                           style="padding-right:28px;" />
+                    <button type="button"
+                            class="kb-date-btn"
+                            onclick="calToggle('kb-period-from')"
+                            title="Выбрать дату начала">
+                        <i class="fa fa-calendar"></i>
+                    </button>
+                    <div id="kb-cal-kb-period-from" class="kb-cal"></div>
+                </div>
+            </div>
+            <div class="kb-period-row">
+                <span class="kb-period-row-lbl">По:</span>
+                <div class="kb-date-wrap kb-period-row-wrap">
+                    <input type="text"
+                           id="kb-period-to"
+                           class="form-control input-sm kb-period-input"
+                           placeholder="ДД.ММ.ГГГГ"
+                           data-init="{{ KbPeriodTo }}"
+                           readonly
+                           style="padding-right:28px;" />
+                    <button type="button"
+                            class="kb-date-btn"
+                            onclick="calToggle('kb-period-to')"
+                            title="Выбрать дату конца">
+                        <i class="fa fa-calendar"></i>
+                    </button>
+                    <div id="kb-cal-kb-period-to" class="kb-cal"></div>
+                </div>
+            </div>
+        </div>
+        <div class="kb-period-actions">
+            <button type="button" id="kb-period-apply" class="kb-period-btn kb-period-btn-primary"
+                    onclick="kbPeriodApply(); return false;">Применить</button>
+            <button type="button" id="kb-period-reset" class="kb-period-btn kb-period-btn-reset"
+                    onclick="kbPeriodReset(); return false;">Сбросить</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block bottomNavigation %}{% endblock %}
@@ -478,12 +546,28 @@
         <div class="rpt-toolbar">
             <span style="font-size:12px;color:#6b7280;margin-right:6px;">Период:</span>
             <select id="reportPeriod" class="form-control input-sm" style="width:auto;display:inline-block;"
-                onchange="loadReport()">
+                onchange="toggleReportPeriod()">
                 <option value="week">Неделя</option>
                 <option value="month" selected="selected">Месяц</option>
                 <option value="quarter">Квартал</option>
                 <option value="all">Всё время</option>
+                <option value="custom">Произвольный период</option>
             </select>
+            <span id="rpt-custom-dates" style="display:none;margin-left:10px;">
+                <span class="kb-date-wrap">
+                    <input type="text" id="rpt-period-from" readonly="readonly"
+                        placeholder="С" class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
+                    <button type="button" class="kb-date-btn" onclick="calToggle('rpt-period-from')">&#128197;</button>
+<div id="kb-cal-rpt-period-from" class="kb-cal" style="display:none;"></div>
+                </span>
+                <span style="margin:0 4px;">—</span>
+                <span class="kb-date-wrap">
+                    <input type="text" id="rpt-period-to" readonly="readonly"
+                        placeholder="По" class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
+                    <button type="button" class="kb-date-btn" onclick="calToggle('rpt-period-to')">&#128197;</button>
+<div id="kb-cal-rpt-period-to" class="kb-cal" style="display:none;"></div>
+                </span>
+            </span>
             <span id="rpt-scope-wrap" style="display:none;margin-left:10px;">
                 <span style="font-size:12px;color:#6b7280;margin-right:6px;">Область:</span>
                 <select id="reportScope" class="form-control input-sm"
@@ -758,6 +842,16 @@
             <button type="button" class="tcm-close" onclick="closeWhatsNew()" title="Закрыть">&#215;</button>
         </div>
         <div class="help-body">
+            <div style="margin-bottom: 20px; border-left: 3px solid #6366f1; padding-left: 15px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Фильтр по периоду</div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">05.05.2026</div>
+                <ul class="help-tips">
+                    <li>В верхней панели появилась кнопка 📅 <b>«Период»</b> — позволяет фильтровать задачи по дате. Для задач в работе используется дата создания, для завершённых — дата выполнения.</li>
+                    <li><b>Быстрый выбор</b>: на этой неделе, в этом месяце, за 3 месяца, полгода, год — одним нажатием.</li>
+                    <li><b>Свой диапазон</b>: укажите точные даты «С» и «По» через встроенный календарь.</li>
+                    <li>В отчёте добавлен пункт <b>«Произвольный период»</b> для формирования сводки за любой диапазон дат.</li>
+                </ul>
+            </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #4a6fa5; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Горячие клавиши</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">04.05.2026</div>

@@ -1,4 +1,5 @@
 private static System.Collections.Generic.HashSet<ulong> _notifiedItems = new System.Collections.Generic.HashSet<ulong>();
+private static readonly object _notifyLock = new object();
 
 public override void OnUpdated( WorkItem obj, bool isFirst )
 {
@@ -15,9 +16,12 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         || Math.Abs( ( obj.DateActivated - DateTime.Now ).TotalMinutes ) >= 180.0 )
         return;
 
-    // Защита от дублей
-    if (_notifiedItems.Contains(obj.Id)) return;
-    _notifiedItems.Add(obj.Id);
+    // Защита от дублей (thread-safe)
+    lock (_notifyLock)
+    {
+        if (_notifiedItems.Contains(obj.Id)) return;
+        _notifiedItems.Add(obj.Id);
+    }
 
     // Дублируем отметку на клиенте, чтобы уведомление не оставалось новым
     try { obj.MarkAsViewedByCurrentUser(); } catch { }
@@ -246,11 +250,18 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
 
         if( navigateToBoard )
         {
-            // Проверяем тему письма для определения вкладки (надежно через IndexOf)
-            bool isComm = subject.IndexOf("Новый комментарий", StringComparison.OrdinalIgnoreCase) >= 0;
-            string targetTab = isComm ? "chat" : "main";
+            try
+            {
+                // Проверяем тему письма для определения вкладки (надежно через IndexOf)
+                bool isComm = subject.IndexOf("Новый комментарий", StringComparison.OrdinalIgnoreCase) >= 0;
+                string targetTab = isComm ? "chat" : "main";
 
-            OpenBoardFromNotification( taskKey, targetTab );
+                OpenBoardFromNotification( taskKey, targetTab );
+            }
+            catch( Exception navEx )
+            {
+                try { Service.WriteToServerLog( "KanbanExclamation", "Navigation error: " + navEx.Message ); } catch { }
+            }
         }
         return;
     }

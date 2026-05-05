@@ -25,7 +25,12 @@
         // Попап-div календаря: kb-cal для create panel, kb-cal-tcm для модала
         var _calSkipClose = false;
         function calEl() {
-            return document.getElementById(_calTargetId === "tcm-duedate" ? "kb-cal-tcm" : "kb-cal");
+            if (_calTargetId === "tcm-duedate") return document.getElementById("kb-cal-tcm");
+            if (_calTargetId === "kb-period-from") return document.getElementById("kb-cal-kb-period-from");
+            if (_calTargetId === "kb-period-to") return document.getElementById("kb-cal-kb-period-to");
+            if (_calTargetId === "rpt-period-from") return document.getElementById("kb-cal-rpt-period-from");
+            if (_calTargetId === "rpt-period-to") return document.getElementById("kb-cal-rpt-period-to");
+            return document.getElementById("kb-cal");
         }
 
         window.calToggle = function (targetId) {
@@ -117,8 +122,17 @@
             // до того как сюда дойдёт событие, поэтому пропускаем один клик
             if (_calSkipClose) { _calSkipClose = false; return; }
             var tgt = e.target || e.srcElement;
-            // Закрываем оба попапа если клик вне них
-            var cals = [document.getElementById("kb-cal"), document.getElementById("kb-cal-tcm")];
+
+            // Массив всех возможных календарей
+            var cals = [
+                document.getElementById("kb-cal"),
+                document.getElementById("kb-cal-tcm"),
+                document.getElementById("kb-cal-kb-period-from"),
+                document.getElementById("kb-cal-kb-period-to"),
+                document.getElementById("kb-cal-rpt-period-from"),
+                document.getElementById("kb-cal-rpt-period-to")
+            ];
+
             for (var ci = 0; ci < cals.length; ci++) {
                 var cal = cals[ci];
                 if (!cal || cal.style.display !== "block") continue;
@@ -126,11 +140,25 @@
                 var inside = false;
                 while (node) {
                     if (node === cal) { inside = true; break; }
-                    if (node.id === "kb-new-duedate" || node.id === "tcm-duedate") { inside = true; break; }
+                    if (node.id === "kb-new-duedate" || node.id === "tcm-duedate" || node.id === "kb-period-from" || node.id === "kb-period-to" || node.id === "rpt-period-from" || node.id === "rpt-period-to") { inside = true; break; }
                     if (node.className && node.className.indexOf("kb-date-btn") !== -1) { inside = true; break; }
                     node = node.parentNode;
                 }
                 if (!inside) cal.style.display = "none";
+            }
+
+            // Закрытие dropdown-панели фильтра периода при клике снаружи
+            var pPanel = document.getElementById("kb-period-panel");
+            if (pPanel && pPanel.style.display === "block") {
+                var pNode = tgt;
+                var pInside = false;
+                while (pNode) {
+                    if (pNode.id === "kb-period-wrap" || pNode.id === "kb-period-panel" || pNode.id === "kb-period-toggle") {
+                        pInside = true; break;
+                    }
+                    pNode = pNode.parentNode;
+                }
+                if (!pInside) pPanel.style.display = "none";
             }
         };
 
@@ -401,6 +429,170 @@
         document.getElementById("kb-new-title").onkeydown = function (e) {
             if ((e.keyCode || e.which) === 13) { doCreateTask(); }
             if ((e.keyCode || e.which) === 27) { hideCreateTask(); }
+        };
+
+        // ── Фильтр по периоду ─────────────────────────────────────────
+        var _kbPeriod = { from: "", to: "" };
+        var _kbPeriodDebounce = 0;
+
+        // Хелпер: "dd.MM.yyyy" → timestamp (для локального сравнения порядка)
+        function kbParseDmyToTs(s) {
+            if (!s) return 0;
+            var m = String(s).match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+            if (!m) return 0;
+            var d = new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+            return d.getTime();
+        }
+
+        // Форматирование даты "dd.MM.yyyy"
+        function kbFmtDmy(d) {
+            var dd = (d.getDate() < 10 ? "0" : "") + d.getDate();
+            var mm = (d.getMonth() + 1 < 10 ? "0" : "") + (d.getMonth() + 1);
+            return dd + "." + mm + "." + d.getFullYear();
+        }
+
+        // Обновляет лейбл кнопки-toggle и подсветку активного фильтра
+        function kbPeriodUpdateLabel(sFrom, sTo) {
+            var btn = document.getElementById("kb-period-toggle");
+            var lbl = document.getElementById("kb-period-toggle-label");
+            if (!btn || !lbl) return;
+            if (!sFrom && !sTo) {
+                lbl.innerHTML = "Период";
+                btn.className = (btn.className || "").replace(/\s*kb-period-active\s*/g, " ");
+                return;
+            }
+            var txt = "";
+            if (sFrom && sTo)      txt = sFrom + " — " + sTo;
+            else if (sFrom)        txt = "с " + sFrom;
+            else                   txt = "по " + sTo;
+            lbl.innerHTML = txt;
+            if ((btn.className || "").indexOf("kb-period-active") < 0) {
+                btn.className = (btn.className || "") + " kb-period-active";
+            }
+        }
+
+        window.kbPeriodToggle = function () {
+            var p = document.getElementById("kb-period-panel");
+            if (!p) return;
+            if (p.style.display === "block") {
+                p.style.display = "none";
+            } else {
+                p.style.display = "block";
+                // Спрятать открытые попапы календарей при открытии панели
+                var c1 = document.getElementById("kb-cal-kb-period-from");
+                var c2 = document.getElementById("kb-cal-kb-period-to");
+                if (c1) c1.style.display = "none";
+                if (c2) c2.style.display = "none";
+            }
+            return false;
+        };
+
+        // Применяет один из пресетов и сразу шлёт на сервер
+        window.kbPeriodPreset = function (preset) {
+            var to = new Date();
+            var from = new Date();
+            from.setHours(0, 0, 0, 0);
+            to.setHours(0, 0, 0, 0);
+
+            if (preset === "week") {
+                // Понедельник текущей недели
+                var dow = from.getDay();
+                var diff = (dow === 0 ? 6 : dow - 1);
+                from.setDate(from.getDate() - diff);
+            } else if (preset === "month") {
+                from.setDate(1);
+            } else if (preset === "3mo") {
+                from.setMonth(from.getMonth() - 3);
+            } else if (preset === "6mo") {
+                from.setMonth(from.getMonth() - 6);
+            } else if (preset === "year") {
+                from.setFullYear(from.getFullYear() - 1);
+            } else {
+                return;
+            }
+
+            var sFrom = kbFmtDmy(from);
+            var sTo   = kbFmtDmy(to);
+
+            var inFrom = document.getElementById("kb-period-from");
+            var inTo   = document.getElementById("kb-period-to");
+            if (inFrom) inFrom.value = sFrom;
+            if (inTo)   inTo.value   = sTo;
+
+            kbPeriodApply();
+        };
+
+        // Восстановление состояния фильтра периода после Refresh.
+        // ВАЖНО: вызывается отдельно от kbInitHierarchy, потому что
+        // kbInitHierarchy делает ранний return для роли "regular" и
+        // период не успеет инициализироваться. Кнопки Применить/Сбросить
+        // используют inline onclick — биндинг здесь не нужен.
+        window.kbPeriodFilterInit = function () {
+            var inFrom = document.getElementById("kb-period-from");
+            var inTo   = document.getElementById("kb-period-to");
+            if (!inFrom || !inTo) return;
+
+            // Восстановление значения из data-атрибутов, заполненных Liquid
+            var dataFrom = inFrom.getAttribute("data-init") || "";
+            var dataTo   = inTo.getAttribute("data-init")   || "";
+            if (dataFrom) inFrom.value = dataFrom;
+            if (dataTo)   inTo.value   = dataTo;
+            _kbPeriod.from = dataFrom;
+            _kbPeriod.to   = dataTo;
+            kbPeriodUpdateLabel(dataFrom, dataTo);
+        };
+
+        window.kbPeriodApply = function () {
+            var inFrom = document.getElementById("kb-period-from");
+            var inTo   = document.getElementById("kb-period-to");
+            if (!inFrom || !inTo) return;
+
+            var sFrom = inFrom.value || "";    // "dd.MM.yyyy" или ""
+            var sTo   = inTo.value   || "";    // "dd.MM.yyyy" или ""
+
+            // Валидация порядка: парсим dd.MM.yyyy локально для сравнения
+            if (sFrom && sTo) {
+                var pf = kbParseDmyToTs(sFrom);
+                var pt = kbParseDmyToTs(sTo);
+                if (pf > 0 && pt > 0 && pf > pt) {
+                    alert("Дата «С» должна быть раньше даты «По»");
+                    return;
+                }
+            }
+
+            var safeFrom = String(sFrom).replace(/\|/g, "");
+            var safeTo   = String(sTo).replace(/\|/g, "");
+
+            try {
+                // SetPeriodFilter на сервере сам триггерит Refresh — отдельный
+                // kbRefreshBoard НЕ нужен. Это устраняет гонку PropertyBag.
+                var res = window.external.InvokeTemplate("SetPeriodFilter", safeFrom + "|" + safeTo);
+                if (String(res || "").indexOf("ERROR") === 0) {
+                    alert("Ошибка установки фильтра: " + res);
+                    return;
+                }
+                _kbPeriod.from = safeFrom;
+                _kbPeriod.to   = safeTo;
+                kbPeriodUpdateLabel(safeFrom, safeTo);
+                // Закрываем панель после применения
+                var p = document.getElementById("kb-period-panel");
+                if (p) p.style.display = "none";
+            } catch (e) { /* no-op */ }
+        };
+
+        window.kbPeriodReset = function () {
+            var inFrom = document.getElementById("kb-period-from");
+            var inTo   = document.getElementById("kb-period-to");
+            if (inFrom) inFrom.value = "";
+            if (inTo)   inTo.value   = "";
+            _kbPeriod.from = "";
+            _kbPeriod.to   = "";
+            try {
+                window.external.InvokeTemplate("SetPeriodFilter", "|");
+                kbPeriodUpdateLabel("", "");
+                var p = document.getElementById("kb-period-panel");
+                if (p) p.style.display = "none";
+            } catch (e) { /* no-op */ }
         };
 
     }());
@@ -741,6 +933,9 @@
                 kbApplyMode();
             };
         }
+
+        // Фильтр периода инициализируется отдельно вне kbInitHierarchy
+        // (см. вызов в конце файла) — чтобы работал и для роли "regular".
     };
 
     function kbFillDivisions() {
@@ -1395,14 +1590,49 @@
         if (cur) sel.value = cur;
     }
 
+    window.toggleReportPeriod = function () {
+        var periodSel = document.getElementById("reportPeriod");
+        var customDates = document.getElementById("rpt-custom-dates");
+        if (periodSel && customDates) {
+            customDates.style.display = (periodSel.value === "custom") ? "" : "none";
+        }
+        // Запускаем отчёт сразу, только если это не custom
+        // (для custom пользователь заполнит даты и нажмёт «Обновить»)
+        if (periodSel && periodSel.value !== "custom") {
+            loadReport();
+        }
+    };
+
     window.loadReport = function () {
-        var period = document.getElementById("reportPeriod").value;
+        var periodSel = document.getElementById("reportPeriod");
+        var period = periodSel ? periodSel.value : "month";
+
         var scopeWrap = document.getElementById("rpt-scope-wrap");
         var scopeEl = document.getElementById("reportScope");
         var scope = (scopeWrap && scopeWrap.style.display !== "none" && scopeEl)
             ? (scopeEl.value || "") : "";
+
+        var param;
+        if (period === "custom") {
+            var rptFrom = document.getElementById("rpt-period-from");
+            var rptTo   = document.getElementById("rpt-period-to");
+            var sFrom = rptFrom ? (rptFrom.value || "").replace(/^\s+|\s+$/g, "") : "";
+            var sTo   = rptTo   ? (rptTo.value   || "").replace(/^\s+|\s+$/g, "") : "";
+            if (!sFrom || !sTo) {
+                alert("Укажите обе даты произвольного периода");
+                return;
+            }
+            if (!/^\d{2}\.\d{2}\.\d{4}$/.test(sFrom) || !/^\d{2}\.\d{2}\.\d{4}$/.test(sTo)) {
+                alert("Даты периода должны быть в формате ДД.ММ.ГГГГ");
+                return;
+            }
+            param = "custom|" + sFrom + "|" + sTo + "|" + scope;
+        } else {
+            param = period + "|" + scope;
+        }
+
         try {
-            var res = window.external.InvokeTemplate("GetReport", period + "|" + scope);
+            var res = window.external.InvokeTemplate("GetReport", param);
             if (!res || (typeof res === "string" && res.indexOf("ERROR") === 0)) {
                 alert("Ошибка загрузки отчёта: " + res); return;
             }
@@ -2152,6 +2382,10 @@
 
     // Вызов после того, как все функции определены
     kbInitHierarchy();
+
+    // Инициализация фильтра периода — отдельно от kbInitHierarchy,
+    // потому что та делает ранний return для роли "regular".
+    if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
 
     // Авто-открытие карточки из уведомлений
     var autoOpenEl = document.getElementById("kb-auto-open-task");

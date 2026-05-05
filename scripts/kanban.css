@@ -626,6 +626,147 @@
     .kb-cal .kb-cal-table td.empty { cursor: default; }
     .kb-cal .kb-cal-table td.empty:hover { background: none !important; }
 
+/* ── Фильтр по периоду (компактный toggle + dropdown) ── */
+    .kb-period-wrap {
+        float: left;
+        margin-top: 8px;
+        margin-left: 16px;
+        position: relative;
+        white-space: nowrap;
+    }
+    .kb-period-toggle {
+        height: 30px;
+        padding: 5px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        color: #1f2937;
+        cursor: pointer;
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+    .kb-period-toggle:hover { background: #f3f4f6; border-color: #9ca3af; }
+    .kb-period-toggle.kb-period-active {
+        background: #eff6ff;
+        border-color: #2563eb;
+        color: #1d4ed8;
+    }
+    .kb-period-toggle .fa-calendar { margin-right: 6px; }
+    .kb-period-panel {
+        position: absolute;
+        top: 36px;
+        left: 0;
+        z-index: 1000;
+        width: 280px;
+        background: #fff;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    }
+    .kb-period-panel-title {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #6b7280;
+        margin-bottom: 6px;
+    }
+    .kb-period-presets {
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        -ms-flex-direction: column;
+        -webkit-box-orient: vertical;
+        -webkit-box-direction: normal;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .kb-period-preset-btn {
+        text-align: left;
+        height: 28px;
+        padding: 4px 10px;
+        font-size: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 5px;
+        background: #f9fafb;
+        color: #374151;
+        cursor: pointer;
+        margin-bottom: 4px;
+        width: 100%;
+    }
+    .kb-period-preset-btn:hover {
+        background: #eff6ff;
+        border-color: #93c5fd;
+        color: #1d4ed8;
+    }
+    .kb-period-divider {
+        height: 1px;
+        background: #e5e7eb;
+        margin: 10px 0;
+    }
+    .kb-period-row {
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        -webkit-box-align: center;
+        -ms-flex-align: center;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .kb-period-row-lbl {
+        width: 24px;
+        font-size: 12px;
+        color: #4b5563;
+        font-weight: 600;
+    }
+    .kb-period-row-wrap { flex: 1; position: relative; display: inline-block; }
+    .kb-period-input {
+        height: 30px;
+        padding: 4px 6px;
+        font-size: 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        color: #1f2937;
+        -webkit-box-sizing: border-box;
+        box-sizing: border-box;
+        width: 100%;
+    }
+    .kb-period-actions {
+        margin-top: 10px;
+        display: -webkit-box;
+        display: -ms-flexbox;
+        display: flex;
+        gap: 6px;
+    }
+    .kb-period-btn {
+        height: 30px;
+        padding: 0 12px;
+        font-size: 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #f3f4f6;
+        color: #1f2937;
+        cursor: pointer;
+        flex: 1;
+        margin-right: 6px;
+    }
+    .kb-period-btn:hover { background: #e5e7eb; }
+    .kb-period-btn:last-child { margin-right: 0; }
+    .kb-period-btn-primary {
+        background: #2563eb;
+        color: #fff;
+        border-color: #2563eb;
+    }
+    .kb-period-btn-primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .kb-period-btn-reset {
+        background: #fff;
+        color: #6b7280;
+    }
+
 /* ══════════════════════════════════════════════════════════════════
    ОТЧЁТ (Report modal)
    ══════════════════════════════════════════════════════════════════ */
