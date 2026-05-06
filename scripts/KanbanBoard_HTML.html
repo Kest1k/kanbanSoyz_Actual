@@ -345,6 +345,11 @@
                         <i class="fa fa-comment-o"></i> {{ t.commentCount }}
                     </span>
                     {% endif %}
+                    {% if t.subtaskTotal > 0 %}
+                    <span class="kb-subt-badge" title="Чек-лист: {{ t.subtaskDone }} из {{ t.subtaskTotal }}">
+                        ☑ {{ t.subtaskDone }}/{{ t.subtaskTotal }}
+                    </span>
+                    {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
                 <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
@@ -411,6 +416,11 @@
                         <i class="fa fa-comment-o"></i> {{ t.commentCount }}
                     </span>
                     {% endif %}
+                    {% if t.subtaskTotal > 0 %}
+                    <span class="kb-subt-badge" title="Чек-лист: {{ t.subtaskDone }} из {{ t.subtaskTotal }}">
+                        ☑ {{ t.subtaskDone }}/{{ t.subtaskTotal }}
+                    </span>
+                    {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
                 <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
@@ -474,6 +484,11 @@
                         <i class="fa fa-comment-o"></i> {{ t.commentCount }}
                     </span>
                     {% endif %}
+                    {% if t.subtaskTotal > 0 %}
+                    <span class="kb-subt-badge" title="Чек-лист: {{ t.subtaskDone }} из {{ t.subtaskTotal }}">
+                        ☑ {{ t.subtaskDone }}/{{ t.subtaskTotal }}
+                    </span>
+                    {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
                 <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
@@ -525,6 +540,11 @@
                         <i class="fa fa-comment-o"></i> {{ t.commentCount }}
                     </span>
                     {% endif %}
+                    {% if t.subtaskTotal > 0 %}
+                    <span class="kb-subt-badge" title="Чек-лист: {{ t.subtaskDone }} из {{ t.subtaskTotal }}">
+                        ☑ {{ t.subtaskDone }}/{{ t.subtaskTotal }}
+                    </span>
+                    {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
                 <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
@@ -560,7 +580,7 @@
                     <button type="button" class="kb-date-btn" onclick="calToggle('rpt-period-from')">&#128197;</button>
 <div id="kb-cal-rpt-period-from" class="kb-cal" style="display:none;"></div>
                 </span>
-                <span style="margin:0 4px;">—</span>
+                <span style="margin:0 4px;">–</span>
                 <span class="kb-date-wrap">
                     <input type="text" id="rpt-period-to" readonly="readonly"
                         placeholder="По" class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
@@ -611,6 +631,7 @@
             <input type="hidden" id="tcm-key">
             <div class="tcm-tabs">
                 <div id="tab-btn-main" class="tcm-tab active" onclick="tcmSwitchTab('main')">Основное</div>
+                <div id="tab-btn-subt" class="tcm-tab" onclick="tcmSwitchTab('subt')">Чек-лист <span id="tcm-tab-subt-badge" class="tcm-tab-badge" style="display:none;">0/0</span></div>
                 <div id="tab-btn-chat" class="tcm-tab" onclick="tcmSwitchTab('chat')">Обсуждение <span id="tcm-tab-chat-badge" class="tcm-tab-badge" style="display:none;">0</span></div>
                 <div id="tab-btn-hist" class="tcm-tab" onclick="tcmSwitchTab('hist')">История</div>
             </div>
@@ -672,6 +693,20 @@
                 </div>
             </div>
             </div>
+            <div id="tcm-tab-subt" class="tcm-tab-content">
+                <div class="kb-subt-header">
+                    <span class="kb-subt-title">Чек-лист</span>
+                    <span class="kb-subt-progress" id="tcm-subt-progress">0 / 0</span>
+                </div>
+                <div class="kb-subt-list" id="tcm-subt-list"></div>
+                <div class="kb-subt-add">
+                    <input type="text" id="tcm-subt-input" class="form-control input-sm"
+                        placeholder="Добавить пункт чек-листа..."
+                        onkeydown="tcmSubtasksKeydown(event)" maxlength="500">
+                    <button type="button" class="tcm-btn tcm-btn-primary"
+                        onclick="tcmSubtasksAdd()">+</button>
+                </div>
+            </div>
             <div id="tcm-tab-chat" class="tcm-tab-content">
             <div class="tcm-chat" id="tcm-chat">
                 <div class="tcm-chat-list" id="tcm-chat-list"></div>
@@ -691,7 +726,7 @@
         </div>
         <div class="tcm-footer">
             <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSave()">Сохранить</button>
-            <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmClose()">Отмена</button>
+            <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmClose()">Закрыть</button>
             <button type="button" id="tcm-btn-del" class="tcm-btn tcm-btn-danger" onclick="tcmDelete()"
                 style="display:none;">Удалить</button>
         </div>
@@ -709,7 +744,7 @@
 
             <div class="help-section">
                 <div class="help-section-title">Что такое канбан-доска?</div>
-                <p>Канбан-доска — это наглядный инструмент управления задачами. Все задачи отображаются
+                <p>Канбан-доска – это наглядный инструмент управления задачами. Все задачи отображаются
                    в виде карточек, распределённых по колонкам в зависимости от их состояния.
                    Вы всегда видите, что нужно сделать, что в работе и что уже выполнено.</p>
             </div>
@@ -759,7 +794,7 @@
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-pencil"></i> Открыть карточку</td>
-                        <td>Нажмите два раза ЛКМ на карточку, чтобы увидеть подробности, оставить комментарий или прикрепить документ. Внутри карточки — три вкладки: <b>Основное</b>, <b>Обсуждение</b> и <b>История</b></td>
+                        <td>Нажмите два раза ЛКМ на карточку, чтобы увидеть подробности, оставить комментарий или прикрепить документ. Внутри карточки – четыре вкладки: <b>Основное</b>, <b>Чек-лист</b>, <b>Обсуждение</b> и <b>История</b></td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-paperclip"></i> Вложения</td>
@@ -767,7 +802,15 @@
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-comment"></i> Комментарии</td>
-                        <td>Внутри карточки на вкладке <b>«Обсуждение»</b> — напишите сообщение и нажмите <b>«Отправить»</b> (или Ctrl+Enter). Свои комментарии можно <b>редактировать</b> (✎) и удалять</td>
+                        <td>Внутри карточки на вкладке <b>«Обсуждение»</b> – напишите сообщение и нажмите <b>«Отправить»</b> (или Ctrl+Enter). Свои комментарии можно <b>редактировать</b> (✎) и удалять</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-check-square-o"></i> Чек-лист</td>
+                        <td>Внутри карточки на вкладке <b>«Чек-лист»</b> – введите пункт и нажмите <b>Enter</b> или <b>+</b>. Отмечайте пункты галочкой по мере выполнения. На карточке доски виден прогресс <b>☑ выполнено/всего</b>. Удалить пункт – наведите курсор и нажмите <b>×</b></td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-floppy-o"></i> Сохранить и закрыть</td>
+                        <td>Кнопка <b>«Сохранить»</b> внизу карточки записывает изменения, закрывает её и обновляет доску. То же самое – <b>Ctrl+S</b> из любого поля. Кнопка <b>«Закрыть»</b> просто закрывает карточку без сохранения текущих правок (уже сохранённое – комментарии, чек-лист – остаётся). Хотите сохранить и продолжить править – нажмите <b>Enter</b> вне полей ввода</td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-trash"></i> Удалить задачу</td>
@@ -785,11 +828,11 @@
                     </tr>
                     <tr>
                         <td class="help-action">Изменить исполнителя</td>
-                        <td>Создатель задачи может в любой момент <b>поменять исполнителя</b> — откройте карточку и выберите другого сотрудника в поле «Исполнитель»</td>
+                        <td>Создатель задачи может в любой момент <b>поменять исполнителя</b> – откройте карточку и выберите другого сотрудника в поле «Исполнитель»</td>
                     </tr>
                     <tr>
                         <td class="help-action">Групповая задача</td>
-                        <td>Выберите режим <b>«Нескольким»</b> и отметьте галочками нужных сотрудников — каждый получит свою копию задачи</td>
+                        <td>Выберите режим <b>«Нескольким»</b> и отметьте галочками нужных сотрудников – каждый получит свою копию задачи</td>
                     </tr>
                     <tr>
                         <td class="help-action">Просмотр подчинённых</td>
@@ -797,9 +840,37 @@
                     </tr>
                     <tr>
                         <td class="help-action">Отчёт</td>
-                        <td>Нажмите <b>«Отчёт»</b> — увидите сводку по задачам за период: сколько создано, выполнено, просрочено</td>
+                        <td>Нажмите <b>«Отчёт»</b> – увидите сводку по задачам за период: сколько создано, выполнено, просрочено</td>
                     </tr>
                 </table>
+            </div>
+
+            <div class="help-section">
+                <div class="help-section-title">Подзадачи (чек-лист)</div>
+                <p>Большую задачу удобно разбить на мелкие шаги. Вкладка <b>«Чек-лист»</b> внутри карточки – это список пунктов с галочками.</p>
+                <table class="help-table">
+                    <tr>
+                        <td class="help-action">Добавить пункт</td>
+                        <td>Введите текст в поле внизу вкладки и нажмите <b>Enter</b> (или кнопку <b>+</b>). До 500 символов на пункт, до 200 пунктов на задачу</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Отметить выполненным</td>
+                        <td>Кликните по чекбоксу слева от пункта. Текст станет серым и зачёркнутым. При наведении видно, кто и когда выполнил пункт</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Снять отметку</td>
+                        <td>Кликните по чекбоксу повторно – пункт снова станет активным</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Удалить пункт</td>
+                        <td>Наведите курсор на пункт и нажмите <b>×</b> справа. Подтвердите удаление</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Прогресс</td>
+                        <td>В шапке вкладки и на самой карточке доски виден счётчик <b>☑ выполнено/всего</b> (например, <b>☑ 2/5</b>)</td>
+                    </tr>
+                </table>
+                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Чек-лист – это «лёгкие» пункты внутри одной задачи. Если шаг требует отдельного исполнителя или срока – создайте полноценную задачу.</p>
             </div>
 
             <div class="help-section">
@@ -822,18 +893,18 @@
                         <td>Нажмите <b>«Сбросить»</b> чтобы убрать фильтр и показать все задачи</td>
                     </tr>
                 </table>
-                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Для задач в работе используется дата создания, для завершённых — дата выполнения.</p>
+                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Для задач в работе используется дата создания, для завершённых – дата выполнения.</p>
             </div>
 
             <div class="help-section">
                 <div class="help-section-title">Полезные подсказки</div>
                 <ul class="help-tips">
-                    <li>Просроченные задачи отображаются <span style="color:#dc2626;font-weight:600;">красным цветом</span> — обратите на них внимание</li>
+                    <li>Просроченные задачи отображаются <span style="color:#dc2626;font-weight:600;">красным цветом</span> – обратите на них внимание</li>
                     <li>К задаче можно добавить <b>теги</b> для группировки (например, название проекта или направления)</li>
-                    <li>Все изменения в задаче записываются в <b>«Историю изменений»</b> — всегда видно, кто и когда что менял</li>
+                    <li>Все изменения в задаче записываются в <b>«Историю изменений»</b> – всегда видно, кто и когда что менял</li>
                     <li>При назначении задачи другому сотруднику ему приходит <b>уведомление</b> в системе</li>
-                    <li>Когда вам пишут <b>комментарий</b> — появляется всплывающее окно с текстом. Нажмите <b>«Открыть карточку»</b>, чтобы сразу перейти к обсуждению</li>
-                    <li>Обновляйте статус задачи вовремя — это помогает коллегам и руководителям видеть реальную картину</li>
+                    <li>Когда вам пишут <b>комментарий</b> – появляется всплывающее окно с текстом. Нажмите <b>«Открыть карточку»</b>, чтобы сразу перейти к обсуждению</li>
+                    <li>Обновляйте статус задачи вовремя – это помогает коллегам и руководителям видеть реальную картину</li>
                 </ul>
             </div>
 
@@ -843,8 +914,8 @@
                     <tr><td><kbd>F5</kbd></td>                          <td>Обновить доску</td></tr>
                     <tr><td><kbd>F1</kbd></td>                          <td>Открыть / закрыть справку</td></tr>
                     <tr><td><kbd>Esc</kbd></td>                         <td>Закрыть верхнее окно (cправка / отчёт / карточка / панель создания)</td></tr>
-                    <tr><td><kbd>Enter</kbd></td>                       <td>Сохранить изменения в карточке не закрывая (не в зоне ввода текста)</td></tr>
-                    <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>         <td>Сохранить и закрыть карточку задачи (из любого поля)</td></tr>
+                    <tr><td><kbd>Enter</kbd></td>                       <td>Сохранить изменения в карточке <b>не закрывая</b> (без обновления доски – для серии быстрых правок)</td></tr>
+                    <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>         <td>Сохранить, закрыть карточку <b>и обновить доску</b> (из любого поля)</td></tr>
                     <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td>     <td>Отправить комментарий в чате</td></tr>
                     <tr><td><kbd>N</kbd></td>                           <td>Создать новую задачу</td></tr>
                 </table>
@@ -865,12 +936,23 @@
             <button type="button" class="tcm-close" onclick="closeWhatsNew()" title="Закрыть">&#215;</button>
         </div>
         <div class="help-body">
+            <div style="margin-bottom: 20px; border-left: 3px solid #5e6ad2; padding-left: 15px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Чек-лист в задаче</div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">06.05.2026</div>
+                <ul class="help-tips">
+                    <li>В карточке задачи появилась новая вкладка <b>«Чек-лист»</b> – большую задачу теперь можно разбить на мелкие шаги с галочками.</li>
+                    <li>Введите пункт и нажмите <b>Enter</b> (или <b>+</b>) – до 500 символов на пункт, до 200 пунктов на задачу.</li>
+                    <li>Отмечайте пункты по мере выполнения. При наведении видно, <b>кто и когда</b> отметил пункт.</li>
+                    <li>На карточке доски виден счётчик прогресса <b>☑ выполнено/всего</b> (например, <b>☑ 2/5</b>) – сразу понятно, насколько задача близка к завершению.</li>
+                    <li>Удалить пункт – наведите на него курсор и нажмите <b>×</b>.</li>
+                </ul>
+            </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #6366f1; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Фильтр по периоду</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">05.05.2026</div>
                 <ul class="help-tips">
-                    <li>В верхней панели появилась кнопка 📅 <b>«Период»</b> — позволяет фильтровать задачи по дате. Для задач в работе используется дата создания, для завершённых — дата выполнения.</li>
-                    <li><b>Быстрый выбор</b>: на этой неделе, в этом месяце, за 3 месяца, полгода, год — одним нажатием.</li>
+                    <li>В верхней панели появилась кнопка 📅 <b>«Период»</b> – позволяет фильтровать задачи по дате. Для задач в работе используется дата создания, для завершённых – дата выполнения.</li>
+                    <li><b>Быстрый выбор</b>: на этой неделе, в этом месяце, за 3 месяца, полгода, год – одним нажатием.</li>
                     <li><b>Свой диапазон</b>: укажите точные даты «С» и «По» через встроенный календарь.</li>
                     <li>В отчёте добавлен пункт <b>«Произвольный период»</b> для формирования сводки за любой диапазон дат.</li>
                 </ul>
@@ -879,7 +961,7 @@
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Горячие клавиши</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">04.05.2026</div>
                 <ul class="help-tips">
-                    <li>Добавлены горячие клавиши для быстрой работы: <b>F5</b> — обновить доску, <b>F1</b> — справка, <b>Esc</b> — закрыть окно, <b>Enter</b> — сохранить карточку, <b>Ctrl+S</b> — сохранить и закрыть, <b>Ctrl+Enter</b> — отправить комментарий, <b>N</b> — новая задача.</li>
+                    <li>Добавлены горячие клавиши для быстрой работы: <b>F5</b> – обновить доску, <b>F1</b> – справка, <b>Esc</b> – закрыть окно, <b>Enter</b> – сохранить карточку, <b>Ctrl+S</b> – сохранить и закрыть, <b>Ctrl+Enter</b> – отправить комментарий, <b>N</b> – новая задача.</li>
                     <li>Блок горячих клавиш добавлен в справку (кнопка <b>«Справка»</b> в правом верхнем углу).</li>
                 </ul>
             </div>

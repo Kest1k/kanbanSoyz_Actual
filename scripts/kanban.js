@@ -872,6 +872,135 @@
             .replace(/'/g, "&#39;");
     }
 
+    // ── Шаг 11: Подзадачи / чек-лист ────────────────────────────────────
+    var _tcmSubtasks = { taskKey: "", items: [] };
+
+    window.tcmSubtasksLoad = function (nameKey) {
+        _tcmSubtasks.taskKey = nameKey || "";
+        _tcmSubtasks.items   = [];
+        var safeKey = String(nameKey || "").replace(/\|/g, "");
+        try {
+            var raw = window.external.InvokeTemplate("GetSubtasks", safeKey);
+            _tcmSubtasks.items = JSON.parse(String(raw || "[]"));
+            if (!_tcmSubtasks.items || !_tcmSubtasks.items.length) _tcmSubtasks.items = [];
+        } catch (e) { _tcmSubtasks.items = []; }
+        tcmSubtasksRender();
+    };
+
+    window.tcmSubtasksRender = function () {
+        var list = document.getElementById("tcm-subt-list");
+        if (!list) return;
+        var items = _tcmSubtasks.items || [];
+        var html = "", i, it, doneClass, doneTitle;
+        for (i = 0; i < items.length; i++) {
+            it = items[i];
+            doneClass = (it.done === "1") ? " kb-subt-done" : "";
+            doneTitle = (it.done === "1" && it.doneBy)
+                ? ("Выполнено: " + it.doneBy + " (" + (it.doneAt || "") + ")")
+                : "";
+                
+            html += '<div class="kb-subt-item' + doneClass + '" data-id="' + tcmChatEsc(it.id) + '">'
+                  + '<label class="kb-subt-cb-wrap">'
+                  + '<input type="checkbox" class="kb-subt-cb"'
+                  + (it.done === "1" ? " checked" : "")
+                  // ВАЖНО: используем onchange для IE11
+                  + ' onchange="tcmSubtasksToggle(\'' + tcmChatEsc(it.id) + '\')">'
+                  + '<span class="kb-subt-cb-fake"></span>'
+                  + '</label>'
+                  + '<span class="kb-subt-text" title="' + tcmChatEsc(doneTitle) + '">'
+                  + tcmChatEsc(it.text || "") + '</span>'
+                  + '<button type="button" class="kb-subt-del" '
+                  + 'onclick="tcmSubtasksDelete(\'' + tcmChatEsc(it.id) + '\')" title="Удалить">×</button>'
+                  + '</div>';
+        }
+        list.innerHTML = html || '<div class="kb-subt-empty">Нет подзадач</div>';
+
+        var total = items.length, done = 0;
+        for (i = 0; i < items.length; i++) if (items[i].done === "1") done++;
+
+        var pr = document.getElementById("tcm-subt-progress");
+        if (pr) pr.innerHTML = total ? (done + " / " + total) : "0 / 0";
+
+        var badge = document.getElementById("tcm-tab-subt-badge");
+        if (badge) {
+            if (total > 0) {
+                badge.innerHTML = done + "/" + total;
+                badge.style.display = "";
+            } else {
+                badge.style.display = "none";
+            }
+        }
+    };
+
+    window.tcmSubtasksAdd = function () {
+        var inp = document.getElementById("tcm-subt-input");
+        if (!inp) return;
+        var text = (inp.value || "").replace(/\|/g, " ").substring(0, 500).replace(/^\s+|\s+$/g, "");
+        if (!text) return;
+        var safeKey = String(_tcmSubtasks.taskKey).replace(/\|/g, "");
+        try {
+            var raw = window.external.InvokeTemplate("AddSubtask", safeKey + "|" + text);
+            var s = String(raw || "");
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка добавления: " + s); return; }
+            var obj = JSON.parse(s);
+            _tcmSubtasks.items.push(obj);
+            inp.value = "";
+            tcmSubtasksRender();
+            tcmInvalidateRevsCache();
+            _tcmRevsLoaded = false;
+            var rb = document.getElementById("tcm-revs-body");
+            if (rb) rb.innerHTML = "Загрузка...";
+        } catch (e) { /* no-op */ }
+    };
+
+    window.tcmSubtasksToggle = function (subtaskId) {
+        var safeKey = String(_tcmSubtasks.taskKey).replace(/\|/g, "");
+        var safeId  = String(subtaskId).replace(/\|/g, "");
+        try {
+            var raw = window.external.InvokeTemplate("ToggleSubtask", safeKey + "|" + safeId);
+            var s = String(raw || "");
+            if (s.indexOf("ERROR") === 0) return;
+            var obj = JSON.parse(s);
+            for (var i = 0; i < _tcmSubtasks.items.length; i++) {
+                if (_tcmSubtasks.items[i].id === subtaskId) {
+                    _tcmSubtasks.items[i] = obj;
+                    break;
+                }
+            }
+            tcmSubtasksRender();
+            tcmInvalidateRevsCache();
+            _tcmRevsLoaded = false;
+            var rb = document.getElementById("tcm-revs-body");
+            if (rb) rb.innerHTML = "Загрузка...";
+        } catch (e) { /* no-op */ }
+    };
+
+    window.tcmSubtasksDelete = function (subtaskId) {
+        if (!confirm("Удалить подзадачу?")) return;
+        var safeKey = String(_tcmSubtasks.taskKey).replace(/\|/g, "");
+        var safeId  = String(subtaskId).replace(/\|/g, "");
+        try {
+            var res = window.external.InvokeTemplate("DeleteSubtask", safeKey + "|" + safeId);
+            if (String(res || "").indexOf("OK") !== 0) return;
+            for (var i = 0; i < _tcmSubtasks.items.length; i++) {
+                if (_tcmSubtasks.items[i].id === subtaskId) {
+                    _tcmSubtasks.items.splice(i, 1);
+                    break;
+                }
+            }
+            tcmSubtasksRender();
+            tcmInvalidateRevsCache();
+            _tcmRevsLoaded = false;
+            var rb = document.getElementById("tcm-revs-body");
+            if (rb) rb.innerHTML = "Загрузка...";
+        } catch (e) { /* no-op */ }
+    };
+
+    window.tcmSubtasksKeydown = function (e) {
+        var code = e.keyCode || e.which;
+        if (code === 13) { tcmSubtasksAdd(); e.preventDefault(); }
+    };
+
     // ── Ролевая иерархия: каскадные селекторы (шаг 05) ──────────────────
     // Роли: regular → панель скрыта; headOfSector/leadEngineer → [Сотрудник ▼];
     //        headOfDept → [Сектор ▼][Сотрудник ▼]; admin → все три.
@@ -1711,12 +1840,15 @@
             }
             _tcmData = JSON.parse(String(res));
             tcmRender(_tcmData);
-            
+
+            // Подзадачи: грузим отдельным вызовом, чтобы не раздувать GetTaskDetails
+            if (typeof tcmSubtasksLoad === "function") tcmSubtasksLoad(nameKey);
+
             // СНАЧАЛА делаем оверлей видимым (чтобы у элементов появилась высота)
             overlay.className = "tcm-overlay visible";
-            
+
             // ЗАТЕМ переключаем вкладку (иначе scrollHeight в чате будет равен 0)
-            tcmSwitchTab(targetTab || 'main'); 
+            tcmSwitchTab(targetTab || 'main');
             
         } catch (e) {
             alert("Ошибка: " + (e.message || e));
@@ -2174,7 +2306,17 @@
         }
     };
 
-    window.tcmSave = function () {
+    // tcmSave(opts):
+    //   opts.closeAfter (default true)  — закрыть карточку после успешного сохранения
+    //   opts.refreshAfter (default true) — обновить доску после успешного сохранения
+    // Без аргументов (кнопка «Сохранить», Ctrl+S, tcmDelete) — закрыть и обновить.
+    // Enter из tcmHotkey передаёт {closeAfter:false, refreshAfter:false} —
+    // классическое «сохранить, продолжить редактирование».
+    window.tcmSave = function (opts) {
+        opts = opts || {};
+        var closeAfter   = opts.closeAfter   !== false;
+        var refreshAfter = opts.refreshAfter !== false;
+
         var nameKey = document.getElementById("tcm-key").value;
         var title = document.getElementById("tcm-title").value;
         var status = document.getElementById("tcm-status").value;
@@ -2204,7 +2346,15 @@
                 badge.innerHTML = tcmEsc(snames[st] || "");
             }
             if (_tcmData) { _tcmData.status = st; }
-            tcmShowMsg("ok", "");
+
+            if (closeAfter) {
+                tcmClose();
+            } else {
+                tcmShowMsg("ok", "");
+            }
+            if (refreshAfter && typeof kbRefreshBoard === "function") {
+                kbRefreshBoard();
+            }
         } catch (e) {
             tcmShowMsg("err", "Ошибка: " + (e.message || e));
         }
@@ -2473,7 +2623,8 @@
         if (code === 13 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
             if (kbIsOverlayVisible("tcmOverlay") && !kbIsTextareaTarget(target)) {
                 if (target && target.id === "tcm-chat-text") return;
-                if (typeof tcmSave === "function") tcmSave();
+                // Enter — «сохранить, не закрывая, без рефреша доски» (быстрая правка нескольких полей)
+                if (typeof tcmSave === "function") tcmSave({ closeAfter: false, refreshAfter: false });
                 if (e.preventDefault) e.preventDefault();
                 return;
             }
@@ -2482,8 +2633,8 @@
         if (code === 83 && e.ctrlKey && !e.shiftKey && !e.altKey) {
             if (kbIsOverlayVisible("tcmOverlay")) {
                 if (e.preventDefault) e.preventDefault();
+                // Ctrl+S — save+close+refresh (поведение по умолчанию tcmSave)
                 if (typeof tcmSave === "function") tcmSave();
-                if (typeof tcmClose === "function") tcmClose();
                 return false;
             }
         }

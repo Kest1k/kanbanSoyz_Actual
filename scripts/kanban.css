@@ -2229,3 +2229,179 @@
         font-size: 10px;
         margin-left: 4px;
     }
+
+/* ─── Чек-лист (подзадачи) ───────────────────────────────────────────── */
+.kb-subt-header {
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-pack: justify;
+    justify-content: space-between;
+    -ms-flex-align: center;
+    align-items: center;
+    margin-bottom: 10px;
+    -ms-flex-negative: 0;
+    flex-shrink: 0; /* Фиксируем шапку, чтобы не сжималась */
+}
+.kb-subt-title { font-weight: 600; font-size: 13px; color: #1f2937; }
+.kb-subt-progress {
+    font-size: 12px;
+    color: #4b5563;
+    background: #f3f4f6;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-variant-numeric: tabular-nums;
+}
+.kb-subt-list {
+    margin-bottom: 12px;
+    padding: 2px 0;
+    /* Убираем max-height, разрешаем списку тянуться на всю высоту вкладки */
+    -ms-flex: 1 1 auto;
+    flex: 1 1 auto;
+    min-height: 0; /* Обязательное условие для скролла во flexbox */
+    overflow-y: auto;
+}
+.kb-subt-empty {
+    color: #9ca3af;
+    font-size: 12px;
+    padding: 14px 8px;
+    text-align: center;
+    font-style: italic;
+}
+
+/* ── Кастомный чекбокс для IE11 (Pure CSS, без SVG) ── */
+.kb-subt-cb-wrap {
+    position: relative;
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    margin: 0 12px 0 0; /* Жесткий отступ 12px от чекбокса до текста */
+    -ms-flex-negative: 0;
+    flex-shrink: 0; /* Запрещаем сжимать чекбокс, если текст очень длинный */
+    cursor: pointer;
+    vertical-align: top;
+    margin-top: 1px; /* Тонкая подгонка под базовую линию текста */
+}
+
+.kb-subt-cb {
+    position: absolute;
+    left: -9999px; /* Убираем нативный чекбокс далеко за экран */
+    opacity: 0;
+}
+
+.kb-subt-cb-fake {
+    position: absolute;
+    top: 0; left: 0;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #a1a1aa; /* Красивый серый контур */
+    border-radius: 4px;
+    background: #fff;
+    box-sizing: border-box;
+    transition: all 0.15s ease;
+}
+
+/* Рисуем белую галочку чистым CSS (border-bottom + border-right и поворот) */
+.kb-subt-cb-fake::after {
+    content: '';
+    position: absolute;
+    display: none; /* Скрыта, пока чекбокс не нажат */
+    left: 4px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid #fff;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.kb-subt-cb-wrap:hover .kb-subt-cb-fake { 
+    border-color: #4a6fa5; 
+}
+
+/* Состояние: Нажат */
+.kb-subt-cb:checked + .kb-subt-cb-fake {
+    background-color: #4a6fa5;
+    border-color: #4a6fa5;
+}
+
+.kb-subt-cb:checked + .kb-subt-cb-fake::after {
+    display: block; /* Показываем галочку */
+}
+
+/* Выравнивание элементов внутри строки */
+.kb-subt-item {
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-align: start;
+    align-items: flex-start; /* Текст обтекает чекбокс сверху вниз */
+    padding: 8px 10px;
+    margin: 2px 0;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #1f2328;
+    border: 0;
+    border-radius: 6px;
+    cursor: default;
+    transition: background-color 0.12s ease;
+}
+.kb-subt-item:hover { background: #f3f4f6; }
+.kb-subt-item:hover .kb-subt-del { visibility: visible; }
+
+.kb-subt-text {
+    -ms-flex: 1 1 auto;
+    flex: 1 1 auto;
+    word-break: break-word;
+    user-select: text;
+}
+.kb-subt-done .kb-subt-text {
+    color: #9ca3af;
+    text-decoration: line-through;
+    text-decoration-color: #9ca3af;
+}
+
+.kb-subt-del {
+    background: transparent;
+    border: 0;
+    color: #8a8f98;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 6px;
+    margin-left: 8px;
+    border-radius: 3px;
+    visibility: hidden;
+    -ms-flex-negative: 0;
+    flex-shrink: 0;
+    transition: color 0.12s ease, background-color 0.12s ease;
+}
+.kb-subt-del:hover {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
+.kb-subt-add {
+    display: -ms-flexbox;
+    display: flex;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+    -ms-flex-negative: 0;
+    flex-shrink: 0; /* Фиксируем поле ввода в самом низу вкладки */
+}
+.kb-subt-add input {
+    -ms-flex: 1 1 auto;
+    flex: 1 1 auto;
+    margin-right: 6px;
+}
+
+/* Бейдж на карточке доски */
+.kb-subt-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    margin-left: 4px;
+    background: #e0f2fe;
+    color: #075985;
+    border-radius: 3px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}

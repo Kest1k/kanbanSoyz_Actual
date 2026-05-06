@@ -192,6 +192,10 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "DeleteComment": return DoDeleteComment( inputParams );
             case "EditComment":   return DoEditComment( inputParams );
             case "GetCardCommentCount": return DoGetCardCommentCount( inputParams );
+            case "AddSubtask":    return DoAddSubtask( inputParams );
+            case "ToggleSubtask": return DoToggleSubtask( inputParams );
+            case "DeleteSubtask": return DoDeleteSubtask( inputParams );
+            case "GetSubtasks":   return DoGetSubtasks( inputParams );
             case "ClearAutoOpen": obj.PropertyBag.Remove( "AutoOpenTask" ); return "OK";
         }
     }
@@ -963,6 +967,12 @@ private object BuildCardData( InfoObject task, int status )
         catch { }
     }
 
+    // Денормализованные счётчики подзадач — читаем напрямую, без парсинга JSON.
+    int subtaskTotal = 0;
+    int subtaskDone  = 0;
+    try { subtaskTotal = task.GetValue<int>( "SubtasksTotal" ); } catch { }
+    try { subtaskDone  = task.GetValue<int>( "SubtasksDone"  ); } catch { }
+
     return new {
         id              = taskId,
         isOwner         = isOwner,
@@ -978,6 +988,8 @@ private object BuildCardData( InfoObject task, int status )
         completedDate   = completedDateStr,
         attachmentCount = GetAttachmentCount( task ),
         commentCount    = GetCommentCount( task ),
+        subtaskTotal    = subtaskTotal,
+        subtaskDone     = subtaskDone,
         tags            = HtmlEnc( tags ),
         isOverdue       = isOverdue,
         isNew           = isNew,
@@ -3024,6 +3036,270 @@ private object DoGetCardCommentCount( object inputParams )
     return GetCommentCount( task ).ToString();
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Шаг 11: Подзадачи / чекбоксы (Phase 2 — задача №2)
+// ═══════════════════════════════════════════════════════════════════════
+// Хранение: текстовый атрибут SubtasksJSON (тот же формат, что CommentsJSON).
+// Денормализация: счётчики SubtasksTotal / SubtasksDone (IntegerNumber)
+// обновляются внутри каждой мутирующей операции, чтобы BeforeRender
+// не парсил JSON для каждой карточки.
+
+private System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, string>>
+    ParseSubtasks( string json )
+{
+    return ParseComments( json );
+}
+
+private string SerializeSubtasks(
+    System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, string>> items )
+{
+    return SerializeComments( items );
+}
+
+// ─── AddSubtask ─────────────────────────────────────────────────────
+// inputParams: "taskKey|text"
+// Возвращает JSON созданной подзадачи или ERROR:*
+private object DoAddSubtask( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var taskKey = parts[0].Trim();
+    var text    = parts[1].Trim();
+    if( string.IsNullOrEmpty( taskKey ) ) return "ERROR:NoKey";
+    if( string.IsNullOrEmpty( text ) )    return "ERROR:EmptyText";
+    if( text.Length > 500 ) text = text.Substring( 0, 500 );
+
+    try
+    {
+        var task = GetTaskByKeyOrNull( taskKey );
+        if( task == null ) return "ERROR:NotFound";
+
+        // Чтение оригинальной оболочки — вне транзакции.
+        var json  = task.GetString( "SubtasksJSON" ) ?? "";
+        var items = ParseSubtasks( json );
+
+        if( items.Count >= 200 ) return "ERROR:LimitReached";
+
+        // Генерация id: s + (max(id)+1)
+        int maxId = 0;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "id", out v ) && v.StartsWith( "s" ) )
+            {
+                int n;
+                if( int.TryParse( v.Substring( 1 ), out n ) && n > maxId ) maxId = n;
+            }
+        }
+        var newId = "s" + (maxId + 1).ToString();
+
+        var user = Service.GetCurrentUser();
+        var userName = user != null ? (user.ToString() ?? "") : "";
+        var now = DateTime.Now.ToString( "yyyy-MM-ddTHH:mm:ss",
+                       System.Globalization.CultureInfo.InvariantCulture );
+
+        var item = new System.Collections.Generic.Dictionary<string, string>();
+        item["id"]        = newId;
+        item["text"]      = text;
+        item["done"]      = "0";
+        item["createdBy"] = userName;
+        item["createdAt"] = now;
+        items.Add( item );
+
+        // Денормализованные счётчики
+        int total = items.Count;
+        int done  = 0;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "done", out v ) && v == "1" ) done++;
+        }
+
+        task["SubtasksJSON"]  = SerializeSubtasks( items );
+        task["SubtasksTotal"] = total;
+        task["SubtasksDone"]  = done;
+        AppendSubtaskChangeLog( task, "Добавлен пункт", text );
+        task.Save();
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append( "{" );
+        bool first = true;
+        foreach( var kv in item )
+        {
+            if( !first ) sb.Append( "," );
+            sb.Append( "\"" + JsonEscape( kv.Key ) + "\":\"" + JsonEscape( kv.Value ) + "\"" );
+            first = false;
+        }
+        sb.Append( "}" );
+        return sb.ToString();
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoAddSubtask: " + ex.Message );
+        return "ERROR:Internal";
+    }
+}
+
+// ─── ToggleSubtask ──────────────────────────────────────────────────
+// inputParams: "taskKey|subtaskId"
+// Переворачивает done 0↔1, обновляет doneBy/doneAt.
+private object DoToggleSubtask( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var taskKey   = parts[0].Trim();
+    var subtaskId = parts[1].Trim();
+
+    try
+    {
+        var task = GetTaskByKeyOrNull( taskKey );
+        if( task == null ) return "ERROR:NotFound";
+
+        var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
+
+        int idx = -1;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "id", out v ) && v == subtaskId ) { idx = i; break; }
+        }
+        if( idx < 0 ) return "ERROR:NoSuchSubtask";
+
+        string oldDone;
+        items[idx].TryGetValue( "done", out oldDone );
+        bool newDone = !(oldDone == "1");
+        items[idx]["done"] = newDone ? "1" : "0";
+
+        // Получаем текст подзадачи для лога
+        string subText = "";
+        items[idx].TryGetValue( "text", out subText );
+        string actionStr = newDone ? "Выполнено" : "Снята отметка";
+
+        if( newDone )
+        {
+            var user = Service.GetCurrentUser();
+            items[idx]["doneBy"] = user != null ? (user.ToString() ?? "") : "";
+            items[idx]["doneAt"] = DateTime.Now.ToString( "yyyy-MM-ddTHH:mm:ss",
+                                       System.Globalization.CultureInfo.InvariantCulture );
+        }
+        else
+        {
+            items[idx].Remove( "doneBy" );
+            items[idx].Remove( "doneAt" );
+        }
+
+        int total = items.Count;
+        int done  = 0;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "done", out v ) && v == "1" ) done++;
+        }
+
+        task["SubtasksJSON"]  = SerializeSubtasks( items );
+        task["SubtasksTotal"] = total;
+        task["SubtasksDone"]  = done;
+        AppendSubtaskChangeLog( task, actionStr, subText );
+        task.Save();
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append( "{" );
+        bool first = true;
+        foreach( var kv in items[idx] )
+        {
+            if( !first ) sb.Append( "," );
+            sb.Append( "\"" + JsonEscape( kv.Key ) + "\":\"" + JsonEscape( kv.Value ) + "\"" );
+            first = false;
+        }
+        sb.Append( "}" );
+        return sb.ToString();
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoToggleSubtask: " + ex.Message );
+        return "ERROR:Internal";
+    }
+}
+
+// ─── DeleteSubtask ──────────────────────────────────────────────────
+// inputParams: "taskKey|subtaskId"
+private object DoDeleteSubtask( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var taskKey   = parts[0].Trim();
+    var subtaskId = parts[1].Trim();
+
+    try
+    {
+        var task = GetTaskByKeyOrNull( taskKey );
+        if( task == null ) return "ERROR:NotFound";
+
+        var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
+
+        int idx = -1;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "id", out v ) && v == subtaskId ) { idx = i; break; }
+        }
+        if( idx < 0 ) return "ERROR:NoSuchSubtask";
+
+        // Получаем текст перед удалением для лога
+        string subText = "";
+        items[idx].TryGetValue( "text", out subText );
+
+        items.RemoveAt( idx );
+
+        int total = items.Count;
+        int done  = 0;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "done", out v ) && v == "1" ) done++;
+        }
+
+        task["SubtasksJSON"]  = items.Count > 0 ? SerializeSubtasks( items ) : "";
+        task["SubtasksTotal"] = total;
+        task["SubtasksDone"]  = done;
+        AppendSubtaskChangeLog( task, "Удалён пункт", subText );
+        task.Save();
+
+        return "OK";
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoDeleteSubtask: " + ex.Message );
+        return "ERROR:Internal";
+    }
+}
+
+// ─── GetSubtasks ────────────────────────────────────────────────────
+// inputParams: "taskKey" — возвращает сырой JSON-массив подзадач.
+private object DoGetSubtasks( object inputParams )
+{
+    var taskKey = GetParamStr( inputParams ).Trim();
+    if( string.IsNullOrEmpty( taskKey ) ) return "[]";
+    try
+    {
+        var task = GetTaskByKeyOrNull( taskKey );
+        if( task == null ) return "[]";
+        var json = task.GetString( "SubtasksJSON" ) ?? "";
+        return string.IsNullOrEmpty( json ) ? "[]" : json;
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoGetSubtasks: " + ex.Message );
+        return "[]";
+    }
+}
+
 // ─── Уведомление о новом комментарии (Exclamation) ───────────────────
 private const string COMMENT_MSG_TEMPLATE_PATH = @"WorkLoads\BASIC\Message\ExclamationKanban";
 
@@ -3164,5 +3440,32 @@ private void AppendAttachmentChangeLog( InfoObject task, string action, string i
         task["ChangeLog"] = newLog;
     }
     catch { /* ChangeLog не критичен */ }
+}
+
+// ─── Запись в ChangeLog для подзадач (чек-листа) ──────────────────────
+private void AppendSubtaskChangeLog( InfoObject task, string action, string subtaskText )
+{
+    if( task == null ) return;
+
+    string authorName = "";
+    try { var usr = Service.GetCurrentUser(); if( usr != null ) authorName = usr.ToString() ?? ""; }
+    catch { }
+
+    var preview = subtaskText ?? "";
+    if( preview.Length > 80 ) preview = preview.Substring( 0, 80 ) + "…";
+
+    var entry = "{\"d\":\"" + DateTime.Now.ToString( "dd.MM.yyyy HH:mm" )
+              + "\",\"a\":\"" + JsonEscape( authorName )
+              + "\",\"c\":[{\"f\":\"Чек-лист\",\"o\":\"" + JsonEscape( action )
+              + "\",\"n\":\"" + JsonEscape( preview ) + "\"}]}";
+
+    var oldLog = task.GetString( "ChangeLog" ) ?? "";
+    string newLog;
+    if( string.IsNullOrEmpty( oldLog ) || oldLog.Trim() == "[]" )
+        newLog = "[" + entry + "]";
+    else
+        newLog = oldLog.TrimEnd().TrimEnd( ']' ) + "," + entry + "]";
+
+    task["ChangeLog"] = newLog;
 }
 
