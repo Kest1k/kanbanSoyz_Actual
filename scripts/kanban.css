@@ -2202,17 +2202,22 @@
         to { opacity: 1; }
     }
     /* Адекватное отображение поля "Описание" */
+    /* ── Поле «Описание» в модалке задачи: растягивается по содержимому ── */
     #tcm-details-group {
-        display: block; 
+        display: block;
         margin-bottom: 12px;
     }
     #tcm-details-group textarea,
     .tcm-body textarea#tcm-details {
-        height: 100px !important; 
+        width: 100% !important;
         min-height: 60px !important;
-        max-height: 350px !important; 
-        resize: vertical !important; 
-        overflow-y: auto !important; 
+        /* max-height снят: растёт по содержимому */
+        /* overflow-y снят: внутренний скролл не нужен */
+        resize: vertical !important;       /* пользователь по-прежнему может вручную */
+        overflow-y: hidden !important;     /* для авто-роста: скрытие, JS подбирает scrollHeight */
+        box-sizing: border-box !important;
+        line-height: 1.4 !important;
+        padding: 6px 8px !important;
         display: block;
     }
     
