@@ -1011,6 +1011,110 @@
         if (code === 13) { tcmSubtasksAdd(); e.preventDefault(); }
     };
 
+    // ── DnD-перестановка пунктов чек-листа ─────────────────────────────
+    var _tcmSubtDragId = null;
+
+    window.tcmSubtasksDragStart = function (event, subtaskId) {
+        if (_tcmSubtEditingId) { event.preventDefault(); return; }
+        _tcmSubtDragId = subtaskId;
+        try {
+            event.dataTransfer.setData("text", subtaskId);
+            event.dataTransfer.effectAllowed = "move";
+        } catch (e) { /* IE11 quirk */ }
+        var row = document.querySelector('.kb-subt-item[data-id="' + tcmChatEsc(subtaskId) + '"]');
+        if (row) row.className += " kb-subt-dragging";
+    };
+
+    window.tcmSubtasksDragEnd = function (event) {
+        _tcmSubtDragId = null;
+        var rows = document.querySelectorAll(".kb-subt-item");
+        for (var i = 0; i < rows.length; i++) {
+            rows[i].className = rows[i].className
+                .replace(/\s*kb-subt-dragging/g, "")
+                .replace(/\s*kb-subt-drop-(before|after)/g, "");
+        }
+    };
+
+    window.tcmSubtasksDragOver = function (event) {
+        if (!_tcmSubtDragId) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try { event.dataTransfer.dropEffect = "move"; } catch (e) { }
+
+        var row = event.currentTarget;
+        if (!row || !row.className || row.className.indexOf("kb-subt-item") === -1) return;
+        var rect = row.getBoundingClientRect();
+        var midY = rect.top + rect.height / 2;
+        var before = (event.clientY < midY);
+
+        row.className = row.className.replace(/\s*kb-subt-drop-(before|after)/g, "")
+                      + " kb-subt-drop-" + (before ? "before" : "after");
+    };
+
+    window.tcmSubtasksDragLeave = function (event) {
+        var row = event.currentTarget;
+        if (!row || !row.className) return;
+        row.className = row.className.replace(/\s*kb-subt-drop-(before|after)/g, "");
+    };
+
+    window.tcmSubtasksDrop = function (event, targetId) {
+        event.preventDefault();
+        event.stopPropagation();
+        var srcId = _tcmSubtDragId;
+        _tcmSubtDragId = null;
+
+        var rows = document.querySelectorAll(".kb-subt-item");
+        for (var i = 0; i < rows.length; i++) {
+            rows[i].className = rows[i].className
+                .replace(/\s*kb-subt-dragging/g, "")
+                .replace(/\s*kb-subt-drop-(before|after)/g, "");
+        }
+
+        if (!srcId || !targetId || srcId === targetId) return;
+
+        var row = event.currentTarget;
+        var rect = row.getBoundingClientRect();
+        var midY = rect.top + rect.height / 2;
+        var before = (event.clientY < midY);
+
+        var items = _tcmSubtasks.items || [];
+        var srcIdx = -1, tgtIdx = -1;
+        for (var j = 0; j < items.length; j++) {
+            if (items[j].id === srcId) srcIdx = j;
+            if (items[j].id === targetId) tgtIdx = j;
+        }
+        if (srcIdx < 0 || tgtIdx < 0) return;
+
+        var moved = items.splice(srcIdx, 1)[0];
+        if (srcIdx < tgtIdx) tgtIdx--;
+        var insertAt = before ? tgtIdx : tgtIdx + 1;
+        items.splice(insertAt, 0, moved);
+
+        tcmSubtasksRender();
+
+        var orderIds = [];
+        for (var k = 0; k < items.length; k++) orderIds.push(items[k].id);
+
+        var safeKey = String(_tcmSubtasks.taskKey).replace(/\|/g, "");
+        var orderStr = orderIds.join(",").replace(/\|/g, "");
+        try {
+            var res = window.external.InvokeTemplate("ReorderSubtasks", safeKey + "|" + orderStr);
+            var s = String(res || "");
+            if (s.indexOf("OK") !== 0) {
+                alert("Ошибка перестановки: " + s);
+                tcmSubtasksLoad(_tcmSubtasks.taskKey);
+                return;
+            }
+            if (typeof tcmInvalidateRevsCache === "function") tcmInvalidateRevsCache();
+            _tcmRevsLoaded = false;
+            var rb = document.getElementById("tcm-revs-body");
+            if (rb) rb.innerHTML = "Загрузка...";
+        } catch (e) {
+            alert("Ошибка перестановки: " + (e.message || e));
+            tcmSubtasksLoad(_tcmSubtasks.taskKey);
+        }
+    };
+
     // ── Ролевая иерархия: каскадные селекторы (шаг 05) ──────────────────
     // Роли: regular → панель скрыта; headOfSector/leadEngineer → [Сотрудник ▼];
     //        headOfDept → [Сектор ▼][Сотрудник ▼]; admin → все три.

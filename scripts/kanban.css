@@ -2428,6 +2428,17 @@
 .kb-subt-drag:active { cursor: grabbing; }
 .kb-subt-item:hover .kb-subt-drag { color: #4a6fa5; }
 
+/* ── Состояния DnD: подсветка инсерт-линии ── */
+.kb-subt-item.kb-subt-dragging { opacity: 0.4; }
+.kb-subt-item.kb-subt-drop-before {
+    box-shadow: 0 -2px 0 0 #4a6fa5 inset;
+    -webkit-box-shadow: 0 -2px 0 0 #4a6fa5 inset;
+}
+.kb-subt-item.kb-subt-drop-after {
+    box-shadow: 0 2px 0 0 #4a6fa5 inset;
+    -webkit-box-shadow: 0 2px 0 0 #4a6fa5 inset;
+}
+
 /* Бейдж на карточке доски */
 .kb-subt-badge {
     display: inline-block;
