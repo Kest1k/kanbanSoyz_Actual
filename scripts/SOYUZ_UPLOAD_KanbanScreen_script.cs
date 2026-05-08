@@ -41,6 +41,14 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 var viewMode    = (obj.PropertyBag["KbViewMode"] as string) ?? "my";
                 var allowedIds  = GetAllowedUserIdSet( currentUser, role, viewMode );
 
+                string myCreatorKey = "";
+                if( viewMode == "myCreated" && currentUser != null )
+                {
+                    myCreatorKey = !string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.NameKey
+                                 : !string.IsNullOrEmpty( currentUser.AccountId ) ? currentUser.AccountId
+                                 : currentUser.Id.ToString();
+                }
+
                 // ─── Фильтр по периоду (из PropertyBag, формат dd.MM.yyyy) ───
                 DateTime? periodFrom = null, periodTo = null;
                 {
@@ -72,6 +80,13 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                     // allowedIds == null → режим «all» для admin, показываем всё
                     if( allowedIds != null && !allowedIds.Contains( assignee.Id.ToString() ) )
                         continue;
+
+                    if( viewMode == "myCreated" )
+                    {
+                        var taskCreator = "";
+                        try { taskCreator = task.GetString( "Creator" ) ?? ""; } catch { }
+                        if( taskCreator != myCreatorKey ) continue;
+                    }
 
                     int status = GetStatusIndex( task );
                     if( status < 0 || status > 3 ) status = 0;
@@ -1445,6 +1460,8 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
         myOnly.Add( currentUser.Id.ToString() );
         return myOnly;
     }
+
+    if( viewMode == "myCreated" ) return null;
 
     if( viewMode == "all" && role == "admin" ) return null;
 
