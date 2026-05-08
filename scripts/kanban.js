@@ -1138,6 +1138,11 @@
     };
 
     window.kbOnUserChange = function () {
+        // FIX-03: запоминаем локально, чтобы при возможном лаге RefreshBoard
+        // селект уже не сбрасывался при следующем перерендере JS-инициализации
+        var userKey = kbSelVal("kb-sel-user");
+        if (userKey) _kbH.viewMode = "user:" + userKey;
+
         kbUpdateMyBtn(false);
         kbStyleBtn("kb-btn-all", false);
         kbApplyMode();
@@ -1198,9 +1203,13 @@
         if (mode.indexOf("user:") === 0) {
             var userKey = mode.substring(5);
             // Найти контекст пользователя чтобы правильно заполнить секторный/дивизионный список
-            var userCtx = "";
+            var userCtx = "", userName = "";
             for (var i = 0; i < _kbH.users.length; i++) {
-                if (_kbH.users[i].key === userKey) { userCtx = _kbH.users[i].context || ""; break; }
+                if (_kbH.users[i].key === userKey) {
+                    userCtx = _kbH.users[i].context || "";
+                    userName = _kbH.users[i].name || "";
+                    break;
+                }
             }
             // Восстановить dept/sector контекст
             if (userCtx) {
@@ -1214,8 +1223,58 @@
                 }
                 kbFillUsers(divCtx || null, userCtx || null);
             }
+            // FIX-03 v2: полная пересборка селекта — выбранный юзер ставится
+            // ПЕРВОЙ опцией, selectedIndex=0. Это надёжнее в IE11/Trident,
+            // потому что не зависит от того, что .value применилось корректно
+            // или что нужная опция уже есть после kbFillUsers с фильтрами.
             var selUser = document.getElementById("kb-sel-user");
-            if (selUser) selUser.value = userKey;
+            if (selUser && (userName || userKey)) {
+                // Сохраняем текущий список (без "Все сотрудники", без выбранного)
+                var saved = [];
+                for (var oi = 0; oi < selUser.options.length; oi++) {
+                    var ov = selUser.options[oi].value;
+                    var ot = selUser.options[oi].text;
+                    if (ov === "" || ov === userKey) continue; // пропускаем "Все" и текущего
+                    saved.push({ v: ov, t: ot });
+                }
+                kbClearSel(selUser);
+                // 1. Сначала выбранный — он же selectedIndex=0
+                var pickedOpt = kbOpt(userKey, userName || userKey);
+                pickedOpt.setAttribute("value", userKey); // подстраховка для IE11
+                selUser.appendChild(pickedOpt);
+                // 2. Плашка "Все сотрудники" вторым пунктом — чтобы можно было сбросить
+                selUser.appendChild(kbOpt("", "Все сотрудники"));
+                // 3. Остальные пользователи
+                for (var si = 0; si < saved.length; si++) {
+                    selUser.appendChild(kbOpt(saved[si].v, saved[si].t));
+                }
+                selUser.selectedIndex = 0;
+                selUser.value = userKey; // дублируем — некоторые билды IE требуют оба
+
+                // Повтор через setTimeout — на случай, если что-то на странице
+                // после нас сделает kbFillUsers и сбросит selection.
+                setTimeout(function () {
+                    var s2 = document.getElementById("kb-sel-user");
+                    if (!s2) return;
+                    var still = false;
+                    for (var k = 0; k < s2.options.length; k++) {
+                        if (s2.options[k].value === userKey) {
+                            if (s2.selectedIndex !== k) s2.selectedIndex = k;
+                            still = true;
+                            break;
+                        }
+                    }
+                    if (!still) {
+                        // Опция исчезла — добавляем заново и выбираем
+                        var p = kbOpt(userKey, userName || userKey);
+                        p.setAttribute("value", userKey);
+                        if (s2.firstChild) s2.insertBefore(p, s2.firstChild);
+                        else s2.appendChild(p);
+                        s2.selectedIndex = 0;
+                        s2.value = userKey;
+                    }
+                }, 50);
+            }
             kbUpdateMyBtn(false);
             return;
         }
@@ -1433,6 +1492,14 @@
     function kbOpt(value, text) {
         var o = document.createElement("option");
         o.value = value; o.text = text; return o;
+    }
+    // FIX-03: проверка наличия option с конкретным value
+    function kbHasOption(sel, value) {
+        if (!sel || !sel.options) return false;
+        for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === value) return true;
+        }
+        return false;
     }
     function kbClearSel(sel) { while (sel.firstChild) sel.removeChild(sel.firstChild); }
     function kbToggleEl(id, show) {
