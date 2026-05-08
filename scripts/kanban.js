@@ -1844,6 +1844,13 @@
             // Подзадачи: грузим отдельным вызовом, чтобы не раздувать GetTaskDetails
             if (typeof tcmSubtasksLoad === "function") tcmSubtasksLoad(nameKey);
 
+            // FIX-05: подвязать обработчик авто-роста к textarea (один раз)
+            var taDet = document.getElementById("tcm-details");
+            if (taDet && !taDet._tcmAutoSizeBound) {
+                taDet._tcmAutoSizeBound = true;
+                taDet.oninput = function () { tcmAutoSizeDetails(); };
+            }
+
             // СНАЧАЛА делаем оверлей видимым (чтобы у элементов появилась высота)
             overlay.className = "tcm-overlay visible";
 
@@ -1922,6 +1929,7 @@
         }
         document.getElementById("tcm-duedate").value = d.dueDate || "";
         document.getElementById("tcm-details").value = d.details || "";
+        tcmAutoSizeDetails();   // FIX-05
 
         // Просроченность
         var overdueEl = document.getElementById("tcm-overdue");
@@ -2436,9 +2444,20 @@
         if (err) err.style.display = "none";
     }
 
+    // ── Авто-рост textarea «Описание» по содержимому ─────────────────
+    function tcmAutoSizeDetails() {
+        var ta = document.getElementById("tcm-details");
+        if (!ta) return;
+        ta.style.height = "auto";
+        var sh = ta.scrollHeight;
+        if (!sh || sh < 60) sh = 60;
+        ta.style.height = sh + "px";
+    }
+    window.tcmAutoSizeDetails = tcmAutoSizeDetails;
+
     function tcmEsc(s) {
         if (!s) return "";
-        return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return String(s).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
     }
 
     // ── Динамическая обрезка описания карточек по ширине колонки ─────────────
@@ -2527,6 +2546,10 @@
         if (tabId === 'hist' && !_tcmRevsLoaded) {
             _tcmRevsLoaded = true;
             tcmLoadRevs();
+        }
+        // FIX-05: при возврате на «Основное» пересчитываем высоту textarea
+        if (tabId === "main") {
+            setTimeout(function () { tcmAutoSizeDetails(); }, 0);
         }
     };
 
