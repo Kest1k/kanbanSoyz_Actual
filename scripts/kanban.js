@@ -1263,6 +1263,11 @@
             allBtn.style.display = "";
         }
 
+        var mcBtn = document.getElementById("kb-btn-mycreated");
+        if (mcBtn) {
+            mcBtn.style.display = (_kbH.role !== "regular") ? "" : "none";
+        }
+
         kbRestoreViewMode(_kbH.viewMode || "my");
         kbInitCreateForm();
 
@@ -1421,6 +1426,7 @@
     function kbRestoreViewMode(mode) {
         if (!mode || mode === "my") { kbUpdateMyBtn(true); return; }
         if (mode === "all" || mode === "dept" || mode === "sector") { kbUpdateAllBtn(true); return; }
+        if (mode === "myCreated") { kbUpdateMyCreatedBtn(true); return; }
 
         if (mode.indexOf("user:") === 0) {
             var userKey = mode.substring(5);
@@ -1537,6 +1543,19 @@
             : _kbH.role === "headOfDept" ? "dept"
                 : "sector";
         kbSendMode(mode);
+    };
+
+    window.kbSetMyCreatedMode = function () {
+        kbSetSelVal("kb-sel-dept", "");
+        kbSetSelVal("kb-sel-sector", "");
+        kbSetSelVal("kb-sel-user", "");
+        kbClearSelSearch();
+        if (_kbH.role === "admin" || _kbH.role === "headOfDept") {
+            kbFillSectors(null);
+            kbFillUsers(null, null, "");
+        }
+        kbUpdateMyCreatedBtn(true);
+        kbSendMode("myCreated");
     };
 
     // ── Независимые каскадные селекторы в форме создания задачи ────────────
@@ -1692,11 +1711,18 @@
     }
     function kbUpdateMyBtn(active) {
         kbStyleBtn("kb-btn-my", active);
-        if (active) kbStyleBtn("kb-btn-all", false);
+        kbStyleBtn("kb-btn-all", false);
+        kbStyleBtn("kb-btn-mycreated", false);
     }
     function kbUpdateAllBtn(active) {
+        kbStyleBtn("kb-btn-my", false);
         kbStyleBtn("kb-btn-all", active);
-        if (active) kbStyleBtn("kb-btn-my", false);
+        kbStyleBtn("kb-btn-mycreated", false);
+    }
+    function kbUpdateMyCreatedBtn(active) {
+        kbStyleBtn("kb-btn-my", false);
+        kbStyleBtn("kb-btn-all", false);
+        kbStyleBtn("kb-btn-mycreated", active);
     }
 
     function kbBelongsToDept(sectorCtx, deptCtx) {
