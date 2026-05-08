@@ -768,7 +768,15 @@
     }
 
 /* ══════════════════════════════════════════════════════════════════
-   Адаптивная шапка Kanban — Phase 3 #02
+   Адаптивная шапка Kanban — Phase 3 #02 (polished)
+   Главные принципы:
+   1. Все интерактивные элементы строго 30px высотой → идеальный baseline.
+   2. Правая группа (Что нового / Справка) прижата вправо через
+      margin-left:auto на .kb-nav-right. Работает и в одну строку,
+      и при wrap (right group уходит вниз и всё равно вправо).
+   3. flex-wrap:wrap на всех уровнях. Никаких float/position:absolute.
+   4. Унифицированные промежутки: 14px между группами в left,
+      8px внутри right, 6px внутри кластера.
    ══════════════════════════════════════════════════════════════════ */
 .kb-nav-row {
     display: -ms-flexbox;
@@ -777,12 +785,13 @@
     flex-wrap: wrap;
     -ms-flex-align: center;
     align-items: center;
-    -ms-flex-pack: justify;
-    justify-content: space-between;
     width: 100%;
-    padding-right: 12px;
+    padding: 6px 16px 6px 0;
     box-sizing: border-box;
+    /* row-gap для wrap (gap в flex IE11 не работает, имитируем через
+       margin-bottom на дочерних элементах верхнего уровня) */
 }
+.kb-nav-row > * { margin-bottom: 0; }
 
 .kb-nav-left {
     display: -ms-flexbox;
@@ -791,45 +800,76 @@
     flex-wrap: wrap;
     -ms-flex-align: center;
     align-items: center;
-    -ms-flex: 1 1 auto;
-    flex: 1 1 auto;
+    -ms-flex: 0 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
 }
-.kb-nav-left > * { margin-right: 12px; margin-bottom: 4px; }
+.kb-nav-left > * { margin: 4px 14px 4px 0; }
 .kb-nav-left > *:last-child { margin-right: 0; }
 
 .kb-nav-right {
     display: -ms-flexbox;
     display: flex;
-    -ms-flex-wrap: wrap;
-    flex-wrap: wrap;
     -ms-flex-align: center;
     align-items: center;
     -ms-flex: 0 0 auto;
     flex: 0 0 auto;
+    margin-left: auto;          /* всегда прижато вправо: и в одну строку, и при wrap */
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
-.kb-nav-right > * { margin-right: 6px; }
+.kb-nav-right > * { margin-right: 8px; }
 .kb-nav-right > *:last-child { margin-right: 0; }
 
+/* Бренд — убираем bootstrap padding/margin, выравниваем по 30px высоте */
 .kb-nav-row .navbar-brand {
     -ms-flex: 0 0 auto;
     flex: 0 0 auto;
+    height: 30px;
+    line-height: 30px;
+    padding: 0 4px 0 16px !important;
     margin: 0 !important;
+    font-size: 14px;
+    font-weight: 700;
+    color: inherit;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -ms-flex-align: center;
+    align-items: center;
 }
 
+/* Nav-links: flex-row, без bootstrap float; ссылки 30px высотой */
 .kb-nav-row .kb-nav-links {
     display: -ms-flexbox;
     display: flex;
-    -ms-flex-wrap: wrap;
-    flex-wrap: wrap;
+    -ms-flex-align: center;
+    align-items: center;
     margin: 0;
     padding: 0;
     list-style: none;
     float: none;
 }
-.kb-nav-row .kb-nav-links > li { float: none; display: inline-block; }
-.kb-nav-row .kb-nav-links > li > a { padding: 6px 10px; }
+.kb-nav-row .kb-nav-links > li {
+    float: none;
+    display: -ms-flexbox;
+    display: flex;
+    -ms-flex-align: center;
+    align-items: center;
+    margin: 0;
+    height: 30px;
+}
+.kb-nav-row .kb-nav-links > li + li { margin-left: 2px; }
+.kb-nav-row .kb-nav-links > li > a {
+    height: 30px;
+    line-height: 30px;
+    padding: 0 10px;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -ms-flex-align: center;
+    align-items: center;
+}
 
+/* Кластер кнопок иерархии */
 .kb-nav-cluster {
     display: -ms-flexbox;
     display: flex;
@@ -840,12 +880,13 @@
     float: none !important;
     margin: 0 !important;
 }
-.kb-nav-cluster > * { margin-right: 6px; }
+.kb-nav-cluster > * { margin: 2px 6px 2px 0; }
 .kb-nav-cluster > *:last-child { margin-right: 0; }
 
+/* Унифицированная кнопка шапки */
 .kb-nav-btn {
     height: 30px;
-    padding: 5px 12px;
+    padding: 0 12px;
     font-size: 12px;
     font-weight: 600;
     border: 1px solid #d1d5db;
@@ -854,43 +895,65 @@
     color: #374151;
     cursor: pointer;
     white-space: nowrap;
-    line-height: 18px;
     box-sizing: border-box;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -ms-flex-align: center;
+    align-items: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    line-height: 1;
 }
 .kb-nav-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
 .kb-nav-btn-primary { background: #4a6fa5; color: #fff; border-color: #4a6fa5; }
 .kb-nav-btn-primary:hover { background: #3b5998; border-color: #3b5998; }
-.kb-nav-btn-news { border-color: #dcfce7; background: #f0fdf4; color: #16a34a; }
+.kb-nav-btn-news { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
 .kb-nav-btn-news:hover { background: #dcfce7; border-color: #86efac; }
 .kb-nav-btn-help { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .kb-nav-btn-help:hover { background: #dbeafe; border-color: #93c5fd; }
 
 .kb-nav-label {
     font-size: 12px;
-    color: #cce;
+    font-weight: 500;
+    color: #6b7280;
     white-space: nowrap;
-}
-
-/* period-wrap: убрать float, position:relative сохранить (якорь dropdown) */
-.kb-period-wrap {
-    float: none !important;
-    margin-top: 0 !important;
-    margin-left: 0 !important;
-    position: relative;
+    line-height: 30px;
+    height: 30px;
+    margin-right: 2px !important;
     display: -ms-inline-flexbox;
     display: inline-flex;
     -ms-flex-align: center;
     align-items: center;
 }
 
-@media (max-width: 1100px) {
-    .kb-nav-row { -ms-flex-pack: start; justify-content: flex-start; }
-    .kb-nav-right { -ms-flex-order: 99; order: 99; width: 100%; -ms-flex-pack: end; justify-content: flex-end; margin-top: 4px; }
+/* Все селекты иерархии — единая высота 30px */
+#kb-hier-panel .kb-hier-select {
+    height: 30px;
+    line-height: 30px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    vertical-align: middle;
 }
 
-@media (max-width: 760px) {
-    .kb-nav-row .kb-nav-links { -ms-flex-preferred-size: 100%; flex-basis: 100%; }
-    .kb-nav-cluster { -ms-flex-preferred-size: 100%; flex-basis: 100%; }
+/* Period-wrap: убрать float, сохранить position:relative (якорь dropdown) */
+.kb-period-wrap {
+    float: none !important;
+    margin: 0 !important;
+    position: relative;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -ms-flex-align: center;
+    align-items: center;
+    height: 30px;
+}
+
+/* Period-toggle уже стилизован выше — добавляем только align */
+.kb-period-toggle {
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -ms-flex-align: center;
+    align-items: center;
+    line-height: 1;
 }
 
 /* ══════════════════════════════════════════════════════════════════
