@@ -196,6 +196,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "ToggleSubtask": return DoToggleSubtask( inputParams );
             case "DeleteSubtask": return DoDeleteSubtask( inputParams );
             case "GetSubtasks":   return DoGetSubtasks( inputParams );
+            case "EditSubtask":   return DoEditSubtask( inputParams );
             case "ClearAutoOpen": obj.PropertyBag.Remove( "AutoOpenTask" ); return "OK";
         }
     }
@@ -3221,6 +3222,87 @@ private object DoToggleSubtask( object inputParams )
     catch( Exception ex )
     {
         Service.HandleException( ex, "KanbanScreen.DoToggleSubtask: " + ex.Message );
+        return "ERROR:Internal";
+    }
+}
+
+// ─── EditSubtask ────────────────────────────────────────────────────
+// inputParams: "taskKey|subtaskId|newText"
+// Меняет text, проставляет editedBy/editedAt. Возвращает JSON обновлённого пункта.
+private object DoEditSubtask( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 3 );
+    if( parts.Length < 3 ) return "ERROR:BadFormat";
+
+    var taskKey   = parts[0].Trim();
+    var subtaskId = parts[1].Trim();
+    var newText   = parts[2].Trim();
+
+    if( string.IsNullOrEmpty( taskKey ) )   return "ERROR:NoKey";
+    if( string.IsNullOrEmpty( subtaskId ) ) return "ERROR:NoId";
+    if( string.IsNullOrEmpty( newText ) )   return "ERROR:EmptyText";
+    if( newText.Length > 500 ) newText = newText.Substring( 0, 500 );
+
+    try
+    {
+        var task = GetTaskByKeyOrNull( taskKey );
+        if( task == null ) return "ERROR:NotFound";
+
+        var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
+
+        int idx = -1;
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( items[i].TryGetValue( "id", out v ) && v == subtaskId ) { idx = i; break; }
+        }
+        if( idx < 0 ) return "ERROR:NoSuchSubtask";
+
+        string oldText = "";
+        items[idx].TryGetValue( "text", out oldText );
+        if( oldText == newText )
+        {
+            var sbNoop = new System.Text.StringBuilder();
+            sbNoop.Append( "{" );
+            bool firstNoop = true;
+            foreach( var kv in items[idx] )
+            {
+                if( !firstNoop ) sbNoop.Append( "," );
+                sbNoop.Append( "\"" + JsonEscape( kv.Key ) + "\":\"" + JsonEscape( kv.Value ) + "\"" );
+                firstNoop = false;
+            }
+            sbNoop.Append( "}" );
+            return sbNoop.ToString();
+        }
+
+        items[idx]["text"] = newText;
+
+        var user = Service.GetCurrentUser();
+        items[idx]["editedBy"] = user != null ? (user.ToString() ?? "") : "";
+        items[idx]["editedAt"] = DateTime.Now.ToString( "yyyy-MM-ddTHH:mm:ss",
+                                     System.Globalization.CultureInfo.InvariantCulture );
+
+        task["SubtasksJSON"] = SerializeSubtasks( items );
+        // SubtasksTotal/SubtasksDone не меняются при редактировании текста
+        AppendSubtaskChangeLog( task, "Изменён пункт", oldText + " → " + newText );
+        task.Save();
+
+        var sb = new System.Text.StringBuilder();
+        sb.Append( "{" );
+        bool first = true;
+        foreach( var kv in items[idx] )
+        {
+            if( !first ) sb.Append( "," );
+            sb.Append( "\"" + JsonEscape( kv.Key ) + "\":\"" + JsonEscape( kv.Value ) + "\"" );
+            first = false;
+        }
+        sb.Append( "}" );
+        return sb.ToString();
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoEditSubtask: " + ex.Message );
         return "ERROR:Internal";
     }
 }
