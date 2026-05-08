@@ -86,6 +86,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                         var taskCreator = "";
                         try { taskCreator = task.GetString( "Creator" ) ?? ""; } catch { }
                         if( taskCreator != myCreatorKey ) continue;
+                        if( assignee.Id.ToString() == currentUser.Id.ToString() ) continue;
                     }
 
                     int status = GetStatusIndex( task );
