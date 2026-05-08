@@ -1115,6 +1115,93 @@
         }
     };
 
+    // ── Inline-редактирование текста подзадачи ─────────────────────────
+    var _tcmSubtEditingId = null;
+
+    window.tcmSubtasksBeginEdit = function (subtaskId) {
+        if (_tcmSubtEditingId) return;
+        var row = document.querySelector('.kb-subt-item[data-id="' + tcmChatEsc(subtaskId) + '"]');
+        if (!row) return;
+        var span = row.querySelector(".kb-subt-text");
+        if (!span) return;
+
+        var current = "";
+        var items = _tcmSubtasks.items || [];
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].id === subtaskId) { current = items[i].text || ""; break; }
+        }
+
+        _tcmSubtEditingId = subtaskId;
+        try { row.setAttribute("draggable", "false"); } catch (e) { }
+
+        var inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "form-control input-sm kb-subt-edit-input";
+        inp.value = current;
+        inp.setAttribute("maxlength", "500");
+        inp.onkeydown = function (e) {
+            var code = e.keyCode || e.which;
+            if (code === 13) { tcmSubtasksCommitEdit(subtaskId, inp.value); e.preventDefault(); }
+            else if (code === 27) { tcmSubtasksCancelEdit(); e.preventDefault(); }
+        };
+        inp.onblur = function () { tcmSubtasksCommitEdit(subtaskId, inp.value); };
+
+        span.parentNode.replaceChild(inp, span);
+        inp.focus();
+        try { inp.select(); } catch (e) { }
+    };
+
+    window.tcmSubtasksCommitEdit = function (subtaskId, newText) {
+        if (_tcmSubtEditingId !== subtaskId) return;
+        _tcmSubtEditingId = null;
+
+        var clean = String(newText || "").replace(/\|/g, " ").substring(0, 500).replace(/^\s+|\s+$/g, "");
+        if (!clean) {
+            tcmSubtasksRender();
+            return;
+        }
+
+        var items = _tcmSubtasks.items || [];
+        var current = "";
+        for (var i = 0; i < items.length; i++) {
+            if (items[i].id === subtaskId) { current = items[i].text || ""; break; }
+        }
+        if (clean === current) {
+            tcmSubtasksRender();
+            return;
+        }
+
+        var safeKey = String(_tcmSubtasks.taskKey).replace(/\|/g, "");
+        var safeId  = String(subtaskId).replace(/\|/g, "");
+        try {
+            var raw = window.external.InvokeTemplate(
+                "EditSubtask", safeKey + "|" + safeId + "|" + clean);
+            var s = String(raw || "");
+            if (s.indexOf("ERROR") === 0) {
+                alert("Ошибка редактирования: " + s);
+                tcmSubtasksRender();
+                return;
+            }
+            var obj = JSON.parse(s);
+            for (var j = 0; j < items.length; j++) {
+                if (items[j].id === subtaskId) { items[j] = obj; break; }
+            }
+            tcmSubtasksRender();
+            if (typeof tcmInvalidateRevsCache === "function") tcmInvalidateRevsCache();
+            _tcmRevsLoaded = false;
+            var rb = document.getElementById("tcm-revs-body");
+            if (rb) rb.innerHTML = "Загрузка...";
+        } catch (e) {
+            alert("Ошибка редактирования: " + (e.message || e));
+            tcmSubtasksRender();
+        }
+    };
+
+    window.tcmSubtasksCancelEdit = function () {
+        _tcmSubtEditingId = null;
+        tcmSubtasksRender();
+    };
+
     // ── Ролевая иерархия: каскадные селекторы (шаг 05) ──────────────────
     // Роли: regular → панель скрыта; headOfSector/leadEngineer → [Сотрудник ▼];
     //        headOfDept → [Сектор ▼][Сотрудник ▼]; admin → все три.

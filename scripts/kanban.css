@@ -2439,6 +2439,24 @@
     -webkit-box-shadow: 0 2px 0 0 #4a6fa5 inset;
 }
 
+/* ── Inline-редактирование текста ── */
+.kb-subt-edit-input {
+    flex: 1 1 auto;
+    -ms-flex: 1 1 auto;
+    height: 26px !important;
+    padding: 2px 6px !important;
+    font-size: 13px !important;
+    border: 1px solid #4a6fa5 !important;
+    border-radius: 4px !important;
+    background: #fff !important;
+    box-shadow: 0 0 0 2px rgba(74,111,165,0.15) !important;
+    -webkit-box-shadow: 0 0 0 2px rgba(74,111,165,0.15) !important;
+}
+
+/* ── Текст пункта: лёгкий ховер чтобы dblclick был ощутим ── */
+.kb-subt-text { cursor: text; }
+.kb-subt-text:hover { background: rgba(74,111,165,0.06); border-radius: 3px; }
+
 /* Бейдж на карточке доски */
 .kb-subt-badge {
     display: inline-block;
