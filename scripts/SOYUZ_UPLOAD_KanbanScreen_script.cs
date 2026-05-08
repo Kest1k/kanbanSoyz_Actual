@@ -196,7 +196,8 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "ToggleSubtask": return DoToggleSubtask( inputParams );
             case "DeleteSubtask": return DoDeleteSubtask( inputParams );
             case "GetSubtasks":   return DoGetSubtasks( inputParams );
-            case "EditSubtask":   return DoEditSubtask( inputParams );
+            case "EditSubtask":     return DoEditSubtask( inputParams );
+            case "ReorderSubtasks": return DoReorderSubtasks( inputParams );
             case "ClearAutoOpen": obj.PropertyBag.Remove( "AutoOpenTask" ); return "OK";
         }
     }
@@ -3303,6 +3304,64 @@ private object DoEditSubtask( object inputParams )
     catch( Exception ex )
     {
         Service.HandleException( ex, "KanbanScreen.DoEditSubtask: " + ex.Message );
+        return "ERROR:Internal";
+    }
+}
+
+// ─── ReorderSubtasks ────────────────────────────────────────────────
+// inputParams: "taskKey|id1,id2,id3,..."
+// Принимает новый порядок ID и переупорядочивает массив. Возвращает "OK" или ERROR.
+// Если переданный набор ID не совпадает с текущим — возвращает ERROR:Mismatch.
+private object DoReorderSubtasks( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var taskKey  = parts[0].Trim();
+    var orderStr = parts[1].Trim();
+    if( string.IsNullOrEmpty( taskKey ) )  return "ERROR:NoKey";
+    if( string.IsNullOrEmpty( orderStr ) ) return "ERROR:EmptyOrder";
+
+    var newOrder = orderStr.Split( new char[]{ ',' }, StringSplitOptions.RemoveEmptyEntries );
+    if( newOrder.Length == 0 ) return "ERROR:EmptyOrder";
+
+    try
+    {
+        var task = GetTaskByKeyOrNull( taskKey );
+        if( task == null ) return "ERROR:NotFound";
+
+        var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
+        if( items.Count != newOrder.Length ) return "ERROR:Mismatch";
+
+        var byId = new System.Collections.Generic.Dictionary<string,
+                       System.Collections.Generic.Dictionary<string, string>>( items.Count );
+        for( int i = 0; i < items.Count; i++ )
+        {
+            string v;
+            if( !items[i].TryGetValue( "id", out v ) || string.IsNullOrEmpty( v ) ) return "ERROR:CorruptItem";
+            if( byId.ContainsKey( v ) ) return "ERROR:DuplicateId";
+            byId[v] = items[i];
+        }
+
+        var reordered = new System.Collections.Generic.List<
+            System.Collections.Generic.Dictionary<string, string>>( items.Count );
+        for( int i = 0; i < newOrder.Length; i++ )
+        {
+            var id = newOrder[i].Trim();
+            if( !byId.ContainsKey( id ) ) return "ERROR:UnknownId";
+            reordered.Add( byId[id] );
+        }
+
+        task["SubtasksJSON"] = SerializeSubtasks( reordered );
+        // Total/Done не меняются
+        AppendSubtaskChangeLog( task, "Изменён порядок пунктов", "" );
+        task.Save();
+        return "OK";
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "KanbanScreen.DoReorderSubtasks: " + ex.Message );
         return "ERROR:Internal";
     }
 }
