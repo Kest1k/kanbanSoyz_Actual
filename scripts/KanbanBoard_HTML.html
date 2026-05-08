@@ -6,127 +6,107 @@
 {% endblock %}
 
 {% block navigationTitle %}
-<div class="navbar-brand collapse navbar-collapse" style="margin-left: 25px">Канбан-доска</div>
-<ul class="nav navbar-nav">
-    <li><a href="#" onclick="showCreateTask(); return false;"><i class="fa fa-plus fa-fw"></i> Новая задача</a></li>
-    <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a></li>
-    <li><a href="#" onclick="openReport(); return false;"><i class="fa fa-bar-chart fa-fw"></i> Отчёт</a></li>
-</ul>
-<div style="position:absolute;right:20px;top:8px;">
-    <button type="button" onclick="openHelp()" style="padding:5px 14px;font-size:12px;font-weight:600;
-        height:30px;border:1px solid #bfdbfe;border-radius:6px;background:#eff6ff;color:#1d4ed8;cursor:pointer;">
-        <i class="fa fa-question-circle fa-fw"></i> Справка
-    </button>
-</div>
-<div style="position:absolute;right:130px;top:8px;">
-    <button type="button" onclick="openWhatsNew()" style="padding:5px 14px;font-size:12px;font-weight:600;
-        height:30px;border:1px solid #dcfce7;border-radius:6px;background:#f0fdf4;color:#16a34a;cursor:pointer;">
-        <i class="fa fa-bullhorn fa-fw"></i> Что нового
-    </button>
-</div>
-<!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
-<div id="kb-hier-panel" style="display:none; float:left; margin-left:16px; margin-top:8px;">
-    <button type="button" id="kb-btn-my" onclick="kbSetMyMode()" style="padding:5px 12px; font-size:12px; font-weight:600;
-                     height:30px; border:1px solid #4a6fa5; border-radius:6px;
-                     background:#4a6fa5; color:#fff; cursor:pointer;
-                     margin-right:8px; vertical-align:middle;">
-        Мои задачи
-    </button>
-    <button type="button" id="kb-btn-all" onclick="kbSetAllMode()" style="display:none; padding:5px 12px; font-size:12px; font-weight:normal;
-                     height:30px; border:1px solid #d1d5db; border-radius:6px;
-                     background:#fff; color:#374151; cursor:pointer;
-                     margin-right:8px; vertical-align:middle;">
-        Все задачи
-    </button>
-    <button type="button" id="kb-btn-mycreated" onclick="kbSetMyCreatedMode()" style="display:none; padding:5px 12px; font-size:12px; font-weight:normal;
-                     height:30px; border:1px solid #d1d5db; border-radius:6px;
-                     background:#fff; color:#374151; cursor:pointer;
-                     margin-right:8px; vertical-align:middle;">
-        Выданные мной
-    </button>
-    <span id="kb-hier-label" style="display:none;
-            font-size:12px; color:#cce; margin-right:6px; vertical-align:middle;">
-        Вид:
-    </span>
-    <select id="kb-sel-dept" class="kb-hier-select" onchange="kbOnDeptChange()" style="display:none;
-              width:auto; margin-right:4px; vertical-align:middle;">
-    </select>
-    <select id="kb-sel-sector" class="kb-hier-select" onchange="kbOnSectorChange()" style="display:none;
-              width:auto; margin-right:4px; vertical-align:middle;">
-    </select>
-    <select id="kb-sel-user" class="kb-hier-select" onchange="kbOnUserChange()" style="display:none;
-              width:auto; min-width:160px; vertical-align:middle;">
-    </select>
-    <input type="text" id="kb-sel-search" class="kb-hier-select" placeholder="&#128269; Поиск..."
-        oninput="kbOnSelSearch()" style="display:none;
-              width:140px; margin-left:4px; vertical-align:middle;">
-</div>
-<!-- Фильтр по периоду (компактный toggle + выпадающая панель) -->
-<div id="kb-period-wrap" class="kb-period-wrap">
-    <button type="button" id="kb-period-toggle" class="kb-period-toggle"
-            onclick="kbPeriodToggle()" title="Фильтр по периоду">
-        <i class="fa fa-calendar"></i>
-        <span id="kb-period-toggle-label">Период</span>
-        <i class="fa fa-caret-down" style="margin-left:4px;"></i>
-    </button>
-
-    <div id="kb-period-panel" class="kb-period-panel" style="display:none;">
-        <div class="kb-period-panel-title">Быстрый выбор</div>
-        <div class="kb-period-presets">
-            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('week')">На этой неделе</button>
-            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('month')">В этом месяце</button>
-            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('3mo')">Последние 3 месяца</button>
-            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('6mo')">Последние полгода</button>
-            <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('year')">Последний год</button>
+<div class="kb-nav-row">
+    <div class="kb-nav-left">
+        <div class="navbar-brand collapse navbar-collapse" style="margin-left: 25px">Канбан-доска</div>
+        <ul class="nav navbar-nav kb-nav-links">
+            <li><a href="#" onclick="showCreateTask(); return false;"><i class="fa fa-plus fa-fw"></i> Новая задача</a></li>
+            <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a></li>
+            <li><a href="#" onclick="openReport(); return false;"><i class="fa fa-bar-chart fa-fw"></i> Отчёт</a></li>
+        </ul>
+        <!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
+        <div id="kb-hier-panel" class="kb-nav-cluster" style="display:none;">
+            <button type="button" id="kb-btn-my" onclick="kbSetMyMode()" class="kb-nav-btn kb-nav-btn-primary">
+                Мои задачи
+            </button>
+            <button type="button" id="kb-btn-all" onclick="kbSetAllMode()" class="kb-nav-btn" style="display:none;">
+                Все задачи
+            </button>
+            <button type="button" id="kb-btn-mycreated" onclick="kbSetMyCreatedMode()" class="kb-nav-btn" style="display:none;">
+                Выданные мной
+            </button>
+            <span id="kb-hier-label" class="kb-nav-label" style="display:none;">Вид:</span>
+            <select id="kb-sel-dept" class="kb-hier-select" onchange="kbOnDeptChange()" style="display:none; width:auto; min-width:140px;"></select>
+            <select id="kb-sel-sector" class="kb-hier-select" onchange="kbOnSectorChange()" style="display:none; width:auto; min-width:140px;"></select>
+            <select id="kb-sel-user" class="kb-hier-select" onchange="kbOnUserChange()" style="display:none; width:auto; min-width:160px;"></select>
+            <input type="text" id="kb-sel-search" class="kb-hier-select" placeholder="&#128269; Поиск..."
+                oninput="kbOnSelSearch()" style="display:none; width:140px;">
         </div>
-        <div class="kb-period-divider"></div>
-        <div class="kb-period-panel-title">Свой диапазон</div>
-        <div class="kb-period-custom">
-            <div class="kb-period-row">
-                <span class="kb-period-row-lbl">С:</span>
-                <div class="kb-date-wrap kb-period-row-wrap">
-                    <input type="text"
-                           id="kb-period-from"
-                           class="form-control input-sm kb-period-input"
-                           placeholder="ДД.ММ.ГГГГ"
-                           data-init="{{ KbPeriodFrom }}"
-                           readonly
-                           style="padding-right:28px;" />
-                    <button type="button"
-                            class="kb-date-btn"
-                            onclick="calToggle('kb-period-from')"
-                            title="Выбрать дату начала">
-                        <i class="fa fa-calendar"></i>
-                    </button>
-                    <div id="kb-cal-kb-period-from" class="kb-cal"></div>
+        <!-- Фильтр по периоду (компактный toggle + выпадающая панель) -->
+        <div id="kb-period-wrap" class="kb-period-wrap">
+            <button type="button" id="kb-period-toggle" class="kb-period-toggle"
+                    onclick="kbPeriodToggle()" title="Фильтр по периоду">
+                <i class="fa fa-calendar"></i>
+                <span id="kb-period-toggle-label">Период</span>
+                <i class="fa fa-caret-down" style="margin-left:4px;"></i>
+            </button>
+            <div id="kb-period-panel" class="kb-period-panel" style="display:none;">
+                <div class="kb-period-panel-title">Быстрый выбор</div>
+                <div class="kb-period-presets">
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('week')">На этой неделе</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('month')">В этом месяце</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('3mo')">Последние 3 месяца</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('6mo')">Последние полгода</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('year')">Последний год</button>
                 </div>
-            </div>
-            <div class="kb-period-row">
-                <span class="kb-period-row-lbl">По:</span>
-                <div class="kb-date-wrap kb-period-row-wrap">
-                    <input type="text"
-                           id="kb-period-to"
-                           class="form-control input-sm kb-period-input"
-                           placeholder="ДД.ММ.ГГГГ"
-                           data-init="{{ KbPeriodTo }}"
-                           readonly
-                           style="padding-right:28px;" />
-                    <button type="button"
-                            class="kb-date-btn"
-                            onclick="calToggle('kb-period-to')"
-                            title="Выбрать дату конца">
-                        <i class="fa fa-calendar"></i>
-                    </button>
-                    <div id="kb-cal-kb-period-to" class="kb-cal"></div>
+                <div class="kb-period-divider"></div>
+                <div class="kb-period-panel-title">Свой диапазон</div>
+                <div class="kb-period-custom">
+                    <div class="kb-period-row">
+                        <span class="kb-period-row-lbl">С:</span>
+                        <div class="kb-date-wrap kb-period-row-wrap">
+                            <input type="text"
+                                   id="kb-period-from"
+                                   class="form-control input-sm kb-period-input"
+                                   placeholder="ДД.ММ.ГГГГ"
+                                   data-init="{{ KbPeriodFrom }}"
+                                   readonly
+                                   style="padding-right:28px;" />
+                            <button type="button"
+                                    class="kb-date-btn"
+                                    onclick="calToggle('kb-period-from')"
+                                    title="Выбрать дату начала">
+                                <i class="fa fa-calendar"></i>
+                            </button>
+                            <div id="kb-cal-kb-period-from" class="kb-cal"></div>
+                        </div>
+                    </div>
+                    <div class="kb-period-row">
+                        <span class="kb-period-row-lbl">По:</span>
+                        <div class="kb-date-wrap kb-period-row-wrap">
+                            <input type="text"
+                                   id="kb-period-to"
+                                   class="form-control input-sm kb-period-input"
+                                   placeholder="ДД.ММ.ГГГГ"
+                                   data-init="{{ KbPeriodTo }}"
+                                   readonly
+                                   style="padding-right:28px;" />
+                            <button type="button"
+                                    class="kb-date-btn"
+                                    onclick="calToggle('kb-period-to')"
+                                    title="Выбрать дату конца">
+                                <i class="fa fa-calendar"></i>
+                            </button>
+                            <div id="kb-cal-kb-period-to" class="kb-cal"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="kb-period-actions">
+                    <button type="button" id="kb-period-apply" class="kb-period-btn kb-period-btn-primary"
+                            onclick="kbPeriodApply(); return false;">Применить</button>
+                    <button type="button" id="kb-period-reset" class="kb-period-btn kb-period-btn-reset"
+                            onclick="kbPeriodReset(); return false;">Сбросить</button>
                 </div>
             </div>
         </div>
-        <div class="kb-period-actions">
-            <button type="button" id="kb-period-apply" class="kb-period-btn kb-period-btn-primary"
-                    onclick="kbPeriodApply(); return false;">Применить</button>
-            <button type="button" id="kb-period-reset" class="kb-period-btn kb-period-btn-reset"
-                    onclick="kbPeriodReset(); return false;">Сбросить</button>
-        </div>
+    </div>
+    <div class="kb-nav-right">
+        <button type="button" onclick="openWhatsNew()" class="kb-nav-btn kb-nav-btn-news">
+            <i class="fa fa-bullhorn fa-fw"></i> Что нового
+        </button>
+        <button type="button" onclick="openHelp()" class="kb-nav-btn kb-nav-btn-help">
+            <i class="fa fa-question-circle fa-fw"></i> Справка
+        </button>
     </div>
 </div>
 {% endblock %}

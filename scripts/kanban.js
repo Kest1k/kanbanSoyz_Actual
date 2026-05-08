@@ -1244,7 +1244,7 @@
         if (!panel) return;
         if (_kbH.role === "regular") { panel.style.display = "none"; return; }
 
-        panel.style.display = "block";
+        panel.style.display = "";
         kbToggleEl("kb-sel-dept", _kbH.role === "admin");
         kbToggleEl("kb-sel-sector", _kbH.role === "admin" || _kbH.role === "headOfDept");
         kbToggleEl("kb-sel-user", true);
