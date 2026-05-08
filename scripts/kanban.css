@@ -2387,17 +2387,46 @@
 .kb-subt-add {
     display: -ms-flexbox;
     display: flex;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #e5e7eb;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e5e7eb;
     -ms-flex-negative: 0;
-    flex-shrink: 0; /* Фиксируем поле ввода в самом низу вкладки */
+    flex-shrink: 0; /* Фиксируем поле ввода в самом верху вкладки, не сжимается */
+    -ms-flex-order: -1;
+    order: -1; /* Подстраховка: даже если в HTML случайно остался внизу — flex его поднимет */
 }
 .kb-subt-add input {
     -ms-flex: 1 1 auto;
     flex: 1 1 auto;
     margin-right: 6px;
 }
+
+/* ── Подсказка над списком ── */
+.kb-subt-hint {
+    font-size: 11px;
+    color: #6b7280;
+    margin: 0 0 8px 0;
+    padding: 0;
+}
+.kb-subt-hint .fa { color: #4a6fa5; margin: 0 2px; }
+
+/* ── Рукоятка drag ── */
+.kb-subt-drag {
+    display: inline-block;
+    width: 16px;
+    flex-shrink: 0;
+    -ms-flex-negative: 0;
+    color: #9ca3af;
+    cursor: grab;
+    font-size: 16px;
+    line-height: 1;
+    user-select: none;
+    -ms-user-select: none;
+    margin-right: 6px;
+    text-align: center;
+}
+.kb-subt-drag:active { cursor: grabbing; }
+.kb-subt-item:hover .kb-subt-drag { color: #4a6fa5; }
 
 /* Бейдж на карточке доски */
 .kb-subt-badge {

@@ -891,23 +891,33 @@
         var list = document.getElementById("tcm-subt-list");
         if (!list) return;
         var items = _tcmSubtasks.items || [];
-        var html = "", i, it, doneClass, doneTitle;
+        var html = "", i, it, doneClass, doneTitle, editedNote;
         for (i = 0; i < items.length; i++) {
             it = items[i];
             doneClass = (it.done === "1") ? " kb-subt-done" : "";
             doneTitle = (it.done === "1" && it.doneBy)
                 ? ("Выполнено: " + it.doneBy + " (" + (it.doneAt || "") + ")")
                 : "";
-                
-            html += '<div class="kb-subt-item' + doneClass + '" data-id="' + tcmChatEsc(it.id) + '">'
+            editedNote = (it.editedBy)
+                ? (" (изм. " + it.editedBy + (it.editedAt ? ", " + it.editedAt : "") + ")")
+                : "";
+
+            html += '<div class="kb-subt-item' + doneClass + '" data-id="' + tcmChatEsc(it.id) + '"'
+                  + ' draggable="true"'
+                  + ' ondragstart="tcmSubtasksDragStart(event, \'' + tcmChatEsc(it.id) + '\')"'
+                  + ' ondragend="tcmSubtasksDragEnd(event)"'
+                  + ' ondragover="tcmSubtasksDragOver(event)"'
+                  + ' ondragleave="tcmSubtasksDragLeave(event)"'
+                  + ' ondrop="tcmSubtasksDrop(event, \'' + tcmChatEsc(it.id) + '\')">'
+                  + '<span class="kb-subt-drag" title="Перетащить">&#8801;</span>'
                   + '<label class="kb-subt-cb-wrap">'
                   + '<input type="checkbox" class="kb-subt-cb"'
                   + (it.done === "1" ? " checked" : "")
-                  // ВАЖНО: используем onchange для IE11
                   + ' onchange="tcmSubtasksToggle(\'' + tcmChatEsc(it.id) + '\')">'
                   + '<span class="kb-subt-cb-fake"></span>'
                   + '</label>'
-                  + '<span class="kb-subt-text" title="' + tcmChatEsc(doneTitle) + '">'
+                  + '<span class="kb-subt-text" title="' + tcmChatEsc(doneTitle + editedNote) + '"'
+                  + ' ondblclick="tcmSubtasksBeginEdit(\'' + tcmChatEsc(it.id) + '\')">'
                   + tcmChatEsc(it.text || "") + '</span>'
                   + '<button type="button" class="kb-subt-del" '
                   + 'onclick="tcmSubtasksDelete(\'' + tcmChatEsc(it.id) + '\')" title="Удалить">×</button>'
