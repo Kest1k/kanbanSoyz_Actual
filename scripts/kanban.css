@@ -2264,6 +2264,7 @@
     flex: 1 1 auto;
     min-height: 0; /* Обязательное условие для скролла во flexbox */
     overflow-y: auto;
+    position: relative; /* Для позиционирования drop-line индикатора */
 }
 .kb-subt-empty {
     color: #9ca3af;
@@ -2428,15 +2429,27 @@
 .kb-subt-drag:active { cursor: grabbing; }
 .kb-subt-item:hover .kb-subt-drag { color: #4a6fa5; }
 
-/* ── Состояния DnD: подсветка инсерт-линии ── */
-.kb-subt-item.kb-subt-dragging { opacity: 0.4; }
-.kb-subt-item.kb-subt-drop-before {
-    box-shadow: 0 -2px 0 0 #4a6fa5 inset;
-    -webkit-box-shadow: 0 -2px 0 0 #4a6fa5 inset;
+/* ── DnD: перетаскиваемый элемент ── */
+.kb-subt-item.kb-subt-dragging { opacity: 0.35; }
+
+/* ── DnD: pointer-events:none на дочерних во время drag
+   устраняет мигание (ondragleave не стреляет при въезде в дочерний элемент) ── */
+.kb-subt-list.kb-dnd-active .kb-subt-item * {
+    pointer-events: none;
+    -ms-pointer-events: none;
 }
-.kb-subt-item.kb-subt-drop-after {
-    box-shadow: 0 2px 0 0 #4a6fa5 inset;
-    -webkit-box-shadow: 0 2px 0 0 #4a6fa5 inset;
+
+/* ── DnD: линия-индикатор вставки (абсолютно позиционирована внутри .kb-subt-list) ── */
+#kb-subt-dropline {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: #4a6fa5;
+    border-radius: 1px;
+    pointer-events: none;
+    -ms-pointer-events: none;
+    z-index: 10;
 }
 
 /* ── Inline-редактирование текста ── */

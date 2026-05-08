@@ -3354,8 +3354,7 @@ private object DoReorderSubtasks( object inputParams )
         }
 
         task["SubtasksJSON"] = SerializeSubtasks( reordered );
-        // Total/Done не меняются
-        AppendSubtaskChangeLog( task, "Изменён порядок пунктов", "" );
+        // Total/Done не меняются; лог перестановки не пишем намеренно
         task.Save();
         return "OK";
     }

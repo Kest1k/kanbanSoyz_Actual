@@ -907,7 +907,6 @@
                   + ' ondragstart="tcmSubtasksDragStart(event, \'' + tcmChatEsc(it.id) + '\')"'
                   + ' ondragend="tcmSubtasksDragEnd(event)"'
                   + ' ondragover="tcmSubtasksDragOver(event)"'
-                  + ' ondragleave="tcmSubtasksDragLeave(event)"'
                   + ' ondrop="tcmSubtasksDrop(event, \'' + tcmChatEsc(it.id) + '\')">'
                   + '<span class="kb-subt-drag" title="Перетащить">&#8801;</span>'
                   + '<label class="kb-subt-cb-wrap">'
@@ -924,6 +923,21 @@
                   + '</div>';
         }
         list.innerHTML = html || '<div class="kb-subt-empty">Нет подзадач</div>';
+
+        // Инжектируем линию-индикатор для DnD (единственный перемещаемый элемент)
+        var dlExist = document.createElement("div");
+        dlExist.id = "kb-subt-dropline";
+        dlExist.style.display = "none";
+        list.appendChild(dlExist);
+
+        // Скрываем индикатор когда мышь уходит за пределы списка
+        list.ondragleave = function (event) {
+            var related = event.relatedTarget || event.toElement;
+            if (!related || !list.contains(related)) {
+                var dl = document.getElementById("kb-subt-dropline");
+                if (dl) dl.style.display = "none";
+            }
+        };
 
         var total = items.length, done = 0;
         for (i = 0; i < items.length; i++) if (items[i].done === "1") done++;
@@ -1021,17 +1035,23 @@
             event.dataTransfer.setData("text", subtaskId);
             event.dataTransfer.effectAllowed = "move";
         } catch (e) { /* IE11 quirk */ }
+        // Помечаем перетаскиваемую строку + активируем режим DnD на контейнере
+        // (pointer-events:none на дочерних элементах — устраняет мигание)
         var row = document.querySelector('.kb-subt-item[data-id="' + tcmChatEsc(subtaskId) + '"]');
         if (row) row.className += " kb-subt-dragging";
+        var list = document.getElementById("tcm-subt-list");
+        if (list) list.className += " kb-dnd-active";
     };
 
     window.tcmSubtasksDragEnd = function (event) {
         _tcmSubtDragId = null;
+        var list = document.getElementById("tcm-subt-list");
+        if (list) list.className = list.className.replace(/\s*kb-dnd-active/g, "");
+        var dl = document.getElementById("kb-subt-dropline");
+        if (dl) dl.style.display = "none";
         var rows = document.querySelectorAll(".kb-subt-item");
         for (var i = 0; i < rows.length; i++) {
-            rows[i].className = rows[i].className
-                .replace(/\s*kb-subt-dragging/g, "")
-                .replace(/\s*kb-subt-drop-(before|after)/g, "");
+            rows[i].className = rows[i].className.replace(/\s*kb-subt-dragging/g, "");
         }
     };
 
@@ -1043,18 +1063,20 @@
 
         var row = event.currentTarget;
         if (!row || !row.className || row.className.indexOf("kb-subt-item") === -1) return;
-        var rect = row.getBoundingClientRect();
-        var midY = rect.top + rect.height / 2;
-        var before = (event.clientY < midY);
 
-        row.className = row.className.replace(/\s*kb-subt-drop-(before|after)/g, "")
-                      + " kb-subt-drop-" + (before ? "before" : "after");
-    };
+        var list = document.getElementById("tcm-subt-list");
+        var dl = document.getElementById("kb-subt-dropline");
+        if (!dl || !list) return;
 
-    window.tcmSubtasksDragLeave = function (event) {
-        var row = event.currentTarget;
-        if (!row || !row.className) return;
-        row.className = row.className.replace(/\s*kb-subt-drop-(before|after)/g, "");
+        // Позиционируем линию-индикатор: сверху строки (before) или снизу (after)
+        var listRect = list.getBoundingClientRect();
+        var rowRect  = row.getBoundingClientRect();
+        var midY     = rowRect.top + rowRect.height / 2;
+        var before   = (event.clientY < midY);
+        var top      = (rowRect.top - listRect.top) + (before ? 0 : rowRect.height) + list.scrollTop;
+
+        dl.style.top     = top + "px";
+        dl.style.display = "block";
     };
 
     window.tcmSubtasksDrop = function (event, targetId) {
@@ -1063,11 +1085,14 @@
         var srcId = _tcmSubtDragId;
         _tcmSubtDragId = null;
 
+        // Убираем визуальные артефакты
+        var list = document.getElementById("tcm-subt-list");
+        if (list) list.className = list.className.replace(/\s*kb-dnd-active/g, "");
+        var dl = document.getElementById("kb-subt-dropline");
+        if (dl) dl.style.display = "none";
         var rows = document.querySelectorAll(".kb-subt-item");
         for (var i = 0; i < rows.length; i++) {
-            rows[i].className = rows[i].className
-                .replace(/\s*kb-subt-dragging/g, "")
-                .replace(/\s*kb-subt-drop-(before|after)/g, "");
+            rows[i].className = rows[i].className.replace(/\s*kb-subt-dragging/g, "");
         }
 
         if (!srcId || !targetId || srcId === targetId) return;
@@ -1105,10 +1130,6 @@
                 tcmSubtasksLoad(_tcmSubtasks.taskKey);
                 return;
             }
-            if (typeof tcmInvalidateRevsCache === "function") tcmInvalidateRevsCache();
-            _tcmRevsLoaded = false;
-            var rb = document.getElementById("tcm-revs-body");
-            if (rb) rb.innerHTML = "Загрузка...";
         } catch (e) {
             alert("Ошибка перестановки: " + (e.message || e));
             tcmSubtasksLoad(_tcmSubtasks.taskKey);
