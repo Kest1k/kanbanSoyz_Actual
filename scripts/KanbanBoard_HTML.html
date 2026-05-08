@@ -10,8 +10,10 @@
     <div class="kb-nav-left">
         <div class="navbar-brand">Канбан-доска</div>
         <ul class="nav navbar-nav kb-nav-links">
-            <li><a href="#" onclick="showCreateTask(); return false;"><i class="fa fa-plus fa-fw"></i> Новая задача</a></li>
-            <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a></li>
+            <li><a href="#" onclick="showCreateTask(); return false;"><i class="fa fa-plus fa-fw"></i> Новая задача</a>
+            </li>
+            <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a>
+            </li>
             <li><a href="#" onclick="openReport(); return false;"><i class="fa fa-bar-chart fa-fw"></i> Отчёт</a></li>
         </ul>
         <!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
@@ -22,20 +24,24 @@
             <button type="button" id="kb-btn-all" onclick="kbSetAllMode()" class="kb-nav-btn" style="display:none;">
                 Все задачи
             </button>
-            <button type="button" id="kb-btn-mycreated" onclick="kbSetMyCreatedMode()" class="kb-nav-btn" style="display:none;">
+            <button type="button" id="kb-btn-mycreated" onclick="kbSetMyCreatedMode()" class="kb-nav-btn"
+                style="display:none;">
                 Выданные мной
             </button>
             <span id="kb-hier-label" class="kb-nav-label" style="display:none;">Вид:</span>
-            <select id="kb-sel-dept" class="kb-hier-select" onchange="kbOnDeptChange()" style="display:none; width:auto; min-width:140px;"></select>
-            <select id="kb-sel-sector" class="kb-hier-select" onchange="kbOnSectorChange()" style="display:none; width:auto; min-width:140px;"></select>
-            <select id="kb-sel-user" class="kb-hier-select" onchange="kbOnUserChange()" style="display:none; width:auto; min-width:160px;"></select>
+            <select id="kb-sel-dept" class="kb-hier-select" onchange="kbOnDeptChange()"
+                style="display:none; width:auto; min-width:140px;"></select>
+            <select id="kb-sel-sector" class="kb-hier-select" onchange="kbOnSectorChange()"
+                style="display:none; width:auto; min-width:140px;"></select>
+            <select id="kb-sel-user" class="kb-hier-select" onchange="kbOnUserChange()"
+                style="display:none; width:auto; min-width:160px;"></select>
             <input type="text" id="kb-sel-search" class="kb-hier-select" placeholder="&#128269; Поиск..."
                 oninput="kbOnSelSearch()" style="display:none; width:140px;">
         </div>
         <!-- Фильтр по периоду (компактный toggle + выпадающая панель) -->
         <div id="kb-period-wrap" class="kb-period-wrap">
-            <button type="button" id="kb-period-toggle" class="kb-period-toggle"
-                    onclick="kbPeriodToggle()" title="Фильтр по периоду">
+            <button type="button" id="kb-period-toggle" class="kb-period-toggle" onclick="kbPeriodToggle()"
+                title="Фильтр по периоду">
                 <i class="fa fa-calendar"></i>
                 <span id="kb-period-toggle-label">Период</span>
                 <i class="fa fa-caret-down" style="margin-left:4px;"></i>
@@ -43,11 +49,16 @@
             <div id="kb-period-panel" class="kb-period-panel" style="display:none;">
                 <div class="kb-period-panel-title">Быстрый выбор</div>
                 <div class="kb-period-presets">
-                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('week')">На этой неделе</button>
-                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('month')">В этом месяце</button>
-                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('3mo')">Последние 3 месяца</button>
-                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('6mo')">Последние полгода</button>
-                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('year')">Последний год</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('week')">На этой
+                        неделе</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('month')">В этом
+                        месяце</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('3mo')">Последние 3
+                        месяца</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('6mo')">Последние
+                        полгода</button>
+                    <button type="button" class="kb-period-preset-btn" onclick="kbPeriodPreset('year')">Последний
+                        год</button>
                 </div>
                 <div class="kb-period-divider"></div>
                 <div class="kb-period-panel-title">Свой диапазон</div>
@@ -55,17 +66,11 @@
                     <div class="kb-period-row">
                         <span class="kb-period-row-lbl">С:</span>
                         <div class="kb-date-wrap kb-period-row-wrap">
-                            <input type="text"
-                                   id="kb-period-from"
-                                   class="form-control input-sm kb-period-input"
-                                   placeholder="ДД.ММ.ГГГГ"
-                                   data-init="{{ KbPeriodFrom }}"
-                                   readonly
-                                   style="padding-right:28px;" />
-                            <button type="button"
-                                    class="kb-date-btn"
-                                    onclick="calToggle('kb-period-from')"
-                                    title="Выбрать дату начала">
+                            <input type="text" id="kb-period-from" class="form-control input-sm kb-period-input"
+                                placeholder="ДД.ММ.ГГГГ" data-init="{{ KbPeriodFrom }}" readonly
+                                style="padding-right:28px;" />
+                            <button type="button" class="kb-date-btn" onclick="calToggle('kb-period-from')"
+                                title="Выбрать дату начала">
                                 <i class="fa fa-calendar"></i>
                             </button>
                             <div id="kb-cal-kb-period-from" class="kb-cal"></div>
@@ -74,17 +79,11 @@
                     <div class="kb-period-row">
                         <span class="kb-period-row-lbl">По:</span>
                         <div class="kb-date-wrap kb-period-row-wrap">
-                            <input type="text"
-                                   id="kb-period-to"
-                                   class="form-control input-sm kb-period-input"
-                                   placeholder="ДД.ММ.ГГГГ"
-                                   data-init="{{ KbPeriodTo }}"
-                                   readonly
-                                   style="padding-right:28px;" />
-                            <button type="button"
-                                    class="kb-date-btn"
-                                    onclick="calToggle('kb-period-to')"
-                                    title="Выбрать дату конца">
+                            <input type="text" id="kb-period-to" class="form-control input-sm kb-period-input"
+                                placeholder="ДД.ММ.ГГГГ" data-init="{{ KbPeriodTo }}" readonly
+                                style="padding-right:28px;" />
+                            <button type="button" class="kb-date-btn" onclick="calToggle('kb-period-to')"
+                                title="Выбрать дату конца">
                                 <i class="fa fa-calendar"></i>
                             </button>
                             <div id="kb-cal-kb-period-to" class="kb-cal"></div>
@@ -93,9 +92,9 @@
                 </div>
                 <div class="kb-period-actions">
                     <button type="button" id="kb-period-apply" class="kb-period-btn kb-period-btn-primary"
-                            onclick="kbPeriodApply(); return false;">Применить</button>
+                        onclick="kbPeriodApply(); return false;">Применить</button>
                     <button type="button" id="kb-period-reset" class="kb-period-btn kb-period-btn-reset"
-                            onclick="kbPeriodReset(); return false;">Сбросить</button>
+                        onclick="kbPeriodReset(); return false;">Сбросить</button>
                 </div>
             </div>
         </div>
@@ -157,7 +156,8 @@
                 </div>
             </td>
             <td style="vertical-align:bottom;padding-bottom:0;white-space:nowrap;">
-                <button class="btn btn-primary btn-sm" onclick="doCreateTask()" style="height:30px;line-height:18px;">Создать</button>
+                <button class="btn btn-primary btn-sm" onclick="doCreateTask()"
+                    style="height:30px;line-height:18px;">Создать</button>
                 <button class="btn btn-default btn-sm" onclick="hideCreateTask()"
                     style="margin-left:3px;height:30px;line-height:18px;">Отмена</button>
             </td>
@@ -185,17 +185,18 @@
                     </label>
                     <span id="kb-crt-dept-wrap" style="display:none;">
                         <select id="kb-crt-dept" class="form-control input-sm"
-                            style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" onchange="kbOnCrtDeptChange()"
-                            disabled></select>&nbsp;
+                            style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;"
+                            onchange="kbOnCrtDeptChange()" disabled></select>&nbsp;
                     </span>
                     <span id="kb-crt-sector-wrap" style="display:none;">
                         <select id="kb-crt-sector" class="form-control input-sm"
-                            style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" onchange="kbOnCrtSectorChange()"
-                            disabled></select>&nbsp;
+                            style="width:auto;max-width:220px;height:30px;display:inline-block;vertical-align:middle;"
+                            onchange="kbOnCrtSectorChange()" disabled></select>&nbsp;
                     </span>
                     <span id="kb-crt-user-wrap" style="display:none;">
                         <select id="kb-crt-user" class="form-control input-sm"
-                            style="width:auto;min-width:110px;max-width:220px;height:30px;display:inline-block;vertical-align:middle;" disabled></select>
+                            style="width:auto;min-width:110px;max-width:220px;height:30px;display:inline-block;vertical-align:middle;"
+                            disabled></select>
                         <input type="text" id="kb-crt-user-search" class="form-control input-sm"
                             placeholder="&#128269; Поиск..." oninput="kbOnCrtUserSearch()"
                             style="width:130px;height:30px;display:inline-block;vertical-align:middle;margin-left:4px;">
@@ -218,7 +219,8 @@
                             onchange="kbOnGrpSectorChange()"></select>&nbsp;
                     </span>
                     <input type="text" id="kb-grp-search" class="form-control input-sm" placeholder="&#128269; Поиск..."
-                        oninput="kbOnGrpSearch()" style="width:150px;height:30px;display:inline-block;vertical-align:middle;">&nbsp;
+                        oninput="kbOnGrpSearch()"
+                        style="width:150px;height:30px;display:inline-block;vertical-align:middle;">&nbsp;
                     <span id="kb-grp-count" style="font-size:11px;color:#555;vertical-align:middle;">Выбрано: 0</span>
                 </div>
                 <div id="kb-grp-presets" style="margin-bottom:5px;">
@@ -248,8 +250,8 @@
         <tr>
             <td colspan="5" style="padding-top:5px;">
                 <label style="font-size:11px;display:block;margin-bottom:2px;">Теги (НИОКР)</label>
-                <input type="text" id="kb-new-tags" class="form-control input-sm"
-                    style="font-size:12px;" placeholder="Через запятую...">
+                <input type="text" id="kb-new-tags" class="form-control input-sm" style="font-size:12px;"
+                    placeholder="Через запятую...">
                 {% if availableTags.size > 0 %}
                 <div class="tcm-tag-suggestions" style="margin-top:3px;">
                     {% for tg in availableTags %}
@@ -288,8 +290,9 @@
         </div>
         <div class="kb-col-body" id="kb-body-0">
             {% for t in col_0 %}
-            <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
-                ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+            <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}"
+                data-owner="{{ t.isOwner }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
+                ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.isNew == "1" %}
                 <span class="kb-new-badge">НОВАЯ</span>
                 {% endif %}
@@ -315,11 +318,11 @@
                 {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
-                        {% if t.isOverdue == "1" %}
-                        <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
-                        {% else %}
-                        до {{ t.dueDate }}
-                        {% endif %}
+                    {% if t.isOverdue == "1" %}
+                    <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
+                    {% else %}
+                    до {{ t.dueDate }}
+                    {% endif %}
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
@@ -338,7 +341,8 @@
                     {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
-                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span
+                        class="kb-creator-name">{{ t.creatorShort }}</span></div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -359,8 +363,9 @@
         </div>
         <div class="kb-col-body" id="kb-body-1">
             {% for t in col_1 %}
-            <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
-                ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
+            <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}"
+                data-owner="{{ t.isOwner }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
+                ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.isNew == "1" %}
                 <span class="kb-new-badge">НОВАЯ</span>
                 {% endif %}
@@ -386,11 +391,11 @@
                 {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
-                        {% if t.isOverdue == "1" %}
-                        <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
-                        {% else %}
-                        до {{ t.dueDate }}
-                        {% endif %}
+                    {% if t.isOverdue == "1" %}
+                    <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
+                    {% else %}
+                    до {{ t.dueDate }}
+                    {% endif %}
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
@@ -409,7 +414,8 @@
                     {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
-                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span
+                        class="kb-creator-name">{{ t.creatorShort }}</span></div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -454,11 +460,11 @@
                 {% endif %}
                 <div class="kb-card-meta">
                     {% if t.dueDate != "" %}
-                        {% if t.isOverdue == "1" %}
-                        <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
-                        {% else %}
-                        до {{ t.dueDate }}
-                        {% endif %}
+                    {% if t.isOverdue == "1" %}
+                    <span class="kb-overdue">Просрочено (до {{ t.dueDate }})</span>
+                    {% else %}
+                    до {{ t.dueDate }}
+                    {% endif %}
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
@@ -477,7 +483,8 @@
                     {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
-                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span
+                        class="kb-creator-name">{{ t.creatorShort }}</span></div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -533,7 +540,8 @@
                     {% endif %}
                 </div>
                 {% if t.creatorShort != "" %}
-                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span class="kb-creator-name">{{ t.creatorShort }}</span></div>
+                <div class="kb-card-creator"><span class="kb-creator-label">Поручил:</span> <span
+                        class="kb-creator-name">{{ t.creatorShort }}</span></div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -561,17 +569,17 @@
             </select>
             <span id="rpt-custom-dates" style="display:none;margin-left:10px;">
                 <span class="kb-date-wrap">
-                    <input type="text" id="rpt-period-from" readonly="readonly"
-                        placeholder="С" class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
+                    <input type="text" id="rpt-period-from" readonly="readonly" placeholder="С"
+                        class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
                     <button type="button" class="kb-date-btn" onclick="calToggle('rpt-period-from')">&#128197;</button>
-<div id="kb-cal-rpt-period-from" class="kb-cal" style="display:none;"></div>
+                    <div id="kb-cal-rpt-period-from" class="kb-cal" style="display:none;"></div>
                 </span>
                 <span style="margin:0 4px;">–</span>
                 <span class="kb-date-wrap">
-                    <input type="text" id="rpt-period-to" readonly="readonly"
-                        placeholder="По" class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
+                    <input type="text" id="rpt-period-to" readonly="readonly" placeholder="По"
+                        class="form-control input-sm" style="width:105px;display:inline-block;font-size:12px;">
                     <button type="button" class="kb-date-btn" onclick="calToggle('rpt-period-to')">&#128197;</button>
-<div id="kb-cal-rpt-period-to" class="kb-cal" style="display:none;"></div>
+                    <div id="kb-cal-rpt-period-to" class="kb-cal" style="display:none;"></div>
                 </span>
             </span>
             <span id="rpt-scope-wrap" style="display:none;margin-left:10px;">
@@ -617,67 +625,69 @@
             <input type="hidden" id="tcm-key">
             <div class="tcm-tabs">
                 <div id="tab-btn-main" class="tcm-tab active" onclick="tcmSwitchTab('main')">Основное</div>
-                <div id="tab-btn-subt" class="tcm-tab" onclick="tcmSwitchTab('subt')">Чек-лист <span id="tcm-tab-subt-badge" class="tcm-tab-badge" style="display:none;">0/0</span></div>
-                <div id="tab-btn-chat" class="tcm-tab" onclick="tcmSwitchTab('chat')">Обсуждение <span id="tcm-tab-chat-badge" class="tcm-tab-badge" style="display:none;">0</span></div>
+                <div id="tab-btn-subt" class="tcm-tab" onclick="tcmSwitchTab('subt')">Чек-лист <span
+                        id="tcm-tab-subt-badge" class="tcm-tab-badge" style="display:none;">0/0</span></div>
+                <div id="tab-btn-chat" class="tcm-tab" onclick="tcmSwitchTab('chat')">Обсуждение <span
+                        id="tcm-tab-chat-badge" class="tcm-tab-badge" style="display:none;">0</span></div>
                 <div id="tab-btn-hist" class="tcm-tab" onclick="tcmSwitchTab('hist')">История</div>
             </div>
             <div id="tcm-tab-main" class="tcm-tab-content active">
-            <div class="tcm-fg">
-                <label class="tcm-lbl">Название</label>
-                <input type="text" id="tcm-title" class="form-control input-sm">
-            </div>
-            <div class="tcm-row">
                 <div class="tcm-fg">
-                    <label class="tcm-lbl">Статус</label>
-                    <select id="tcm-status" class="form-control input-sm" onchange="tcmOnStatusChange()"></select>
+                    <label class="tcm-lbl">Название</label>
+                    <input type="text" id="tcm-title" class="form-control input-sm">
                 </div>
-                <div class="tcm-fg">
-                    <label class="tcm-lbl">Приоритет</label>
-                    <select id="tcm-priority" class="form-control input-sm"></select>
-                </div>
-                <div class="tcm-fg">
-                    <label class="tcm-lbl">Исполнитель</label>
-                    <select id="tcm-assignee" class="form-control input-sm"></select>
-                </div>
-                <div class="tcm-fg">
-                    <label class="tcm-lbl">Срок</label>
-                    <div class="kb-date-wrap" style="width:100%;">
-                        <input type="text" id="tcm-duedate" class="form-control input-sm" style="padding-right:28px;"
-                            placeholder="дд.мм.гггг">
-                        <button type="button" id="tcm-cal-btn" class="kb-date-btn" onclick="calToggle('tcm-duedate')"
-                            title="Выбрать дату">
-                            <i class="fa fa-calendar"></i>
-                        </button>
-                        <div id="kb-cal-tcm" class="kb-cal"></div>
+                <div class="tcm-row">
+                    <div class="tcm-fg">
+                        <label class="tcm-lbl">Статус</label>
+                        <select id="tcm-status" class="form-control input-sm" onchange="tcmOnStatusChange()"></select>
+                    </div>
+                    <div class="tcm-fg">
+                        <label class="tcm-lbl">Приоритет</label>
+                        <select id="tcm-priority" class="form-control input-sm"></select>
+                    </div>
+                    <div class="tcm-fg">
+                        <label class="tcm-lbl">Исполнитель</label>
+                        <select id="tcm-assignee" class="form-control input-sm"></select>
+                    </div>
+                    <div class="tcm-fg">
+                        <label class="tcm-lbl">Срок</label>
+                        <div class="kb-date-wrap" style="width:100%;">
+                            <input type="text" id="tcm-duedate" class="form-control input-sm"
+                                style="padding-right:28px;" placeholder="дд.мм.гггг">
+                            <button type="button" id="tcm-cal-btn" class="kb-date-btn"
+                                onclick="calToggle('tcm-duedate')" title="Выбрать дату">
+                                <i class="fa fa-calendar"></i>
+                            </button>
+                            <div id="kb-cal-tcm" class="kb-cal"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="tcm-fg" id="tcm-details-group">
-                <label class="tcm-lbl">Описание</label>
-                <textarea id="tcm-details" class="form-control"></textarea>
-            </div>
-            <div class="tcm-fg">
-                <label class="tcm-lbl">Теги (НИОКР)</label>
-                <input type="text" id="tcm-tags" class="form-control input-sm"
-                    style="font-size:12px;" placeholder="Через запятую...">
-                <div id="tcm-tag-suggestions" class="tcm-tag-suggestions"></div>
-            </div>
-            <div class="tcm-meta" id="tcm-meta"></div>
-            <div class="tcm-msg tcm-msg-ok" id="tcm-msg-ok">Сохранено!</div>
-            <div class="tcm-msg tcm-msg-err" id="tcm-msg-err"></div>
-            <div class="tcm-att" id="tcm-att">
-                <div class="tcm-lbl">ВЛОЖЕНИЯ <span class="tcm-att-count" id="tcm-att-count"></span></div>
-                <div class="tcm-att-list" id="tcm-att-list"></div>
-                <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNative()"
-                    style="font-size:12px; padding:3px 10px;">+ Прикрепить объект</button>
-                <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNativeCont()"
-                    style="font-size:12px; padding:3px 10px; margin-left:4px;">+ Прикрепить папку/проект</button>
-                <div class="tcm-att-search" id="tcm-att-search">
-                    <input type="text" class="tcm-att-sinp" id="tcm-att-sinp" placeholder="Поиск объекта по имени..."
-                        onkeyup="tcmAttSearchKeyup()">
-                    <div class="tcm-att-results" id="tcm-att-results"></div>
+                <div class="tcm-fg" id="tcm-details-group">
+                    <label class="tcm-lbl">Описание</label>
+                    <textarea id="tcm-details" class="form-control"></textarea>
                 </div>
-            </div>
+                <div class="tcm-fg">
+                    <label class="tcm-lbl">Теги (НИОКР)</label>
+                    <input type="text" id="tcm-tags" class="form-control input-sm" style="font-size:12px;"
+                        placeholder="Через запятую...">
+                    <div id="tcm-tag-suggestions" class="tcm-tag-suggestions"></div>
+                </div>
+                <div class="tcm-meta" id="tcm-meta"></div>
+                <div class="tcm-msg tcm-msg-ok" id="tcm-msg-ok">Сохранено!</div>
+                <div class="tcm-msg tcm-msg-err" id="tcm-msg-err"></div>
+                <div class="tcm-att" id="tcm-att">
+                    <div class="tcm-lbl">ВЛОЖЕНИЯ <span class="tcm-att-count" id="tcm-att-count"></span></div>
+                    <div class="tcm-att-list" id="tcm-att-list"></div>
+                    <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNative()"
+                        style="font-size:12px; padding:3px 10px;">+ Прикрепить объект</button>
+                    <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNativeCont()"
+                        style="font-size:12px; padding:3px 10px; margin-left:4px;">+ Прикрепить папку/проект</button>
+                    <div class="tcm-att-search" id="tcm-att-search">
+                        <input type="text" class="tcm-att-sinp" id="tcm-att-sinp"
+                            placeholder="Поиск объекта по имени..." onkeyup="tcmAttSearchKeyup()">
+                        <div class="tcm-att-results" id="tcm-att-results"></div>
+                    </div>
+                </div>
             </div>
             <div id="tcm-tab-subt" class="tcm-tab-content">
                 <div class="kb-subt-header">
@@ -686,28 +696,26 @@
                 </div>
                 <div class="kb-subt-add">
                     <input type="text" id="tcm-subt-input" class="form-control input-sm"
-                        placeholder="Добавить пункт чек-листа..."
-                        onkeydown="tcmSubtasksKeydown(event)" maxlength="500">
-                    <button type="button" class="tcm-btn tcm-btn-primary"
-                        onclick="tcmSubtasksAdd()">+</button>
+                        placeholder="Добавить пункт чек-листа..." onkeydown="tcmSubtasksKeydown(event)" maxlength="500">
+                    <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSubtasksAdd()">+</button>
                 </div>
                 <div class="kb-subt-list" id="tcm-subt-list"></div>
             </div>
             <div id="tcm-tab-chat" class="tcm-tab-content">
-            <div class="tcm-chat" id="tcm-chat">
-                <div class="tcm-chat-list" id="tcm-chat-list"></div>
-                <div class="tcm-chat-input">
-                    <textarea id="tcm-chat-text" class="tcm-area" placeholder="Написать комментарий..."
-                        onkeydown="tcmChatKeydown(event)"></textarea>
-                    <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSendComment()"
-                        style="padding:6px 14px; font-size:12px;">Отправить</button>
+                <div class="tcm-chat" id="tcm-chat">
+                    <div class="tcm-chat-list" id="tcm-chat-list"></div>
+                    <div class="tcm-chat-input">
+                        <textarea id="tcm-chat-text" class="tcm-area" placeholder="Написать комментарий..."
+                            onkeydown="tcmChatKeydown(event)"></textarea>
+                        <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSendComment()"
+                            style="padding:6px 14px; font-size:12px;">Отправить</button>
+                    </div>
                 </div>
             </div>
-            </div>
             <div id="tcm-tab-hist" class="tcm-tab-content">
-            <div class="tcm-revs">
-                <div class="tcm-revs-body visible" id="tcm-revs-body">Загрузка...</div>
-            </div>
+                <div class="tcm-revs">
+                    <div class="tcm-revs-body visible" id="tcm-revs-body">Загрузка...</div>
+                </div>
             </div>
         </div>
         <div class="tcm-footer">
@@ -731,8 +739,8 @@
             <div class="help-section">
                 <div class="help-section-title">Что такое канбан-доска?</div>
                 <p>Канбан-доска – это наглядный инструмент управления задачами. Все задачи отображаются
-                   в виде карточек, распределённых по колонкам в зависимости от их состояния.
-                   Вы всегда видите, что нужно сделать, что в работе и что уже выполнено.</p>
+                    в виде карточек, распределённых по колонкам в зависимости от их состояния.
+                    Вы всегда видите, что нужно сделать, что в работе и что уже выполнено.</p>
             </div>
 
             <div class="help-section">
@@ -760,10 +768,22 @@
             <div class="help-section">
                 <div class="help-section-title">Приоритеты</div>
                 <table class="help-table">
-                    <tr><td><span class="help-prio" style="background:#dc2626;">!</span> Сверхсрочный</td><td>Требует немедленного выполнения. Карточка подсвечивается красным</td></tr>
-                    <tr><td><span class="help-prio" style="background:#ef5350;">!</span> Срочный</td><td>Высокий приоритет, выполнять в первую очередь</td></tr>
-                    <tr><td><span class="help-prio" style="background:#f39c12;">&#8226;</span> Средний</td><td>Обычная задача (по умолчанию)</td></tr>
-                    <tr><td><span class="help-prio" style="background:#22c55e;">&#8226;</span> Низкий</td><td>Можно сделать, когда появится время</td></tr>
+                    <tr>
+                        <td><span class="help-prio" style="background:#dc2626;">!</span> Сверхсрочный</td>
+                        <td>Требует немедленного выполнения. Карточка подсвечивается красным</td>
+                    </tr>
+                    <tr>
+                        <td><span class="help-prio" style="background:#ef5350;">!</span> Срочный</td>
+                        <td>Высокий приоритет, выполнять в первую очередь</td>
+                    </tr>
+                    <tr>
+                        <td><span class="help-prio" style="background:#f39c12;">&#8226;</span> Средний</td>
+                        <td>Обычная задача (по умолчанию)</td>
+                    </tr>
+                    <tr>
+                        <td><span class="help-prio" style="background:#22c55e;">&#8226;</span> Низкий</td>
+                        <td>Можно сделать, когда появится время</td>
+                    </tr>
                 </table>
             </div>
 
@@ -772,35 +792,54 @@
                 <table class="help-table">
                     <tr>
                         <td class="help-action"><i class="fa fa-plus"></i> Создать задачу</td>
-                        <td>Нажмите <b>«Новая задача»</b> в верхнем меню. Заполните название, выберите приоритет, срок и исполнителя. Нажмите <b>«Создать»</b></td>
+                        <td>Нажмите <b>«Новая задача»</b> в верхнем меню. Заполните название, выберите приоритет, срок и
+                            исполнителя. Нажмите <b>«Создать»</b></td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-arrows"></i> Переместить</td>
-                        <td>Зажмите карточку левой клавишей мыши (ЛКМ) и перетащите в нужную колонку. Например, из «Надо сделать» в «В работе», когда начинаете выполнять задачу</td>
+                        <td>Зажмите карточку левой клавишей мыши (ЛКМ) и перетащите в нужную колонку. Например, из «Надо
+                            сделать» в «В работе», когда начинаете выполнять задачу</td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-pencil"></i> Открыть карточку</td>
-                        <td>Нажмите два раза ЛКМ на карточку, чтобы увидеть подробности, оставить комментарий или прикрепить документ. Внутри карточки – четыре вкладки: <b>Основное</b>, <b>Чек-лист</b>, <b>Обсуждение</b> и <b>История</b></td>
+                        <td>Нажмите два раза ЛКМ на карточку, чтобы увидеть подробности, оставить комментарий или
+                            прикрепить документ. Внутри карточки – четыре вкладки: <b>Основное</b>, <b>Чек-лист</b>,
+                            <b>Обсуждение</b> и <b>История</b>
+                        </td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-paperclip"></i> Вложения</td>
-                        <td>Внутри карточки можно прикрепить <b>объект</b> (чертёж, 3D-модель, документ, информационный объект) кнопкой <b>«+ Прикрепить объект»</b> или <b>контейнер</b> (папку, проект) кнопкой <b>«+ Прикрепить папку/проект»</b></td>
+                        <td>Внутри карточки можно прикрепить <b>объект</b> (чертёж, 3D-модель, документ, информационный
+                            объект) кнопкой <b>«+ Прикрепить объект»</b> или <b>контейнер</b> (папку, проект) кнопкой
+                            <b>«+ Прикрепить папку/проект»</b>
+                        </td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-comment"></i> Комментарии</td>
-                        <td>Внутри карточки на вкладке <b>«Обсуждение»</b> – напишите сообщение и нажмите <b>«Отправить»</b> (или Ctrl+Enter). Свои комментарии можно <b>редактировать</b> (✎) и удалять</td>
+                        <td>Внутри карточки на вкладке <b>«Обсуждение»</b> – напишите сообщение и нажмите
+                            <b>«Отправить»</b> (или Ctrl+Enter). Свои комментарии можно <b>редактировать</b> (✎) и
+                            удалять
+                        </td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-check-square-o"></i> Чек-лист</td>
-                        <td>Внутри карточки на вкладке <b>«Чек-лист»</b> – введите пункт и нажмите <b>Enter</b> или <b>+</b>. Отмечайте пункты галочкой по мере выполнения. На карточке доски виден прогресс <b>☑ выполнено/всего</b>. Удалить пункт – наведите курсор и нажмите <b>×</b></td>
+                        <td>Внутри карточки на вкладке <b>«Чек-лист»</b> – введите пункт и нажмите <b>Enter</b> или
+                            <b>+</b>. Отмечайте пункты галочкой по мере выполнения. На карточке доски виден прогресс
+                            <b>☑ выполнено/всего</b>. Удалить пункт – наведите курсор и нажмите <b>×</b>
+                        </td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-floppy-o"></i> Сохранить и закрыть</td>
-                        <td>Кнопка <b>«Сохранить»</b> внизу карточки записывает изменения, закрывает её и обновляет доску. То же самое – <b>Ctrl+S</b> из любого поля. Кнопка <b>«Закрыть»</b> просто закрывает карточку без сохранения текущих правок (уже сохранённое – комментарии, чек-лист – остаётся). Хотите сохранить и продолжить править – нажмите <b>Enter</b> вне полей ввода</td>
+                        <td>Кнопка <b>«Сохранить»</b> внизу карточки записывает изменения, закрывает её и обновляет
+                            доску. То же самое – <b>Ctrl+S</b> из любого поля. Кнопка <b>«Закрыть»</b> просто закрывает
+                            карточку без сохранения текущих правок (уже сохранённое – комментарии, чек-лист – остаётся).
+                            Хотите сохранить и продолжить править – нажмите <b>Enter</b> вне полей ввода</td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-trash"></i> Удалить задачу</td>
-                        <td>Удалить можно только созданные вами задачи. Быстрый способ: наведите на карточку и нажмите <b>&#215;</b> в правом верхнем углу. Или откройте карточку и нажмите <b>«Удалить»</b> внизу</td>
+                        <td>Удалить можно только созданные вами задачи. Быстрый способ: наведите на карточку и нажмите
+                            <b>&#215;</b> в правом верхнем углу. Или откройте карточку и нажмите <b>«Удалить»</b> внизу
+                        </td>
                     </tr>
                 </table>
             </div>
@@ -814,34 +853,41 @@
                     </tr>
                     <tr>
                         <td class="help-action">Изменить исполнителя</td>
-                        <td>Создатель задачи может в любой момент <b>поменять исполнителя</b> – откройте карточку и выберите другого сотрудника в поле «Исполнитель»</td>
+                        <td>Создатель задачи может в любой момент <b>поменять исполнителя</b> – откройте карточку и
+                            выберите другого сотрудника в поле «Исполнитель»</td>
                     </tr>
                     <tr>
                         <td class="help-action">Групповая задача</td>
-                        <td>Выберите режим <b>«Нескольким»</b> и отметьте галочками нужных сотрудников – каждый получит свою копию задачи</td>
+                        <td>Выберите режим <b>«Нескольким»</b> и отметьте галочками нужных сотрудников – каждый получит
+                            свою копию задачи</td>
                     </tr>
                     <tr>
                         <td class="help-action">Просмотр подчинённых</td>
-                        <td>Используйте фильтры в верхней панели, чтобы видеть задачи конкретного сотрудника, сектора или всех</td>
+                        <td>Используйте фильтры в верхней панели, чтобы видеть задачи конкретного сотрудника, сектора
+                            или всех</td>
                     </tr>
                     <tr>
                         <td class="help-action">Отчёт</td>
-                        <td>Нажмите <b>«Отчёт»</b> – увидите сводку по задачам за период: сколько создано, выполнено, просрочено</td>
+                        <td>Нажмите <b>«Отчёт»</b> – увидите сводку по задачам за период: сколько создано, выполнено,
+                            просрочено</td>
                     </tr>
                 </table>
             </div>
 
             <div class="help-section">
                 <div class="help-section-title">Подзадачи (чек-лист)</div>
-                <p>Большую задачу удобно разбить на мелкие шаги. Вкладка <b>«Чек-лист»</b> внутри карточки – это список пунктов с галочками.</p>
+                <p>Большую задачу удобно разбить на мелкие шаги. Вкладка <b>«Чек-лист»</b> внутри карточки – это список
+                    пунктов с галочками.</p>
                 <table class="help-table">
                     <tr>
                         <td class="help-action">Добавить пункт</td>
-                        <td>Введите текст в поле внизу вкладки и нажмите <b>Enter</b> (или кнопку <b>+</b>). До 500 символов на пункт, до 200 пунктов на задачу</td>
+                        <td>Введите текст в поле внизу вкладки и нажмите <b>Enter</b> (или кнопку <b>+</b>). До 500
+                            символов на пункт, до 200 пунктов на задачу</td>
                     </tr>
                     <tr>
                         <td class="help-action">Отметить выполненным</td>
-                        <td>Кликните по чекбоксу слева от пункта. Текст станет серым и зачёркнутым. При наведении видно, кто и когда выполнил пункт</td>
+                        <td>Кликните по чекбоксу слева от пункта. Текст станет серым и зачёркнутым. При наведении видно,
+                            кто и когда выполнил пункт</td>
                     </tr>
                     <tr>
                         <td class="help-action">Снять отметку</td>
@@ -853,10 +899,23 @@
                     </tr>
                     <tr>
                         <td class="help-action">Прогресс</td>
-                        <td>В шапке вкладки и на самой карточке доски виден счётчик <b>☑ выполнено/всего</b> (например, <b>☑ 2/5</b>)</td>
+                        <td>В шапке вкладки и на самой карточке доски виден счётчик <b>☑ выполнено/всего</b> (например,
+                            <b>☑ 2/5</b>)
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Перетаскивание</td>
+                        <td>Зажмите иконку <b>≡</b> слева от пункта и перетащите его вверх или вниз для изменения
+                            порядка</td>
+                    </tr>
+                    <tr>
+                        <td class="help-action">Редактирование</td>
+                        <td>Двойной клик по тексту пункта – режим редактирования. <b>Enter</b> – сохранить, <b>Esc</b> –
+                            отменить</td>
                     </tr>
                 </table>
-                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Чек-лист – это «лёгкие» пункты внутри одной задачи. Если шаг требует отдельного исполнителя или срока – создайте полноценную задачу.</p>
+                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Чек-лист – это «лёгкие» пункты внутри одной
+                    задачи. Если шаг требует отдельного исполнителя или срока – создайте полноценную задачу.</p>
             </div>
 
             <div class="help-section">
@@ -879,31 +938,59 @@
                         <td>Нажмите <b>«Сбросить»</b> чтобы убрать фильтр и показать все задачи</td>
                     </tr>
                 </table>
-                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Для задач в работе используется дата создания, для завершённых – дата выполнения.</p>
+                <p style="font-size:12px;color:#6b7280;margin-top:6px;">Для задач в работе используется дата создания,
+                    для завершённых – дата выполнения.</p>
             </div>
 
             <div class="help-section">
                 <div class="help-section-title">Полезные подсказки</div>
                 <ul class="help-tips">
-                    <li>Просроченные задачи отображаются <span style="color:#dc2626;font-weight:600;">красным цветом</span> – обратите на них внимание</li>
-                    <li>К задаче можно добавить <b>теги</b> для группировки (например, название проекта или направления)</li>
-                    <li>Все изменения в задаче записываются в <b>«Историю изменений»</b> – всегда видно, кто и когда что менял</li>
+                    <li>Просроченные задачи отображаются <span style="color:#dc2626;font-weight:600;">красным
+                            цветом</span> – обратите на них внимание</li>
+                    <li>К задаче можно добавить <b>теги</b> для группировки (например, название проекта или направления)
+                    </li>
+                    <li>Все изменения в задаче записываются в <b>«Историю изменений»</b> – всегда видно, кто и когда что
+                        менял</li>
                     <li>При назначении задачи другому сотруднику ему приходит <b>уведомление</b> в системе</li>
-                    <li>Когда вам пишут <b>комментарий</b> – появляется всплывающее окно с текстом. Нажмите <b>«Открыть карточку»</b>, чтобы сразу перейти к обсуждению</li>
-                    <li>Обновляйте статус задачи вовремя – это помогает коллегам и руководителям видеть реальную картину</li>
+                    <li>Когда вам пишут <b>комментарий</b> – появляется всплывающее окно с текстом. Нажмите <b>«Открыть
+                            карточку»</b>, чтобы сразу перейти к обсуждению</li>
+                    <li>Обновляйте статус задачи вовремя – это помогает коллегам и руководителям видеть реальную картину
+                    </li>
                 </ul>
             </div>
 
             <div class="help-section">
                 <div class="help-section-title">Горячие клавиши</div>
                 <table class="help-table">
-                    <tr><td><kbd>F5</kbd></td>                          <td>Обновить доску</td></tr>
-                    <tr><td><kbd>F1</kbd></td>                          <td>Открыть / закрыть справку</td></tr>
-                    <tr><td><kbd>Esc</kbd></td>                         <td>Закрыть верхнее окно (cправка / отчёт / карточка / панель создания)</td></tr>
-                    <tr><td><kbd>Enter</kbd></td>                       <td>Сохранить изменения в карточке <b>не закрывая</b> (без обновления доски – для серии быстрых правок)</td></tr>
-                    <tr><td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>         <td>Сохранить, закрыть карточку <b>и обновить доску</b> (из любого поля)</td></tr>
-                    <tr><td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td>     <td>Отправить комментарий в чате</td></tr>
-                    <tr><td><kbd>N</kbd></td>                           <td>Создать новую задачу</td></tr>
+                    <tr>
+                        <td><kbd>F5</kbd></td>
+                        <td>Обновить доску</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>F1</kbd></td>
+                        <td>Открыть / закрыть справку</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Esc</kbd></td>
+                        <td>Закрыть верхнее окно (cправка / отчёт / карточка / панель создания)</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Enter</kbd></td>
+                        <td>Сохранить изменения в карточке <b>не закрывая</b> (без обновления доски – для серии быстрых
+                            правок)</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>
+                        <td>Сохранить, закрыть карточку <b>и обновить доску</b> (из любого поля)</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td>
+                        <td>Отправить комментарий в чате</td>
+                    </tr>
+                    <tr>
+                        <td><kbd>N</kbd></td>
+                        <td>Создать новую задачу</td>
+                    </tr>
                 </table>
             </div>
 
@@ -923,24 +1010,32 @@
         </div>
         <div class="help-body">
             <div style="margin-bottom: 20px; border-left: 3px solid #f59e0b; padding-left: 15px;">
-                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Режим «Выданные мной»</div>
-                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">08.05.2026</div>
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Обновление интерфейса</div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">12.05.2026</div>
                 <ul class="help-tips">
-                    <li>В панели режимов появилась новая кнопка <b>«Выданные мной»</b> — доступна руководителям (главный инженер, начальник сектора, начальник отделения, администратор).</li>
-                    <li>По нажатию доска показывает только задачи, которые <b>вы сами создали</b>, независимо от исполнителя.</li>
-                    <li>Удобно для контроля собственных поручений: видите все задачи, выданные вами подчинённым.</li>
-                    <li>Режим совместим с <b>фильтром по периоду</b>: «Выданные мной за последний месяц» — одним нажатием.</li>
-                    <li>Режим сохраняется при обновлении страницы.</li>
+                    <li><b>Чек-лист: перетаскивание и редактирование</b> – пункты чек-листа можно перетаскивать мышью
+                        для изменения порядка. Двойной клик по тексту пункта – редактирование.</li>
+                    <li><b>Режим «Выданные мной»</b> – для руководителей: кнопка показывает только задачи, которые вы
+                        создали для других.</li>
+                    <li><b>Адаптивная верхняя панель</b> – при сужении окна элементы больше не наезжают друг на друга,
+                        панель корректно переносится.</li>
+                    <li><b>Фильтр по сотруднику</b> – при выборе сотрудника его фамилия теперь сохраняется в поле (ранее
+                        сбрасывалась).</li>
+                    <li><b>Описание задачи</b> – поле описания в карточке автоматически растягивается по содержимому
+                        (без полосы прокрутки).</li>
                 </ul>
             </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #5e6ad2; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Чек-лист в задаче</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">06.05.2026</div>
                 <ul class="help-tips">
-                    <li>В карточке задачи появилась новая вкладка <b>«Чек-лист»</b> – большую задачу теперь можно разбить на мелкие шаги с галочками.</li>
-                    <li>Введите пункт и нажмите <b>Enter</b> (или <b>+</b>) – до 500 символов на пункт, до 200 пунктов на задачу.</li>
+                    <li>В карточке задачи появилась новая вкладка <b>«Чек-лист»</b> – большую задачу теперь можно
+                        разбить на мелкие шаги с галочками.</li>
+                    <li>Введите пункт и нажмите <b>Enter</b> (или <b>+</b>) – до 500 символов на пункт, до 200 пунктов
+                        на задачу.</li>
                     <li>Отмечайте пункты по мере выполнения. При наведении видно, <b>кто и когда</b> отметил пункт.</li>
-                    <li>На карточке доски виден счётчик прогресса <b>☑ выполнено/всего</b> (например, <b>☑ 2/5</b>) – сразу понятно, насколько задача близка к завершению.</li>
+                    <li>На карточке доски виден счётчик прогресса <b>☑ выполнено/всего</b> (например, <b>☑ 2/5</b>) –
+                        сразу понятно, насколько задача близка к завершению.</li>
                     <li>Удалить пункт – наведите на него курсор и нажмите <b>×</b>.</li>
                 </ul>
             </div>
@@ -948,27 +1043,23 @@
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Фильтр по периоду</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">05.05.2026</div>
                 <ul class="help-tips">
-                    <li>В верхней панели появилась кнопка 📅 <b>«Период»</b> – позволяет фильтровать задачи по дате. Для задач в работе используется дата создания, для завершённых – дата выполнения.</li>
-                    <li><b>Быстрый выбор</b>: на этой неделе, в этом месяце, за 3 месяца, полгода, год – одним нажатием.</li>
+                    <li>В верхней панели появилась кнопка 📅 <b>«Период»</b> – позволяет фильтровать задачи по дате. Для
+                        задач в работе используется дата создания, для завершённых – дата выполнения.</li>
+                    <li><b>Быстрый выбор</b>: на этой неделе, в этом месяце, за 3 месяца, полгода, год – одним нажатием.
+                    </li>
                     <li><b>Свой диапазон</b>: укажите точные даты «С» и «По» через встроенный календарь.</li>
-                    <li>В отчёте добавлен пункт <b>«Произвольный период»</b> для формирования сводки за любой диапазон дат.</li>
-                </ul>
-            </div>
-            <div style="margin-bottom: 20px; border-left: 3px solid #4a6fa5; padding-left: 15px;">
-                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Чек-лист: перетаскивание и редактирование</div>
-                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">08.05.2026</div>
-                <ul class="help-tips">
-                    <li>Поле добавления нового пункта теперь находится <b>вверху</b> вкладки «Чек-лист» — сразу видно без прокрутки.</li>
-                    <li>Пункты чек-листа можно <b>перетаскивать</b> мышью для изменения порядка — за иконку <b>≡</b> слева от пункта.</li>
-                    <li><b>Двойной клик</b> по тексту пункта — перейти в режим редактирования. <b>Enter</b> — сохранить, <b>Esc</b> — отменить.</li>
-                    <li>Все изменения порядка и текста фиксируются в истории карточки.</li>
+                    <li>В отчёте добавлен пункт <b>«Произвольный период»</b> для формирования сводки за любой диапазон
+                        дат.</li>
                 </ul>
             </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #4a6fa5; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Горячие клавиши</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">04.05.2026</div>
                 <ul class="help-tips">
-                    <li>Добавлены горячие клавиши для быстрой работы: <b>F5</b> – обновить доску, <b>F1</b> – справка, <b>Esc</b> – закрыть окно, <b>Enter</b> – сохранить карточку, <b>Ctrl+S</b> – сохранить и закрыть, <b>Ctrl+Enter</b> – отправить комментарий, <b>N</b> – новая задача.</li>
+                    <li>Добавлены горячие клавиши для быстрой работы: <b>F5</b> – обновить доску, <b>F1</b> – справка,
+                        <b>Esc</b> – закрыть окно, <b>Enter</b> – сохранить карточку, <b>Ctrl+S</b> – сохранить и
+                        закрыть, <b>Ctrl+Enter</b> – отправить комментарий, <b>N</b> – новая задача.
+                    </li>
                     <li>Блок горячих клавиш добавлен в справку (кнопка <b>«Справка»</b> в правом верхнем углу).</li>
                 </ul>
             </div>
@@ -991,5 +1082,3 @@
 
 <script src="JS/kanban.js"></script>
 {% endblock %}
-
-
