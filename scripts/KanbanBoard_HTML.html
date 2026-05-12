@@ -15,6 +15,7 @@
             <li><a href="#" onclick="kbRefreshBoard(); return false;"><i class="fa fa-refresh fa-fw"></i> Обновить</a>
             </li>
             <li><a href="#" onclick="openReport(); return false;"><i class="fa fa-bar-chart fa-fw"></i> Отчёт</a></li>
+            <li><a href="#" onclick="kbExportToExcel(); return false;" class="kb-nav-link-excel"><i class="fa fa-file-excel-o fa-fw"></i> Экспорт в Excel</a></li>
         </ul>
         <!-- Панель ролевой иерархии: видна только руководителям (инициализируется через JS) -->
         <div id="kb-hier-panel" class="kb-nav-cluster" style="display:none;">
@@ -841,6 +842,14 @@
                             <b>&#215;</b> в правом верхнем углу. Или откройте карточку и нажмите <b>«Удалить»</b> внизу
                         </td>
                     </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-file-excel-o"></i> Экспорт в Excel</td>
+                        <td>Кнопка <b>«Экспорт в Excel»</b> в верхнем меню выгружает в книгу Excel задачи, которые
+                            сейчас видны на доске – с учётом активного режима просмотра (мои задачи / сектор /
+                            отделение / все задачи / выданные мной / конкретный сотрудник) и фильтра по периоду.
+                            Excel откроется автоматически – файл можно сразу просматривать, редактировать или печатать.
+                        </td>
+                    </tr>
                 </table>
             </div>
 
@@ -1009,6 +1018,16 @@
             <button type="button" class="tcm-close" onclick="closeWhatsNew()" title="Закрыть">&#215;</button>
         </div>
         <div class="help-body">
+            <div style="margin-bottom: 20px; border-left: 3px solid #16a34a; padding-left: 15px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;"><i class="fa fa-file-excel-o" style="color:#16a34a;"></i> Экспорт в Excel</div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">12.05.2026</div>
+                <ul class="help-tips">
+                    <li>В верхней панели появилась кнопка <b>«Экспорт в Excel»</b>. Выгружает в книгу Excel задачи,
+                        которые сейчас видны на доске – с учётом выбранного режима просмотра (мои / сектор /
+                        отделение / все задачи / выданные мной) и фильтра по периоду.</li>
+                    <li>Excel открывается автоматически – файл сразу готов к просмотру, редактированию или печати.</li>
+                </ul>
+            </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #f59e0b; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">Обновление интерфейса</div>
                 <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">12.05.2026</div>
@@ -1077,6 +1096,15 @@
         <div class="help-footer">
             <button type="button" class="tcm-btn tcm-btn-primary" onclick="closeWhatsNew()">Закрыть</button>
         </div>
+    </div>
+</div>
+
+<!-- ── Спиннер «Формируем Excel…» (показывается во время COM-вызова) ── -->
+<div id="kb-excel-overlay" class="kb-excel-overlay" style="display:none;">
+    <div class="kb-excel-spinner-box">
+        <div class="kb-excel-spinner"></div>
+        <div class="kb-excel-spinner-text"><i class="fa fa-file-excel-o"></i> Формируем Excel…</div>
+        <div class="kb-excel-spinner-sub">Excel откроется автоматически</div>
     </div>
 </div>
 

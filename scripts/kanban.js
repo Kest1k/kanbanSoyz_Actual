@@ -276,6 +276,42 @@
             catch (e) { window.location.href = window.location.href; }
         };
 
+        window.kbExportToExcel = function () {
+            // Параметры не нужны: сервер читает KbViewMode / KbPeriodFrom / KbPeriodTo
+            // из obj.PropertyBag, а тот синхронно обновляется методами SetViewMode и
+            // SetPeriodFilter. Локальная переменная _kbH.viewMode в IIFE недоступна
+            // глобально, поэтому передавать её не пытаемся.
+
+            // Показываем оверлей со спиннером ДО блокирующего COM-вызова.
+            // window.external.InvokeTemplate синхронный и блокирует UI-thread,
+            // поэтому отрисовку оверлея запускаем через setTimeout(0) — без него
+            // браузер не успеет перерисоваться до вызова.
+            var ov = document.getElementById("kb-excel-overlay");
+            if (ov) ov.style.display = "block";
+
+            setTimeout(function () {
+                var hideOverlay = function () {
+                    if (ov) ov.style.display = "none";
+                };
+                try {
+                    var res = window.external.InvokeTemplate("ExportToExcel", "");
+                    hideOverlay();
+                    if (res === "EMPTY") {
+                        alert("Нет задач для экспорта при текущих фильтрах.");
+                        return;
+                    }
+                    if (typeof res === "string" && res.indexOf("ERROR") === 0) {
+                        alert("Ошибка экспорта в Excel: " + res);
+                        return;
+                    }
+                    // Успех: Excel уже открыт на машине пользователя (doc.Visible = true).
+                } catch (e) {
+                    hideOverlay();
+                    alert("Ошибка экспорта в Excel: " + (e.message || e));
+                }
+            }, 30);
+        };
+
         // Step11: подсветка select при выборе «Сверхсрочная»
         window.kbOnPriorityChange = function () {
             var sel = document.getElementById("kb-new-priority");

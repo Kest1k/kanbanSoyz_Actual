@@ -186,6 +186,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 return "OK";
             }
             case "GetReport":        return DoGetReport( inputParams );
+            case "ExportToExcel":    return DoExportToExcel( obj, inputParams );
             case "GetTaskDetails":   return DoGetTaskDetails( inputParams );
             case "SaveTask":         return DoSaveTask( inputParams );
             case "GetTaskRevisions":   return DoGetTaskHistory( inputParams );
@@ -3626,4 +3627,578 @@ private void AppendSubtaskChangeLog( InfoObject task, string action, string subt
 
     task["ChangeLog"] = newLog;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Экспорт текущей доски в Excel
+// ═══════════════════════════════════════════════════════════════════════
+// inputParams: игнорируется. Все фильтры читаются из obj.PropertyBag
+// (KbViewMode, KbPeriodFrom, KbPeriodTo) — те же значения, что использует
+// BeforeRender. Excel COM открывается на машине пользователя (Visible=true).
+private object DoExportToExcel( InfoObject obj, object inputParams )
+{
+    var container = Service.GetDataContainer( "All_Kanban_Tasks_Folder" );
+    if( container == null ) return "ERROR:ContainerNotFound";
+
+    var currentUser = Service.GetCurrentUser();
+    var role        = GetUserRole( currentUser );
+
+    var viewMode = (obj.PropertyBag["KbViewMode"] as string) ?? "my";
+
+    var allowedIds = GetAllowedUserIdSet( currentUser, role, viewMode );
+
+    string myCreatorKey = "";
+    if( viewMode == "myCreated" && currentUser != null )
+    {
+        myCreatorKey = !string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.NameKey
+                     : !string.IsNullOrEmpty( currentUser.AccountId ) ? currentUser.AccountId
+                     : currentUser.Id.ToString();
+    }
+
+    DateTime? periodFrom = null, periodTo = null;
+    var sFrom = obj.PropertyBag["KbPeriodFrom"] as string;
+    var sTo   = obj.PropertyBag["KbPeriodTo"]   as string;
+    if( !string.IsNullOrEmpty( sFrom ) )
+    {
+        DateTime tmp;
+        if( DateTime.TryParseExact( sFrom, "dd.MM.yyyy",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out tmp ) )
+            periodFrom = tmp;
+    }
+    if( !string.IsNullOrEmpty( sTo ) )
+    {
+        DateTime tmp;
+        if( DateTime.TryParseExact( sTo, "dd.MM.yyyy",
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out tmp ) )
+            periodTo = tmp;
+    }
+
+    var raw4 = new System.Collections.Generic.List<InfoObject>[4];
+    for( int i = 0; i < 4; i++ )
+        raw4[i] = new System.Collections.Generic.List<InfoObject>();
+
+    foreach( var task in container.RootInfoObjects )
+    {
+        var assignee = task.GetUser( "Assignee" );
+        if( assignee == null ) continue;
+
+        if( allowedIds != null && !allowedIds.Contains( assignee.Id.ToString() ) )
+            continue;
+
+        if( viewMode == "myCreated" )
+        {
+            var taskCreator = "";
+            try { taskCreator = task.GetString( "Creator" ) ?? ""; } catch { }
+            if( taskCreator != myCreatorKey ) continue;
+            if( assignee.Id.ToString() == currentUser.Id.ToString() ) continue;
+        }
+
+        int status = GetStatusIndex( task );
+        if( status < 0 || status > 3 ) status = 0;
+
+        if( !IsTaskInPeriod( task, status, periodFrom, periodTo ) ) continue;
+
+        raw4[status].Add( task );
+    }
+
+    for( int i = 0; i < STATUS_DONE; i++ )
+        raw4[i].Sort( CompareActiveTasks );
+
+    raw4[STATUS_DONE].Sort( (a, b) => {
+        DateTime da = default(DateTime), db = default(DateTime);
+        try { da = a.GetValue<DateTime>( "CompletedDate" ); } catch {}
+        try { db = b.GetValue<DateTime>( "CompletedDate" ); } catch {}
+        return db.CompareTo( da );
+    });
+
+    int total = raw4[0].Count + raw4[1].Count + raw4[2].Count + raw4[3].Count;
+    if( total == 0 ) return "EMPTY";
+
+    string[][] cols = new string[][] {
+        new[] { "Колонка",         "@" },
+        new[] { "Название",        "@" },
+        new[] { "Описание",        "@" },
+        new[] { "Исполнитель",     "@" },
+        new[] { "Поручил",         "@" },
+        new[] { "Приоритет",       "@" },
+        new[] { "Срок",            "@" },
+        new[] { "Дата создания",   "@" },
+        new[] { "Дата завершения", "@" },
+        new[] { "Просрочена",      "@" },
+        new[] { "Теги",            "@" },
+        new[] { "Чек-лист",        "@" },
+        new[] { "Комментариев",    "0" },
+        new[] { "Вложений",        "0" }
+    };
+    string[] colNames = new[] {
+        "Надо сделать", "В работе", "Ожидание", "Готово"
+    };
+
+    KbExcel doc = null;
+    try
+    {
+        doc = new KbExcel();
+        doc.CreateBook();
+        doc.OpenWorksheet( 1 );
+
+        int rowCount = 1;
+        string lastColumnKey = "A";
+        for( int c = 0; c < cols.Length; c++ )
+        {
+            var colKey = KbExcel.GetColNameFromIndex( c + 1 );
+            lastColumnKey = colKey;
+            var addr = colKey + rowCount;
+            doc.AlignHorizontal( addr, KbXlAlignHorizontal.xlCenter );
+            doc.AlignVertical(   addr, KbXlAlignVertical.xlCenter );
+            doc.SetValue( addr, cols[c][0], "@" );
+        }
+        var hdrRange = "A1:" + lastColumnKey + "1";
+        doc.SetFont( hdrRange, new System.Drawing.Font( "Calibri", 11, System.Drawing.FontStyle.Bold ) );
+        doc.SetColor( hdrRange, 15, 1 );
+        doc.SetRangeBorders( hdrRange, KbXlLineStyle.xlContinuous, KbXlBorderWeight.xlThin );
+
+        for( int statusIdx = 0; statusIdx < 4; statusIdx++ )
+        {
+            foreach( var task in raw4[statusIdx] )
+            {
+                rowCount++;
+                var rowVals = ExportBuildRow( task, statusIdx, colNames );
+                for( int c = 0; c < cols.Length; c++ )
+                {
+                    var addr = KbExcel.GetColNameFromIndex( c + 1 ) + rowCount;
+                    doc.SetValue( addr, rowVals[c] ?? "", cols[c][1] );
+                }
+                doc.AlignHorizontal( "A" + rowCount + ":" + lastColumnKey + rowCount, KbXlAlignHorizontal.xlLeft );
+                doc.AlignVertical(   "A" + rowCount + ":" + lastColumnKey + rowCount, KbXlAlignVertical.xlTop  );
+
+                if( rowVals[9] == "да" )
+                    doc.SetColor( "A" + rowCount + ":" + lastColumnKey + rowCount, 38, 1 );
+            }
+        }
+
+        var allRange = "A1:" + lastColumnKey + rowCount;
+        doc.SetRangeBorders( allRange, KbXlLineStyle.xlContinuous, KbXlBorderWeight.xlThin );
+        doc.BorderAround(    allRange, KbXlLineStyle.xlContinuous, KbXlBorderWeight.xlMedium );
+        doc.SetWrapText( "B2:C" + rowCount );
+        doc.AutoFit( allRange );
+
+        doc.Visible = true;
+        doc.BringToFront();
+    }
+    catch( ServerOperationFailedException e )
+    {
+        var inner = e.InnerException;
+        if( inner != null ) Service.HandleException( inner );
+        else                Service.HandleException( e );
+        return "ERROR:" + e.Message;
+    }
+    catch( System.Reflection.TargetInvocationException e )
+    {
+        var inner = e.InnerException as System.Runtime.InteropServices.COMException;
+        if( inner == null || inner.ErrorCode != -2146827284 )
+            Service.UI.ShowMessage( "Не удалось сформировать Excel-файл. Excel установлен?", e );
+        return "ERROR:" + e.Message;
+    }
+    catch( Exception e )
+    {
+        Service.UI.ShowMessage( "Не удалось сформировать Excel-файл. Обратитесь к администратору.", e );
+        return "ERROR:" + e.Message;
+    }
+    finally
+    {
+        if( doc != null && doc.Visible == false )
+        {
+            try { doc.CloseBook(); } catch { }
+            try { doc.Quit();      } catch { }
+            try { doc.Kill();      } catch { }
+        }
+    }
+    return "OK";
+}
+
+// Строит массив значений для одной строки Excel.
+// Порядок строго соответствует массиву cols в DoExportToExcel.
+private string[] ExportBuildRow( InfoObject task, int statusIdx, string[] colNames )
+{
+    string title          = "";
+    string details        = "";
+    string assigneeName   = "";
+    string creatorName    = "";
+    string priorityKey    = "medium";
+    string dueDateStr     = "";
+    string createdStr     = "";
+    string completedStr   = "";
+    string overdueStr     = "нет";
+    string tagsStr        = "";
+    string subtasksStr    = "";
+    int    commentCnt     = 0;
+    int    attachCnt      = 0;
+
+    try { title   = task.GetString( "TaskName"    ) ?? ""; } catch { }
+    try { details = task.GetString( "TaskDetails" ) ?? ""; } catch { }
+    try { tagsStr = task.GetString( "Tags"        ) ?? ""; } catch { }
+
+    try
+    {
+        var u = task.GetUser( "Assignee" );
+        if( u != null ) assigneeName = u.ToString() ?? "";
+    }
+    catch { }
+
+    try
+    {
+        var creatorKey = task.GetString( "Creator" ) ?? "";
+        if( !string.IsNullOrEmpty( creatorKey ) )
+        {
+            var u = FindUserByKeyOrNull( creatorKey );
+            if( u != null ) creatorName = u.ToString() ?? "";
+            else            creatorName = creatorKey;
+        }
+    }
+    catch { }
+
+    try
+    {
+        var nv = task.GetNamedValue( "Priority" );
+        if( nv != null ) priorityKey = nv.GetValue<string>() ?? "medium";
+    }
+    catch { }
+
+    try
+    {
+        var dd = task.GetValue<DateTime>( "DueDate" );
+        if( dd != default(DateTime) ) dueDateStr = dd.ToString( "dd.MM.yyyy" );
+    }
+    catch { }
+    try
+    {
+        if( task.DateCreated != default(DateTime) )
+            createdStr = task.DateCreated.ToString( "dd.MM.yyyy" );
+    }
+    catch { }
+    try
+    {
+        var cd = task.GetValue<DateTime>( "CompletedDate" );
+        if( cd != default(DateTime) ) completedStr = cd.ToString( "dd.MM.yyyy" );
+    }
+    catch { }
+
+    try
+    {
+        var dd = task.GetValue<DateTime>( "DueDate" );
+        if( dd != default(DateTime) && dd.Date < DateTime.Today && statusIdx != 3 )
+            overdueStr = "да";
+    }
+    catch { }
+
+    int subTotal = 0, subDone = 0;
+    try { subTotal = task.GetValue<int>( "SubtasksTotal" ); } catch { }
+    try { subDone  = task.GetValue<int>( "SubtasksDone"  ); } catch { }
+    if( subTotal > 0 ) subtasksStr = subDone + " / " + subTotal;
+
+    commentCnt = GetCommentCount( task );
+    attachCnt  = GetAttachmentCount( task );
+
+    string prioRu = priorityKey;
+    if     ( priorityKey == "urgent" ) prioRu = "Сверхсрочный";
+    else if( priorityKey == "high"   ) prioRu = "Высокий";
+    else if( priorityKey == "medium" ) prioRu = "Средний";
+    else if( priorityKey == "low"    ) prioRu = "Низкий";
+
+    string statusRu = (statusIdx >= 0 && statusIdx < 4) ? colNames[statusIdx] : "?";
+
+    return new string[] {
+        statusRu,
+        title,
+        details,
+        assigneeName,
+        creatorName,
+        prioRu,
+        dueDateStr,
+        createdStr,
+        completedStr,
+        overdueStr,
+        tagsStr,
+        subtasksStr,
+        commentCnt.ToString(),
+        attachCnt.ToString()
+    };
+}
+
+// ─── Excel COM wrapper + enums (взято из T974, переименовано с префиксом Kb) ───
+
+public enum KbXlAlignHorizontal
+{
+    xlGeneral = 1,
+    xlLeft = -4131,
+    xlCenter = -4108,
+    xlRight = -4152,
+    xlFill = 5,
+    xlJustify = -4130,
+    xlCenterAcrossSelection = 7,
+    xlDistributed = -4117
+}
+
+public enum KbXlAlignVertical
+{
+    xlTop = 1,
+    xlCenter = -4108,
+    xlBottom = -4107,
+    xlJustify = -4130,
+    xlDistributed = -4117
+}
+
+public enum KbXlPageOrientation
+{
+    xlPortrait = 1,
+    xlLandscape = 2
+}
+
+public enum KbXlBordersIndex
+{
+    xlDiagonalDown = 5,
+    xlDiagonalUp = 6,
+    xlEdgeBottom = 9,
+    xlEdgeLeft = 7,
+    xlEdgeRight = 10,
+    xlEdgeTop = 8,
+    xlInsideHorizontal = 12,
+    xlInsideVertical = 11
+}
+
+public enum KbXlLineStyle
+{
+    xlContinuous = 1,
+    xlDash = -4115,
+    xlDashDot = 4,
+    xlDashDotDot = 5,
+    xlDot = -4118,
+    xlDouble = -4119,
+    xlLineStyleNone = -4142,
+    xlSlantDashDot = 13
+}
+
+public enum KbXlBorderWeight
+{
+    xlHairline = 1,
+    xlMedium = -4138,
+    xlThick = 4,
+    xlThin = 2
+}
+
+public class KbExcel : IDisposable
+{
+    object FExcel = null;
+    object FWorkbooks, FWorkbook, FWorksheets, FWorksheet, FRange;
+
+    public KbExcel()
+    {
+        FExcel = Activator.CreateInstance( Type.GetTypeFromProgID( "Excel.Application" ) );
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            System.Runtime.InteropServices.Marshal.ReleaseComObject( FWorkbooks );
+            System.Runtime.InteropServices.Marshal.ReleaseComObject( FWorkbook );
+            System.Runtime.InteropServices.Marshal.ReleaseComObject( FWorksheets );
+            System.Runtime.InteropServices.Marshal.ReleaseComObject( FWorksheet );
+            System.Runtime.InteropServices.Marshal.ReleaseComObject( FRange );
+            System.Runtime.InteropServices.Marshal.ReleaseComObject( FExcel );
+        }
+        catch { }
+        finally
+        {
+            FWorkbooks = null; FWorkbook = null; FWorksheets = null;
+            FWorksheet = null; FRange = null;    FExcel = null;
+        }
+        System.GC.Collect();
+        System.GC.WaitForPendingFinalizers();
+        System.GC.Collect();
+        System.GC.WaitForPendingFinalizers();
+    }
+
+    public void Kill()
+    {
+        int id;
+        var Hwnd = (int) FExcel.GetType().InvokeMember(
+            "Hwnd", System.Reflection.BindingFlags.GetProperty, null, FExcel, null );
+        GetWindowThreadProcessId( Hwnd, out id );
+        System.Diagnostics.Process.GetProcessById( id ).Kill();
+    }
+
+    public bool Visible
+    {
+        get
+        {
+            return Convert.ToBoolean( FExcel.GetType().InvokeMember(
+                "Visible", System.Reflection.BindingFlags.GetProperty, null, FExcel, null ) );
+        }
+        set
+        {
+            FExcel.GetType().InvokeMember(
+                "Visible", System.Reflection.BindingFlags.SetProperty, null, FExcel, new object[] { value } );
+        }
+    }
+
+    public void CreateBook()
+    {
+        FWorkbooks = FExcel.GetType().InvokeMember(
+            "Workbooks", System.Reflection.BindingFlags.GetProperty, null, FExcel, null );
+        FWorkbook = FWorkbooks.GetType().InvokeMember(
+            "Add", System.Reflection.BindingFlags.InvokeMethod, null, FWorkbooks, null );
+        FWorksheets = FWorkbook.GetType().InvokeMember(
+            "Worksheets", System.Reflection.BindingFlags.GetProperty, null, FWorkbook, null );
+        FWorksheet = FWorksheets.GetType().InvokeMember(
+            "Item", System.Reflection.BindingFlags.GetProperty, null, FWorksheets, new object[] { 1 } );
+    }
+
+    public void OpenWorksheet( int AIndex )
+    {
+        FWorksheet = FWorksheets.GetType().InvokeMember(
+            "Item", System.Reflection.BindingFlags.GetProperty, null, FWorksheets, new object[] { AIndex } );
+    }
+
+    public void CloseBook()
+    {
+        FWorkbook.GetType().InvokeMember(
+            "Close", System.Reflection.BindingFlags.InvokeMethod, null, FWorkbook, new object[] { false } );
+    }
+
+    public void Quit()
+    {
+        FExcel.GetType().InvokeMember(
+            "Quit", System.Reflection.BindingFlags.InvokeMethod, null, FExcel, null );
+    }
+
+    public void SetValue( string AAddress, string AValue, string AFormat )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        FRange.GetType().InvokeMember(
+            "NumberFormat", System.Reflection.BindingFlags.SetProperty, null, FRange, new object[] { AFormat } );
+        FRange.GetType().InvokeMember(
+            "Value", System.Reflection.BindingFlags.SetProperty, null, FRange, new object[] { AValue } );
+    }
+
+    public void AlignHorizontal( string AAddress, KbXlAlignHorizontal AAlign )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        FRange.GetType().InvokeMember(
+            "HorizontalAlignment", System.Reflection.BindingFlags.SetProperty, null, FRange, new object[] { AAlign } );
+    }
+
+    public void AlignVertical( string AAddress, KbXlAlignVertical AAlign )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        FRange.GetType().InvokeMember(
+            "VerticalAlignment", System.Reflection.BindingFlags.SetProperty, null, FRange, new object[] { AAlign } );
+    }
+
+    public void SetWrapText( string AAddress )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        FRange.GetType().InvokeMember(
+            "WrapText", System.Reflection.BindingFlags.SetProperty, null, FRange, new object[] { true } );
+    }
+
+    public void SetFont( string AAddress, System.Drawing.Font AFont )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        object f = FRange.GetType().InvokeMember(
+            "Font", System.Reflection.BindingFlags.GetProperty, null, FRange, null );
+        f.GetType().InvokeMember( "Size", System.Reflection.BindingFlags.SetProperty, null, f, new object[] { AFont.Size } );
+        f.GetType().InvokeMember( "Bold", System.Reflection.BindingFlags.SetProperty, null, f, new object[] { AFont.Bold } );
+        f.GetType().InvokeMember( "Name", System.Reflection.BindingFlags.SetProperty, null, f, new object[] { AFont.Name } );
+    }
+
+    public void SetColor( string AAddress, int AColorIndex, int APatternIndex )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        object i = FRange.GetType().InvokeMember(
+            "Interior", System.Reflection.BindingFlags.GetProperty, null, FRange, null );
+        i.GetType().InvokeMember( "ColorIndex", System.Reflection.BindingFlags.SetProperty, null, i, new object[] { AColorIndex } );
+        i.GetType().InvokeMember( "Pattern",    System.Reflection.BindingFlags.SetProperty, null, i, new object[] { APatternIndex } );
+    }
+
+    public void SetRangeBorders( string AAddress, KbXlLineStyle ALineStyle, KbXlBorderWeight AWeight )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        object borders = FRange.GetType().InvokeMember(
+            "Borders", System.Reflection.BindingFlags.GetProperty, null, FRange, new object[] { } );
+        borders.GetType().InvokeMember( "LineStyle", System.Reflection.BindingFlags.SetProperty, null, borders, new object[] { ALineStyle } );
+        borders.GetType().InvokeMember( "Weight",    System.Reflection.BindingFlags.SetProperty, null, borders, new object[] { AWeight } );
+    }
+
+    public void BorderAround( string AAddress, KbXlLineStyle ALineStyle, KbXlBorderWeight AWeight )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        FRange.GetType().InvokeMember(
+            "BorderAround", System.Reflection.BindingFlags.InvokeMethod, null, FRange, new object[] { ALineStyle, AWeight, 0, null } );
+    }
+
+    public void AutoFit( string AAddress )
+    {
+        FRange = FWorksheet.GetType().InvokeMember(
+            "Range", System.Reflection.BindingFlags.GetProperty, null, FWorksheet, new object[] { AAddress } );
+        object cols = FRange.GetType().InvokeMember(
+            "Columns", System.Reflection.BindingFlags.GetProperty, null, FRange, null );
+        cols.GetType().InvokeMember(
+            "AutoFit", System.Reflection.BindingFlags.InvokeMethod, null, cols, null );
+    }
+
+    public static string GetColNameFromIndex( int columnNumber )
+    {
+        int dividend = columnNumber;
+        string columnName = String.Empty;
+        int modulo;
+        while( dividend > 0 )
+        {
+            modulo = (dividend - 1) % 26;
+            columnName = Convert.ToChar( 65 + modulo ).ToString() + columnName;
+            dividend = (int)( ( dividend - modulo ) / 26 );
+        }
+        return columnName;
+    }
+
+    // Восстановить окно Excel (если оно свёрнуто Soyuz-клиентом) и вывести его на передний план.
+    // Excel WindowState constants: xlNormal = -4143, xlMaximized = -4137, xlMinimized = -4140.
+    // ShowWindow SW_RESTORE = 9.
+    public void BringToFront()
+    {
+        try
+        {
+            FExcel.GetType().InvokeMember(
+                "WindowState", System.Reflection.BindingFlags.SetProperty, null, FExcel, new object[] { -4143 } );
+        }
+        catch { }
+        try
+        {
+            var hwndInt = (int) FExcel.GetType().InvokeMember(
+                "Hwnd", System.Reflection.BindingFlags.GetProperty, null, FExcel, null );
+            var hwnd = new IntPtr( hwndInt );
+            ShowWindow( hwnd, 9 );      // SW_RESTORE — снимает минимизацию
+            SetForegroundWindow( hwnd ); // выводит окно поверх остальных
+        }
+        catch { }
+    }
+}
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+static extern int GetWindowThreadProcessId( int hWnd, out int lpdwProcessId );
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+static extern bool SetForegroundWindow( IntPtr hWnd );
+
+[System.Runtime.InteropServices.DllImport("user32.dll")]
+static extern bool ShowWindow( IntPtr hWnd, int nCmdShow );
 
