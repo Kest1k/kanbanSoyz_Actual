@@ -1124,12 +1124,11 @@
         padding: 16px 20px;
         overflow-y: auto;
         overflow-x: hidden;
-        /* IE11 flex bug: 'flex: 1 1 auto' использует content-height как basis,
-           поэтому при большом количестве строк дочерний блок не сжимается под
-           max-height родителя и скролл не появляется. Явный basis 0% + min-height: 0
-           даёт IE11 шанс правильно посчитать оставшееся место. */
-        -ms-flex: 1 1 0%;
-        flex: 1 1 0%;
+        -ms-flex: 1 1 auto;
+        flex: 1 1 auto;
+        /* IE11 flex bug: без min-height: 0 дочерний блок не может сжаться ниже
+           своего content-height, и max-height родителя игнорируется – таблица
+           не скроллится. Этот стиль исправляет именно эту ситуацию. */
         min-height: 0;
     }
 
