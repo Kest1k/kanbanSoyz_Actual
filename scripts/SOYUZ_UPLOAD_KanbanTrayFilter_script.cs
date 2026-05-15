@@ -13,7 +13,9 @@ public override bool OnPostTrayNotification( System.Collections.Generic.List<Att
         var workItem = objects[i] as WorkItem;
         if( !IsKanbanExclamation( workItem ) ) continue;
 
-        try { workItem.MarkAsViewedByCurrentUser(); } catch { }
+        // НЕ маркаем viewed здесь – иначе IsNewForCurrentUser=false на момент
+        // OnUpdated, и кастомный popup в ExclamationKanban будет пропущен.
+        // Маркируем только после показа кастомного popup в OnUpdated.
         objects.RemoveAt( i );
     }
 

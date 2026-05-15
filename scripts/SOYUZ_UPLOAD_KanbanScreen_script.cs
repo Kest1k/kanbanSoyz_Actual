@@ -1,5 +1,5 @@
 // Методы Invoke:
-//   BeforeRender      — загружает задачи, фильтрует по роли и режиму
+//   BeforeRender      – загружает задачи, фильтрует по роли и режиму
 //   MoveTask          (nameKey|newStatus) → меняет KanbanStatus
 //   CreateTask        (title|status|priority|dueDate|details) → создаёт KanbanTask
 //   OpenTask          (nameKey) → открывает карточку PLM
@@ -7,7 +7,6 @@
 //   RefreshBoard      → перерендеривает доску
 //   GetHierarchyInfo  → JSON {role, myContext, divisions[], sectors[], users[]}
 //   SetViewMode       (mode) → сохраняет режим просмотра в PropertyBag
-// ═══════════════════════════════════════════════════════════════════════
 private const int STATUS_DONE = 3;
 private const string LEAD_ENGINEER_ROLE = "leadEngineer";
 private const string LEAD_ENGINEER_NAMEKEY_PREFIX = "ved";
@@ -49,7 +48,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                                  : currentUser.Id.ToString();
                 }
 
-                // ─── Фильтр по периоду (из PropertyBag, формат dd.MM.yyyy) ───
+                // Фильтр по периоду (из PropertyBag, формат dd.MM.yyyy)
                 DateTime? periodFrom = null, periodTo = null;
                 {
                     var sFrom = obj.PropertyBag["KbPeriodFrom"] as string;
@@ -107,7 +106,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 renderArgs["KbPeriodTo"]   = (obj.PropertyBag["KbPeriodTo"]   as string) ?? "";
 
                 // Колонки 0-2: сортировка по приоритету (urgent → high → medium → low),
-                // внутри одного приоритета — по DateCreated убывающе (новые выше)
+                // внутри одного приоритета – по DateCreated убывающе (новые выше)
                 for( int i = 0; i < STATUS_DONE; i++ )
                     raw[i].Sort( CompareActiveTasks );
 
@@ -226,7 +225,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
     return null;
 }
 
-// ─── MoveTask ─────────────────────────────────────────────────────────
+// MoveTask
 // inputParams (JS → C#): object[] { "nameKey|newStatus" }
 
 private object DoMoveTask( object inputParams )
@@ -243,7 +242,7 @@ private object DoMoveTask( object inputParams )
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound:" + nameKey;
 
-    // ─── Проверка прав на перемещение ────────────────────────────
+    // Проверка прав на перемещение
     // Двигать может: исполнитель, создатель или админ
     var currentUser = Service.GetCurrentUser();
     var curRole     = GetUserRole( currentUser );
@@ -274,18 +273,18 @@ private object DoMoveTask( object inputParams )
 
     int oldStatus = GetStatusIndex( task );
 
-    // Устанавливаем новый статус через NamedValue (KanbanStatus — Enumeration)
+    // Устанавливаем новый статус через NamedValue (KanbanStatus – Enumeration)
     SetTaskStatus( task, newStatus );
 
     // Логика CompletedDate
     if( newStatus == STATUS_DONE && oldStatus != STATUS_DONE )
     {
-        // Переход В «Готово» — записываем дату завершения
+        // Переход В «Готово» – записываем дату завершения
         task["CompletedDate"] = DateTime.Now;
     }
     else if( oldStatus == STATUS_DONE && newStatus != STATUS_DONE )
     {
-        // Возврат ИЗ «Готово» — очищаем дату
+        // Возврат ИЗ «Готово» – очищаем дату
         task["CompletedDate"] = null;
     }
 
@@ -319,9 +318,9 @@ private object DoMoveTask( object inputParams )
 }
 
 
-// ─── CreateTask ───────────────────────────────────────────────────────
+// CreateTask
 // inputParams (JS → C#): object[] { "title|status|priority|dueDate|details|tags|assigneeKey" }
-// Только title обязателен; остальные — с дефолтами.
+// Только title обязателен; остальные – с дефолтами.
 private object DoCreateTask( object inputParams )
 {
     var raw = GetParamStr( inputParams );
@@ -391,7 +390,7 @@ private object DoCreateTask( object inputParams )
     if( currentUser != null )
     {
         task["Assignee"] = currentUser;
-        // Создатель — всегда тот, кто создаёт задачу (для проверки прав удаления)
+        // Создатель – всегда тот, кто создаёт задачу (для проверки прав удаления)
         try
         {
             var ck = string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.AccountId : currentUser.NameKey;
@@ -414,7 +413,7 @@ private object DoCreateTask( object inputParams )
     return nameKey;
 }
 
-// ─── CreateGroupTask ──────────────────────────────────────────────────
+// CreateGroupTask
 // inputParams: "title|status|priority|dueDate|details|tags|key1,key2,key3"
 // Создаёт по одной задаче для каждого исполнителя из списка.
 private object DoCreateGroupTask( object inputParams )
@@ -500,7 +499,7 @@ private object DoCreateGroupTask( object inputParams )
     return "OK:" + count;
 }
 
-// ─── OpenTask ─────────────────────────────────────────────────────────
+// OpenTask
 private object DoOpenTask( object inputParams )
 {
     var nameKey = GetParamStr( inputParams );
@@ -513,7 +512,7 @@ private object DoOpenTask( object inputParams )
     return "OK";
 }
 
-// ─── DeleteTask ───────────────────────────────────────────────────────
+// DeleteTask
 private object DoDeleteTask( object inputParams )
 {
     var nameKey = GetParamStr( inputParams );
@@ -548,19 +547,15 @@ private object DoDeleteTask( object inputParams )
                 }
             }
         }
-        // Legacy-задачи без Creator — разрешаем удаление
+        // Legacy-задачи без Creator – разрешаем удаление
     }
-    catch { /* атрибут Creator не существует — разрешаем удаление */ }
+    catch { /* атрибут Creator не существует – разрешаем удаление */ }
 
     task.Erase();
     task.Save();
     return "OK";
 }
-
-// ═══════════════════════════════════════════════════════════════════════
 // OnBeforeDisplayInUI - для удобного открытия доски по ссылке
-// ═══════════════════════════════════════════════════════════════════════
-
 public override void OnBeforeDisplayInUI( InfoObject obj, IPropertySheetCallback propertySheet)
 {
          if (propertySheet.IsDialog || propertySheet.ParentBrowserPanel is IPropertiesBrowserPanel) 
@@ -569,10 +564,7 @@ public override void OnBeforeDisplayInUI( InfoObject obj, IPropertySheetCallback
              propertySheet.TabStripVisibility = false;
             }         
 }
-// ═══════════════════════════════════════════════════════════════════════
 // DOM-помощники
-// ═══════════════════════════════════════════════════════════════════════
-
 public void DropCardById( InfoObject obj, String cardHtmlId )
 {
     var web = obj.PropertyBag["Viewer"] as WebBrowser;
@@ -599,11 +591,7 @@ public void MoveCardToColumn( InfoObject obj, String nameKey, int newStatus )
     if( domCard != null && domTarget != null )
         domTarget.appendChild( domCard );
 }
-
-// ═══════════════════════════════════════════════════════════════════════
 // Вспомогательные методы
-// ═══════════════════════════════════════════════════════════════════════
-
 // КЛЮЧЕВОЙ FIX: window.external.InvokeTemplate передаёт параметры как
 // object[] { фактический_параметр }, а не как голую строку.
 private string GetParamStr( object inputParams )
@@ -665,7 +653,7 @@ private string HtmlEnc( string s )
             .Replace( "\"", "&quot;" );
 }
 
-// ─── Хелперы для KanbanStatus (NamedValue) ────────────────────────────
+// Хелперы для KanbanStatus (NamedValue)
 // KanbanStatus хранится как Enumeration → Ref_KanbanStatus
 // NameKey: Todo=0, InProgress=1, Waiting=2, Done=3
 // Value:   "0",    "1",          "2",       "3"
@@ -685,7 +673,7 @@ private int PriorityRank( string prio )
 
 // Компаратор для колонок «Надо сделать», «В работе», «Ожидание»:
 //   1) Приоритет: urgent → high → medium → low
-//   2) Дата создания убывающе (новые сверху) — системное свойство DateCreated
+//   2) Дата создания убывающе (новые сверху) – системное свойство DateCreated
 //   3) Id убывающе (страховочный tie-breaker при совпадении даты до миллисекунды)
 private int CompareActiveTasks( InfoObject a, InfoObject b )
 {
@@ -697,7 +685,7 @@ private int CompareActiveTasks( InfoObject a, InfoObject b )
     if( aRank != bRank )
         return aRank.CompareTo( bRank );
 
-    // Дата создания — системное свойство Союз-PLM, всегда заполнено
+    // Дата создания – системное свойство Союз-PLM, всегда заполнено
     int dateCmp = b.DateCreated.CompareTo( a.DateCreated );
     if( dateCmp != 0 )
         return dateCmp;
@@ -723,7 +711,7 @@ private int GetStatusIndex( InfoObject task )
     return 0; // По умолчанию «Надо сделать»
 }
 
-// ─── Проверка попадания задачи в период (для BeforeRender) ─────────
+// Проверка попадания задачи в период (для BeforeRender)
 private bool IsTaskInPeriod( InfoObject task, int statusIdx,
                              DateTime? from, DateTime? to )
 {
@@ -751,7 +739,7 @@ private bool IsTaskInPeriod( InfoObject task, int statusIdx,
     return true;
 }
 
-// ─── SetPeriodFilter ───────────────────────────────────────────────
+// SetPeriodFilter
 private object DoSetPeriodFilter( InfoObject screenObj, object inputParams )
 {
     var raw = GetParamStr( inputParams );
@@ -862,7 +850,7 @@ private object BuildCardData( InfoObject task, int status )
             if( !string.IsNullOrEmpty( creatorKey ) && creatorKey == curKey )
                 isOwner = "1";
             else if( string.IsNullOrEmpty( creatorKey ) )
-                isOwner = "1"; // Legacy-задачи без Creator — разрешаем
+                isOwner = "1"; // Legacy-задачи без Creator – разрешаем
             else
             {
                 // Начальники могут удалять задачи подчинённых
@@ -880,7 +868,7 @@ private object BuildCardData( InfoObject task, int status )
             }
         }
 
-        // Если исполнитель = текущий пользователь — инициалы не нужны
+        // Если исполнитель = текущий пользователь – инициалы не нужны
         var assigneeUser = task.GetUser( "Assignee" );
         if( assigneeUser != null && curUser != null )
         {
@@ -986,7 +974,7 @@ private object BuildCardData( InfoObject task, int status )
         catch { }
     }
 
-    // Денормализованные счётчики подзадач — читаем напрямую, без парсинга JSON.
+    // Денормализованные счётчики подзадач – читаем напрямую, без парсинга JSON.
     int subtaskTotal = 0;
     int subtaskDone  = 0;
     try { subtaskTotal = task.GetValue<int>( "SubtasksTotal" ); } catch { }
@@ -1012,16 +1000,12 @@ private object BuildCardData( InfoObject task, int status )
         tags            = HtmlEnc( tags ),
         isOverdue       = isOverdue,
         isNew           = isNew,
-        creatorShort    = HtmlEnc( creatorShort )
+        creatorShort    = HtmlEnc( creatorShort ),
+        isSelfCreated   = (!string.IsNullOrEmpty( curKey ) && creatorKey == curKey) || string.IsNullOrEmpty( creatorKey ) ? "1" : "0"
     };
 }
-
-// ═══════════════════════════════════════════════════════════════════════
 // Ролевая иерархия (шаг 05)
-// ═══════════════════════════════════════════════════════════════════════
-
-// ─── Роли: NameKey должностей (Commission) ────────────────────────────
-
+// Роли: NameKey должностей (Commission)
 private static readonly string[] ADMIN_POS = {
     "genKonstr",             // Генеральный конструктор
     "pervZamGenKonstr",      // Первый заместитель ГК
@@ -1053,7 +1037,7 @@ private static readonly string[] SECTOR_HEAD_POS = {
     "nachServiceIT",         // Начальник службы ИТ
 };
 
-// ─── Определение роли пользователя ───────────────────────────────────
+// Определение роли пользователя
 private string GetUserRole( User user )
 {
     try
@@ -1119,7 +1103,7 @@ private bool CanAssignUserInScope( User currentUser, string currentRole, User ta
     return currentUser.Id == targetUser.Id;
 }
 
-// ─── Чтение Context пользователя ─────────────────────────────────────
+// Чтение Context пользователя
 private string GetUserContext( User user )
 {
     try
@@ -1141,7 +1125,7 @@ private string GetUserContext( User user )
     return "";
 }
 
-// ─── Числовой префикс Context ────────────────────────────────────────
+// Числовой префикс Context
 // "610кт" → 610
 private int ContextNumber( string ctx )
 {
@@ -1192,7 +1176,7 @@ private bool IsWithinContext( string userCtx, string ownerCtx )
     return GetDivisionContext( userCtx ) == ownerCtx;
 }
 
-// ─── Invoke: SetViewMode ─────────────────────────────────────────────
+// Invoke: SetViewMode
 private object DoSetViewMode( InfoObject obj, object inputParams )
 {
     var mode = GetParamStr( inputParams );
@@ -1201,7 +1185,7 @@ private object DoSetViewMode( InfoObject obj, object inputParams )
     return "OK";
 }
 
-// ─── Invoke: GetHierarchyInfo ─────────────────────────────────────────
+// Invoke: GetHierarchyInfo
 private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
 {
     var currentUser = Service.GetCurrentUser();
@@ -1234,7 +1218,7 @@ private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
             if( !string.IsNullOrEmpty( div ) && div != ctx )
             {
                 divisionsSet[div] = true;  // родительское отделение
-                sectorsSet[ctx]   = true;  // ctx — реальный сектор (510кт и т.п.)
+                sectorsSet[ctx]   = true;  // ctx – реальный сектор (510кт и т.п.)
             }
             else
             {
@@ -1310,7 +1294,7 @@ private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
     return sb.ToString();
 }
 
-// ─── GetReport ────────────────────────────────────────────────────────
+// GetReport
 // inputParams: "period|scopeMode"
 // period: week | month | quarter | all
 // scopeMode: "" (роль-default) | all | my | dept | sector | group:CTX | user:KEY
@@ -1330,7 +1314,7 @@ private object DoGetReport( object inputParams )
 
     // Regular всегда видит только свои задачи
     if( role == "regular" ) scope = "my";
-    // Если scope не задан — дефолт по роли
+    // Если scope не задан – дефолт по роли
     if( string.IsNullOrEmpty( scope ) )
         scope = role == "admin"         ? "all"
               : role == "headOfDept"    ? "dept"
@@ -1348,7 +1332,7 @@ private object DoGetReport( object inputParams )
         case "month":   from = now.AddMonths( -1 ); break;
         case "quarter": from = now.AddMonths( -3 ); break;
         case "custom":
-            // custom|from|to|scope — парсим даты из частей
+            // custom|from|to|scope – парсим даты из частей
             from = DateTime.MinValue;
             {
                 var rp = ParsePipeArgs( raw, 4 );
@@ -1449,13 +1433,13 @@ private object DoGetReport( object inputParams )
     return sb.ToString();
 }
 
-// ─── Набор Id пользователей для фильтрации в BeforeRender ────────────
+// Набор Id пользователей для фильтрации в BeforeRender
 // Возвращает null → «all» режим, показываем всё (только admin)
 // Возвращает HashSet → фильтруем по Id исполнителя
 private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
     User currentUser, string role, string viewMode )
 {
-    // «my» и «regular» — только текущий пользователь
+    // «my» и «regular» – только текущий пользователь
     if( role == "regular" || viewMode == "my" )
     {
         var myOnly = new System.Collections.Generic.HashSet<string>();
@@ -1468,7 +1452,7 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
     if( viewMode == "all" && role == "admin" ) return null;
 
     // Для всех остальных режимов собираем набор БЕЗ предварительного добавления
-    // currentUser — иначе его задачи попадают в чужой отдел/сектор
+    // currentUser – иначе его задачи попадают в чужой отдел/сектор
     var ids = new System.Collections.Generic.HashSet<string>();
 
     if( viewMode.StartsWith( "user:" ) )
@@ -1523,7 +1507,7 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
     return ids;
 }
 
-// ─── GetTaskDetails ───────────────────────────────────────────────────
+// GetTaskDetails
 // inputParams: nameKey
 // Возвращает полный JSON задачи для модального окна карточки
 private object DoGetTaskDetails( object inputParams )
@@ -1594,7 +1578,7 @@ private object DoGetTaskDetails( object inputParams )
         var curUser    = Service.GetCurrentUser();
         if( string.IsNullOrEmpty( creatorKey ) )
         {
-            // Legacy-задачи без Creator — разрешаем полное редактирование
+            // Legacy-задачи без Creator – разрешаем полное редактирование
             isOwner     = true;
             canFullEdit = true;
         }
@@ -1816,9 +1800,9 @@ private object DoGetTaskDetails( object inputParams )
     return sb.ToString();
 }
 
-// ─── SaveTask ─────────────────────────────────────────────────────────
+// SaveTask
 // inputParams: "nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|details"
-// details может содержать символы | — Split с лимитом 8 берёт всё остальное
+// details может содержать символы | – Split с лимитом 8 берёт всё остальное
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
@@ -1831,7 +1815,7 @@ private object DoSaveTask( object inputParams )
     var dueDateStr    = parts.Length > 4 ? parts[4].Trim() : "";
     var tagsStr       = parts.Length > 5 ? parts[5].Trim() : "";
     var assigneeKeyIn = parts.Length > 6 ? parts[6].Trim() : "";
-    var detailsStr    = parts.Length > 7 ? parts[7] : "";       // НЕ Trim — пробелы в конце важны
+    var detailsStr    = parts.Length > 7 ? parts[7] : "";       // НЕ Trim – пробелы в конце важны
 
     if( string.IsNullOrEmpty( nameKey ) ) return "ERROR:EmptyId";
 
@@ -1842,7 +1826,7 @@ private object DoSaveTask( object inputParams )
     int.TryParse( statusStr, out newStatus );
     if( newStatus < 0 || newStatus > 3 ) newStatus = 0;
 
-    // Проверка прав: создатель может редактировать всё, остальные — только статус
+    // Проверка прав: создатель может редактировать всё, остальные – только статус
     var curUser = Service.GetCurrentUser();
     var curRole = GetUserRole( curUser );
     bool canFullEdit = true;
@@ -1876,10 +1860,10 @@ private object DoSaveTask( object inputParams )
     }
     catch { }
 
-    // Проверка названия — только для тех, кто редактирует содержимое
+    // Проверка названия – только для тех, кто редактирует содержимое
     if( canFullEdit && string.IsNullOrEmpty( title ) ) return "ERROR:EmptyTitle";
 
-    // ─── Сбор изменений для ChangeLog ──────────────────────────
+    // Сбор изменений для ChangeLog
     int    oldStatus    = GetStatusIndex( task );
     string oldTitle     = task.GetString( "TaskName" )    ?? "";
     string oldDetails   = task.GetString( "TaskDetails" ) ?? "";
@@ -1895,7 +1879,7 @@ private object DoSaveTask( object inputParams )
 
     string[] stNames = new string[]{ "Надо сделать", "В работе", "Ожидание", "Готово" };
 
-    // ─── Применение изменений ──────────────────────────────────
+    // Применение изменений
     if( canFullEdit )
     {
         task["TaskName"]    = title;
@@ -1925,7 +1909,7 @@ private object DoSaveTask( object inputParams )
         }
     }
 
-    // Статус — могут менять все
+    // Статус – могут менять все
     SetTaskStatus( task, newStatus );
 
     // Логика CompletedDate
@@ -1934,7 +1918,7 @@ private object DoSaveTask( object inputParams )
     else if( newStatus != STATUS_DONE && oldStatus == STATUS_DONE )
         task["CompletedDate"] = null;
 
-    // ─── Смена исполнителя ──────────────────────────────────────
+    // Смена исполнителя
     string oldAssigneeName = "";
     string newAssigneeName = "";
     bool assigneeChanged = false;
@@ -1962,7 +1946,7 @@ private object DoSaveTask( object inputParams )
         catch { }
     }
 
-    // ─── Формирование записи ChangeLog ─────────────────────────
+    // Формирование записи ChangeLog
     try
     {
         var changes = new System.Text.StringBuilder();
@@ -2034,16 +2018,16 @@ private object DoSaveTask( object inputParams )
             task["ChangeLog"] = newLog;
         }
     }
-    catch { /* ChangeLog не критичен — если атрибута нет, просто пропускаем */ }
+    catch { /* ChangeLog не критичен – если атрибута нет, просто пропускаем */ }
 
     task.Save();
     return "OK";
 }
 
-// ─── GetTaskHistory ───────────────────────────────────────────────────
+// GetTaskHistory
 // inputParams: nameKey
 // Возвращает ChangeLog (JSON-массив записей изменений).
-// Fallback: если ChangeLog пуст — показывает системные ревизии PLM (дата без деталей).
+// Fallback: если ChangeLog пуст – показывает системные ревизии PLM (дата без деталей).
 private object DoGetTaskHistory( object inputParams )
 {
     var nameKey = GetParamStr( inputParams );
@@ -2084,12 +2068,8 @@ private object DoGetTaskHistory( object inputParams )
         return "[]";
     }
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// Шаг 09: Вложения через «Множество информационных объектов»
+// Вложения через «Множество информационных объектов»
 // Атрибут AttachedObjects (тип: Множество ИО) на шаблоне KanbanTask
-// ═══════════════════════════════════════════════════════════════════════
-
 private int GetAttachmentCount( InfoObject task )
 {
     int n = 0;
@@ -2116,7 +2096,7 @@ private int GetAttachmentCount( InfoObject task )
     return n;
 }
 
-// ─── GetAttachments ─────────────────────────────────────────────────
+// GetAttachments
 // inputParams: "taskNameKey"
 // Возвращает JSON: [{key, name, tmpl}]
 private object DoGetAttachments( object inputParams )
@@ -2131,7 +2111,7 @@ private object DoGetAttachments( object inputParams )
     sb.Append( "[" );
     bool first = true;
 
-    // ── InfoObjects ──────────────────────────────────────────────────────
+    // InfoObjects
     try
     {
         var objAttr = task.GetAttribute( "AttachedObjects" );
@@ -2158,7 +2138,7 @@ private object DoGetAttachments( object inputParams )
     }
     catch { }
 
-    // ── DataContainers ───────────────────────────────────────────────────
+    // DataContainers
     try
     {
         var cntAttr = task.GetAttribute( "AttachedContainers" );
@@ -2188,9 +2168,9 @@ private object DoGetAttachments( object inputParams )
     return sb.ToString();
 }
 
-// ─── AddAttachment ──────────────────────────────────────────────────
+// AddAttachment
 // inputParams: "taskNameKey|objectKey"
-// objectKey — NameKey объекта из результатов SearchObjects
+// objectKey – NameKey объекта из результатов SearchObjects
 private object DoAddAttachment( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
@@ -2236,7 +2216,7 @@ private object DoAddAttachment( object inputParams )
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
-// ─── RemoveAttachment ───────────────────────────────────────────────
+// RemoveAttachment
 // inputParams: "taskNameKey|objectKey"
 private object DoRemoveAttachment( object inputParams )
 {
@@ -2277,8 +2257,8 @@ private object DoRemoveAttachment( object inputParams )
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
-// ─── SearchObjects ──────────────────────────────────────────────────
-// inputParams: "query" — поиск по отображаемому имени (CONTAINS, без шаблонного фильтра)
+// SearchObjects
+// inputParams: "query" – поиск по отображаемому имени (CONTAINS, без шаблонного фильтра)
 // Возвращает JSON: [{key, name, tmpl}]
 private object DoSearchObjects( object inputParams )
 {
@@ -2321,7 +2301,7 @@ private object DoSearchObjects( object inputParams )
     catch { return "[]"; }
 }
 
-// ─── OpenObject ─────────────────────────────────────────────────────
+// OpenObject
 // inputParams: "taskNameKey|objectKey"
 // Находит объект в коллекции задачи и открывает в панели свойств PLM
 private object DoOpenObject( object inputParams )
@@ -2354,7 +2334,7 @@ private object DoOpenObject( object inputParams )
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
-// ─── PickObject ─────────────────────────────────────────────────────
+// PickObject
 // Открывает нативный PLM-диалог выбора объекта (аналог кнопки «Добавить»
 // в атрибуте «Множество ИО»). Возвращает "key|name|tmpl" или "CANCELLED".
 private object DoPickObject( object inputParams )
@@ -2383,7 +2363,7 @@ private object DoPickObject( object inputParams )
     }
 }
 
-// ─── PickObjects ─────────────────────────────────────────────────────────
+// PickObjects
 // inputParams: "" (не используется)
 // Открывает PLM-диалог через дерево с мультивыбором (BrowseForInfoObjects),
 // Validator отсекает версии/исполнения по NameKey шаблона.
@@ -2435,7 +2415,7 @@ private object DoPickObjects( object inputParams )
     }
 }
 
-// ─── PickAndAttach ───────────────────────────────────────────────────────
+// PickAndAttach
 // inputParams: "taskNameKey"
 // Открывает PLM-диалог через дерево с мультивыбором и прикрепляет все выбранные объекты.
 // Validator отсекает версии/исполнения. Дублей не создаёт.
@@ -2505,7 +2485,7 @@ private object DoPickAndAttach( object inputParams )
     }
 }
 
-// ─── PickContainers ──────────────────────────────────────────────────────
+// PickContainers
 // Открывает нативный PLM-диалог выбора папок/проектов (DataContainer).
 // Возвращает JSON-массив [{key, name, type:"container"}] или "CANCELLED".
 // Используется панелью создания задачи (выбор без немедленного сохранения).
@@ -2541,7 +2521,7 @@ private object DoPickContainers( object inputParams )
     }
 }
 
-// ─── PickAndAttachContainer ──────────────────────────────────────────────
+// PickAndAttachContainer
 // Открывает диалог и сразу сохраняет выбранные контейнеры в задачу.
 // inputParams: taskNameKey
 private object DoPickAndAttachContainer( object inputParams )
@@ -2594,7 +2574,7 @@ private object DoPickAndAttachContainer( object inputParams )
     }
 }
 
-// ─── AddContainer ────────────────────────────────────────────────────────
+// AddContainer
 // Прикрепляет контейнер по Id (используется после создания задачи).
 // inputParams: "taskNameKey|containerId"
 private object DoAddContainer( object inputParams )
@@ -2643,7 +2623,7 @@ private object DoAddContainer( object inputParams )
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
-// ─── RemoveContainer ─────────────────────────────────────────────────────
+// RemoveContainer
 // Открепляет контейнер по Id.
 // inputParams: "taskNameKey|containerId"
 private object DoRemoveContainer( object inputParams )
@@ -2683,7 +2663,7 @@ private object DoRemoveContainer( object inputParams )
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
-// ─── OpenContainer ───────────────────────────────────────────────────────
+// OpenContainer
 // Открывает DataContainer в PLM-интерфейсе.
 // inputParams: "taskNameKey|containerId"
 private object DoOpenContainer( object inputParams )
@@ -2739,7 +2719,7 @@ private InfoObject FindInfoObjectByKey( string key )
     }
     catch { }
 
-    // Если ключ числовой (Id объекта без NameKey) — поиск по Id
+    // Если ключ числовой (Id объекта без NameKey) – поиск по Id
     long objId;
     if( long.TryParse( key, out objId ) )
     {
@@ -2764,12 +2744,8 @@ private InfoObject FindInfoObjectByKey( string key )
 
     return null;
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// Шаг 10: Комментарии (чат в карточке задачи)
-// ═══════════════════════════════════════════════════════════════════════
-
-// ─── Парсинг JSON-массива комментариев ──────────────────────────────
+// Комментарии (чат в карточке задачи)
+// Парсинг JSON-массива комментариев
 private System.Collections.Generic.List<System.Collections.Generic.Dictionary<string, string>>
     ParseComments( string json )
 {
@@ -2857,7 +2833,7 @@ private int GetCommentCount( InfoObject task )
     catch { return 0; }
 }
 
-// ─── AddComment ─────────────────────────────────────────────────────
+// AddComment
 private object DoAddComment( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
@@ -2910,7 +2886,7 @@ private object DoAddComment( object inputParams )
          + "\"index\":" + (items.Count - 1) + "}";
 }
 
-// ─── GetComments ────────────────────────────────────────────────────
+// GetComments
 private object DoGetComments( object inputParams )
 {
     var taskKey = GetParamStr( inputParams );
@@ -2943,7 +2919,7 @@ private object DoGetComments( object inputParams )
 
         // Обратная совместимость: legacy-записи прошли через HtmlEnc и
         // содержат &quot; / &lt; / &gt; / &#39; / &amp;. Декодируем при
-        // чтении — клиент ВСЁ РАВНО заново экранирует на рендере.
+        // чтении – клиент ВСЁ РАВНО заново экранирует на рендере.
         aText = DecodeLegacyHtmlEnc( aText ?? "" );
 
         var initials = GetInitials( aAuthorName ?? "" );
@@ -2962,7 +2938,7 @@ private object DoGetComments( object inputParams )
     return sb.ToString();
 }
 
-// ─── DeleteComment ──────────────────────────────────────────────────
+// DeleteComment
 private object DoDeleteComment( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
@@ -2997,7 +2973,7 @@ private object DoDeleteComment( object inputParams )
     return "OK";
 }
 
-// ─── EditComment ────────────────────────────────────────────────────
+// EditComment
 // inputParams: "taskKey|index|newText"
 // Редактирование разрешено только автору комментария.
 // При успехе ставит editedAt = DateTime.Now.
@@ -3011,7 +2987,7 @@ private object DoEditComment( object inputParams )
     int index;
     if( !int.TryParse( parts[1].Trim(), out index ) ) return "ERROR:BadIndex";
 
-    // ВНИМАНИЕ: текст НЕ Trim() — пользователь мог намеренно оставить
+    // ВНИМАНИЕ: текст НЕ Trim() – пользователь мог намеренно оставить
     // переносы / пробелы в начале и конце.
     var newText = parts[2];
     if( string.IsNullOrEmpty( newText ) || newText.Trim().Length == 0 )
@@ -3046,7 +3022,7 @@ private object DoEditComment( object inputParams )
          + "\"index\":"      + index + "}";
 }
 
-// ─── GetCardCommentCount ────────────────────────────────────────────
+// GetCardCommentCount
 // Лёгкий метод для синхронизации бейджа карточки на доске после
 // AddComment / DeleteComment без полного RefreshBoard.
 private object DoGetCardCommentCount( object inputParams )
@@ -3056,10 +3032,7 @@ private object DoGetCardCommentCount( object inputParams )
     if( task == null ) return "0";
     return GetCommentCount( task ).ToString();
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// Шаг 11: Подзадачи / чекбоксы (Phase 2 — задача №2)
-// ═══════════════════════════════════════════════════════════════════════
+// Подзадачи / чекбоксы (Phase 2 – задача №2)
 // Хранение: текстовый атрибут SubtasksJSON (тот же формат, что CommentsJSON).
 // Денормализация: счётчики SubtasksTotal / SubtasksDone (IntegerNumber)
 // обновляются внутри каждой мутирующей операции, чтобы BeforeRender
@@ -3077,7 +3050,7 @@ private string SerializeSubtasks(
     return SerializeComments( items );
 }
 
-// ─── AddSubtask ─────────────────────────────────────────────────────
+// AddSubtask
 // inputParams: "taskKey|text"
 // Возвращает JSON созданной подзадачи или ERROR:*
 private object DoAddSubtask( object inputParams )
@@ -3097,7 +3070,7 @@ private object DoAddSubtask( object inputParams )
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "ERROR:NotFound";
 
-        // Чтение оригинальной оболочки — вне транзакции.
+        // Чтение оригинальной оболочки – вне транзакции.
         var json  = task.GetString( "SubtasksJSON" ) ?? "";
         var items = ParseSubtasks( json );
 
@@ -3163,7 +3136,7 @@ private object DoAddSubtask( object inputParams )
     }
 }
 
-// ─── ToggleSubtask ──────────────────────────────────────────────────
+// ToggleSubtask
 // inputParams: "taskKey|subtaskId"
 // Переворачивает done 0↔1, обновляет doneBy/doneAt.
 private object DoToggleSubtask( object inputParams )
@@ -3246,7 +3219,7 @@ private object DoToggleSubtask( object inputParams )
     }
 }
 
-// ─── EditSubtask ────────────────────────────────────────────────────
+// EditSubtask
 // inputParams: "taskKey|subtaskId|newText"
 // Меняет text, проставляет editedBy/editedAt. Возвращает JSON обновлённого пункта.
 private object DoEditSubtask( object inputParams )
@@ -3327,10 +3300,10 @@ private object DoEditSubtask( object inputParams )
     }
 }
 
-// ─── ReorderSubtasks ────────────────────────────────────────────────
+// ReorderSubtasks
 // inputParams: "taskKey|id1,id2,id3,..."
 // Принимает новый порядок ID и переупорядочивает массив. Возвращает "OK" или ERROR.
-// Если переданный набор ID не совпадает с текущим — возвращает ERROR:Mismatch.
+// Если переданный набор ID не совпадает с текущим – возвращает ERROR:Mismatch.
 private object DoReorderSubtasks( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
@@ -3384,7 +3357,7 @@ private object DoReorderSubtasks( object inputParams )
     }
 }
 
-// ─── DeleteSubtask ──────────────────────────────────────────────────
+// DeleteSubtask
 // inputParams: "taskKey|subtaskId"
 private object DoDeleteSubtask( object inputParams )
 {
@@ -3439,8 +3412,8 @@ private object DoDeleteSubtask( object inputParams )
     }
 }
 
-// ─── GetSubtasks ────────────────────────────────────────────────────
-// inputParams: "taskKey" — возвращает сырой JSON-массив подзадач.
+// GetSubtasks
+// inputParams: "taskKey" – возвращает сырой JSON-массив подзадач.
 private object DoGetSubtasks( object inputParams )
 {
     var taskKey = GetParamStr( inputParams ).Trim();
@@ -3459,7 +3432,7 @@ private object DoGetSubtasks( object inputParams )
     }
 }
 
-// ─── Уведомление о новом комментарии (Exclamation) ───────────────────
+// Уведомление о новом комментарии (Exclamation)
 private const string COMMENT_MSG_TEMPLATE_PATH = @"WorkLoads\BASIC\Message\ExclamationKanban";
 
 private void SendCommentNotification( InfoObject task, User author, string text )
@@ -3523,7 +3496,8 @@ private void SendWorkItemNotify( Template tmpl, User recipient, string subject, 
         w.Params     = taskKey;
         w.IsBySystem = true;
         w.Send();
-        try { w.MarkAsViewedBy( recipient ); } catch { }
+        // НЕ пре-маркируем viewed – запись должна появиться в папке оповещений как "Новая".
+        // Сброс бейджа – после показа custom popup в ExclamationKanban.OnUpdated.
     }
     catch( Exception ex )
     {
@@ -3531,7 +3505,7 @@ private void SendWorkItemNotify( Template tmpl, User recipient, string subject, 
     }
 }
 
-// ─── JSON-экранирование строки ────────────────────────────────────────
+// JSON-экранирование строки
 private string JsonEscape( string s )
 {
     if( string.IsNullOrEmpty( s ) ) return "";
@@ -3542,11 +3516,11 @@ private string JsonEscape( string s )
             .Replace( "\t", "\\t"  );
 }
 
-// ─── Нейтрализация текста комментария ─────────────────────────────────
+// Нейтрализация текста комментария
 // Используется в DoAddComment / DoEditComment ВМЕСТО HtmlEnc, чтобы
 // не плодить «&quot;» в уже сохранённом тексте: клиент всё равно
 // экранирует через tcmChatEsc на рендере. Здесь только подменяем
-// '<' и '>' на типографические аналоги — это блокирует XSS-вектор
+// '<' и '>' на типографические аналоги – это блокирует XSS-вектор
 // и сохраняет сырые кавычки/амперсанды.
 private string NormalizeCommentText( string s )
 {
@@ -3554,7 +3528,7 @@ private string NormalizeCommentText( string s )
     return s.Replace( "<", "‹" ).Replace( ">", "›" );
 }
 
-// ─── Декодирование legacy-комментариев ────────────────────────────────
+// Декодирование legacy-комментариев
 // Используется только при ЧТЕНИИ (DoGetComments). В БД ничего не
 // перезаписываем. Обратное преобразование того, что делал старый
 // HtmlEnc-путь.
@@ -3576,7 +3550,7 @@ private string TruncDesc( string s )
     return ( cut > 30 ? s.Substring( 0, cut ) : s.Substring( 0, 120 ) ) + "…";
 }
 
-// ─── Запись в ChangeLog для вложений ──────────────────────────────────
+// Запись в ChangeLog для вложений
 private void AppendAttachmentChangeLog( InfoObject task, string action, string itemName )
 {
     try
@@ -3601,7 +3575,7 @@ private void AppendAttachmentChangeLog( InfoObject task, string action, string i
     catch { /* ChangeLog не критичен */ }
 }
 
-// ─── Запись в ChangeLog для подзадач (чек-листа) ──────────────────────
+// Запись в ChangeLog для подзадач (чек-листа)
 private void AppendSubtaskChangeLog( InfoObject task, string action, string subtaskText )
 {
     if( task == null ) return;
@@ -3627,12 +3601,9 @@ private void AppendSubtaskChangeLog( InfoObject task, string action, string subt
 
     task["ChangeLog"] = newLog;
 }
-
-// ═══════════════════════════════════════════════════════════════════════
 // Экспорт текущей доски в Excel
-// ═══════════════════════════════════════════════════════════════════════
 // inputParams: игнорируется. Все фильтры читаются из obj.PropertyBag
-// (KbViewMode, KbPeriodFrom, KbPeriodTo) — те же значения, что использует
+// (KbViewMode, KbPeriodFrom, KbPeriodTo) – те же значения, что использует
 // BeforeRender. Excel COM открывается на машине пользователя (Visible=true).
 private object DoExportToExcel( InfoObject obj, object inputParams )
 {
@@ -3926,8 +3897,7 @@ private string[] ExportBuildRow( InfoObject task, int statusIdx, string[] colNam
     };
 }
 
-// ─── Excel COM wrapper + enums (взято из T974, переименовано с префиксом Kb) ───
-
+// Excel COM wrapper + enums (взято из T974, переименовано с префиксом Kb)
 public enum KbXlAlignHorizontal
 {
     xlGeneral = 1,
@@ -4186,7 +4156,7 @@ public class KbExcel : IDisposable
             var hwndInt = (int) FExcel.GetType().InvokeMember(
                 "Hwnd", System.Reflection.BindingFlags.GetProperty, null, FExcel, null );
             var hwnd = new IntPtr( hwndInt );
-            ShowWindow( hwnd, 9 );      // SW_RESTORE — снимает минимизацию
+            ShowWindow( hwnd, 9 );      // SW_RESTORE – снимает минимизацию
             SetForegroundWindow( hwnd ); // выводит окно поверх остальных
         }
         catch { }

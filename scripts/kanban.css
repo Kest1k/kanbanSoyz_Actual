@@ -1,4 +1,4 @@
-/* ── Общий сброс и типографика ── */
+/* Общий сброс и типографика */
     .kb-board,
     .kb-board * {
         -webkit-box-sizing: border-box;
@@ -10,7 +10,7 @@
         height: 100%;
     }
 
-/* ── Board layout ── */
+/* Board layout */
     .kb-board {
         display: -ms-flexbox;
         display: flex;
@@ -45,7 +45,7 @@
         height: calc(100vh - 185px);
     }
 
-/* ── Колонки ── */
+/* Колонки */
     .kb-col {
         -ms-flex: 1 1 0px;
         flex: 1 1 0px;
@@ -75,7 +75,7 @@
         box-shadow: 0 0 0 2px #4a90d9, 0 4px 16px rgba(74,144,217,0.18);
     }
 
-/* ── Заголовки колонок ── */
+/* Заголовки колонок */
     .kb-col-header {
         background: #4a6fa5;
         color: #fff;
@@ -98,13 +98,13 @@
         line-height: 18px;
     }
 
-    /* Цвета заголовков колонок — задаются inline в HTML, но переопределяем дефолт */
+    /* Цвета заголовков колонок – задаются inline в HTML, но переопределяем дефолт */
     #kb-col-0 .kb-col-header { background: #4a6fa5; }
     #kb-col-1 .kb-col-header { background: #d4820a; }
     #kb-col-2 .kb-col-header { background: #7c3aad; }
     #kb-col-3 .kb-col-header { background: #2d8a56; }
 
-/* ── Тело колонки ── */
+/* Тело колонки */
     .kb-col-body {
         -ms-flex: 1 1 0px;
         flex: 1 1 0px;
@@ -136,9 +136,7 @@
         background: #9aa0aa;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   КАРТОЧКИ
-   ══════════════════════════════════════════════════════════════════ */
+/* КАРТОЧКИ */
     .kb-card {
         background: #ffffff;
         border: none;
@@ -163,7 +161,7 @@
         transform: translateY(-1px);
     }
 
-    /* Приоритеты — левая полоска */
+    /* Приоритеты – левая полоска */
     .kb-card.pri-high   { border-left-color: #e74c3c; }
     .kb-card.pri-medium { border-left-color: #f39c12; }
     .kb-card.pri-low    { border-left-color: #27ae60; }
@@ -215,7 +213,7 @@
         clear: both;
     }
 
-/* ── Аватар ── */
+/* Аватар */
     .kb-avatar {
         position: absolute;
         top: 8px;
@@ -234,7 +232,7 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.15);
     }
 
-/* ── Плашка «Фамилия И.О.» исполнителя ── */
+/* Плашка «Фамилия И.О.» исполнителя */
     .kb-assignee-tag {
         float: right;
         margin: 0 0 2px 6px;
@@ -253,7 +251,7 @@
         box-sizing: border-box;
     }
 
-/* ── Кнопка удаления ── */
+/* Кнопка удаления */
     .kb-card-del {
         position: absolute;
         top: 9px;
@@ -301,7 +299,7 @@
         border-color: #c0392b;
     }
 
-/* ── Колонка «Готово» — приглушённые карточки ── */
+/* Колонка «Готово» – приглушённые карточки */
     #kb-body-3 .kb-card {
         background: #f3f4f6;
         border-left-color: #c8cdd3 !important;
@@ -326,9 +324,7 @@
         font-weight: 600;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   ПАНЕЛЬ СОЗДАНИЯ ЗАДАЧИ
-   ══════════════════════════════════════════════════════════════════ */
+/* ПАНЕЛЬ СОЗДАНИЯ ЗАДАЧИ */
     .kb-create-panel {
         display: none;
         background: #f7f8fa;
@@ -354,7 +350,7 @@
         transition: border-color 0.15s;
     }
 
-    /* Селекты — стили задаются в едином блоке ниже (.kb-hier-select, .kb-create-panel select.form-control) */
+    /* Селекты – стили задаются в едином блоке ниже (.kb-hier-select, .kb-create-panel select.form-control) */
 
     .kb-create-panel .form-control:focus,
     .kb-create-panel .form-control.input-sm:focus {
@@ -364,7 +360,7 @@
         box-shadow: 0 0 0 2px rgba(74,111,165,0.15) !important;
     }
 
-    /* Кнопки создать/отмена — перебиваем bootstrap */
+    /* Кнопки создать/отмена – перебиваем bootstrap */
     .kb-create-panel .btn.btn-primary,
     .kb-create-panel .btn-primary {
         background: #4a6fa5 !important;
@@ -458,7 +454,7 @@
         box-sizing: border-box;
     }
 
-    /* Групповой режим — селекты и поиск на одной линии */
+    /* Групповой режим – селекты и поиск на одной линии */
     #kb-grp-dept,
     #kb-grp-sector,
     #kb-grp-search,
@@ -470,7 +466,7 @@
         width: auto !important;
     }
 
-    /* Строка назначения — радиокнопки и чекбоксы на одной линии */
+    /* Строка назначения – радиокнопки и чекбоксы на одной линии */
     #kb-crt-assignee-row label {
         font-weight: 400 !important;
         vertical-align: middle;
@@ -494,7 +490,7 @@
         vertical-align: middle;
     }
 
-/* ── Date input group ── */
+/* Date input group */
     .kb-date-wrap {
         position: relative;
         display: inline-block;
@@ -524,7 +520,7 @@
         color: #4a6fa5;
     }
 
-/* ── Календарь ── */
+/* Календарь */
     .kb-cal {
         display: none;
         position: absolute;
@@ -544,7 +540,7 @@
         user-select: none;
     }
 
-    /* Календарь внутри модалки — выравниваем по правому краю */
+    /* Календарь внутри модалки – выравниваем по правому краю */
     #kb-cal-tcm {
         left: auto;
         right: 0;
@@ -626,7 +622,7 @@
     .kb-cal .kb-cal-table td.empty { cursor: default; }
     .kb-cal .kb-cal-table td.empty:hover { background: none !important; }
 
-/* ── Фильтр по периоду (компактный toggle + dropdown) ── */
+/* Фильтр по периоду (компактный toggle + dropdown) */
     .kb-period-wrap {
         float: left;
         margin-top: 8px;
@@ -768,7 +764,7 @@
     }
 
 /* ══════════════════════════════════════════════════════════════════
-   Адаптивная шапка Kanban — Phase 3 #02 (polished)
+   Адаптивная шапка Kanban – Phase 3 #02 (polished)
    Главные принципы:
    1. Все интерактивные элементы строго 30px высотой → идеальный baseline.
    2. Правая группа (Что нового / Справка) прижата вправо через
@@ -821,7 +817,7 @@
 .kb-nav-right > * { margin-right: 8px; }
 .kb-nav-right > *:last-child { margin-right: 0; }
 
-/* Бренд — убираем bootstrap padding/margin, выравниваем по 30px высоте */
+/* Бренд – убираем bootstrap padding/margin, выравниваем по 30px высоте */
 .kb-nav-row .navbar-brand {
     -ms-flex: 0 0 auto;
     flex: 0 0 auto;
@@ -913,7 +909,7 @@
 .kb-nav-btn-help { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .kb-nav-btn-help:hover { background: #dbeafe; border-color: #93c5fd; }
 
-/* ── Кнопка экспорта в Excel в шапке (стиль Excel) ────────────────── */
+/* Кнопка экспорта в Excel в шапке (стиль Excel) */
 .kb-nav-links > li > a.kb-nav-link-excel {
     color: #15803d;
     font-weight: 600;
@@ -928,7 +924,7 @@
     color: #16a34a;
 }
 
-/* ── Оверлей-спиннер во время формирования Excel ──────────────────── */
+/* Оверлей-спиннер во время формирования Excel */
 .kb-excel-overlay {
     position: fixed;
     top: 0;
@@ -998,7 +994,7 @@
     align-items: center;
 }
 
-/* Все селекты иерархии — единая высота 30px */
+/* Все селекты иерархии – единая высота 30px */
 #kb-hier-panel .kb-hier-select {
     height: 30px;
     line-height: 30px;
@@ -1007,7 +1003,7 @@
     vertical-align: middle;
 }
 
-/* Поле поиска — вертикальное выравнивание текста по центру + отступ от селектов */
+/* Поле поиска – вертикальное выравнивание текста по центру + отступ от селектов */
 #kb-hier-panel input.kb-hier-select {
     display: -ms-inline-flexbox;
     display: inline-flex;
@@ -1033,7 +1029,7 @@
     height: 30px;
 }
 
-/* Period-toggle уже стилизован выше — добавляем только align */
+/* Period-toggle уже стилизован выше – добавляем только align */
 .kb-period-toggle {
     display: -ms-inline-flexbox;
     display: inline-flex;
@@ -1042,9 +1038,7 @@
     line-height: 1;
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   ОТЧЁТ (Report modal)
-   ══════════════════════════════════════════════════════════════════ */
+/* ОТЧЁТ (Report modal) */
     .rpt-overlay {
         display: none;
         position: fixed;
@@ -1219,9 +1213,7 @@
         transition: width 0.4s;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   КАРТОЧКА ЗАДАЧИ (Task Card Modal)
-   ══════════════════════════════════════════════════════════════════ */
+/* КАРТОЧКА ЗАДАЧИ (Task Card Modal) */
     .tcm-overlay {
         display: none;
         position: fixed;
@@ -1388,7 +1380,7 @@
     .tcm-msg-ok  { background: #dcfce7; color: #16a34a; }
     .tcm-msg-err { background: #fee2e2; color: #dc2626; }
 
-/* ── Кнопки модалки ── */
+/* Кнопки модалки */
     .tcm-btn {
         padding: 6px 14px;
         border: none;
@@ -1424,7 +1416,7 @@
     }
     .tcm-btn-danger:hover { background: #fee2e2; }
 
-/* ── История изменений ── */
+/* История изменений */
     .tcm-revs {
         margin-top: 8px;
         padding-top: 8px;
@@ -1454,14 +1446,14 @@
         border-bottom: 1px solid #f5f5f5;
     }
 
-/* ── Просроченность / Overdue ── */
+/* Просроченность / Overdue */
     .kb-overdue {
         color: #dc2626;
         font-size: 11px;
         font-weight: 600;
     }
 
-/* ── Теги / Tags ── */
+/* Теги / Tags */
     .kb-card-tags {
         margin: 2px 0 4px;
     }
@@ -1491,9 +1483,7 @@
         opacity: 1;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   ВЛОЖЕНИЯ (Attachments)
-   ══════════════════════════════════════════════════════════════════ */
+/* ВЛОЖЕНИЯ (Attachments) */
     .tcm-att {
         margin-top: 10px;
         border-top: 1px solid #eef1f5;
@@ -1643,9 +1633,7 @@
         margin-left: 6px;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   ЧАТ / КОММЕНТАРИИ
-   ══════════════════════════════════════════════════════════════════ */
+/* ЧАТ / КОММЕНТАРИИ */
     .tcm-chat {
         margin-top: 10px;
         border-top: 1px solid #eef1f5;
@@ -1878,9 +1866,7 @@
         margin-left: 6px;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   СВЕРХСРОЧНАЯ ЗАДАЧА (Urgent)
-   ══════════════════════════════════════════════════════════════════ */
+/* СВЕРХСРОЧНАЯ ЗАДАЧА (Urgent) */
     .kb-card.pri-urgent {
         border: 1px solid #f0a0a0;
         border-left: 4px solid #c0392b;
@@ -1920,7 +1906,7 @@
         z-index: 2;
     }
 
-    /* ── Бейдж «НОВАЯ» для непросмотренных задач ──────────────── */
+    /* Бейдж «НОВАЯ» для непросмотренных задач */
     .kb-card-new {
         border-left: 4px solid #3b82f6;
         background: #f0f7ff;
@@ -1970,7 +1956,7 @@
     .kb-card.pri-urgent .kb-assignee-tag { margin-top: 20px; }
     .kb-card.pri-urgent .kb-card-del { top: 26px; right: 8px; }
 
-    /* Urgent в колонке «Готово» — приглушённый */
+    /* Urgent в колонке «Готово» – приглушённый */
     #kb-col-3 .kb-card.pri-urgent {
         -webkit-animation: none;
         animation: none;
@@ -2001,9 +1987,7 @@
         color: #fff;
     }
 
-/* ══════════════════════════════════════════════════════════════════
-   ПАНЕЛЬ ФИЛЬТРОВ (Toolbar)
-   ══════════════════════════════════════════════════════════════════ */
+/* ПАНЕЛЬ ФИЛЬТРОВ (Toolbar) */
     .kb-toolbar {
         display: -ms-flexbox;
         display: flex;
@@ -2099,7 +2083,7 @@
         background: #f0f5ff;
     }
 
-/* ── Единый стиль всех select на канбан-доске ── */
+/* Единый стиль всех select на канбан-доске */
     .kb-hier-select,
     .kb-create-panel select.form-control,
     #kb-hier-panel select {
@@ -2130,7 +2114,7 @@
         box-shadow: 0 0 0 2px rgba(74,111,165,0.15) !important;
     }
 
-/* ── Общие form-control ── */
+/* Общие form-control */
     .form-control {
         display: block;
         width: 100%;
@@ -2153,7 +2137,7 @@
         box-shadow: 0 0 0 2px rgba(74,111,165,0.15);
     }
 
-/* ── Просроченные задачи ── */
+/* Просроченные задачи */
     .kb-overdue {
         color: #dc2626;
         font-weight: 600;
@@ -2167,7 +2151,7 @@
         color: #dc2626;
     }
 
-/* ── Пустая колонка ── */
+/* Пустая колонка */
     .kb-empty-col {
         text-align: center;
         color: #c8cdd3;
@@ -2176,12 +2160,12 @@
         font-style: italic;
     }
 
-/* ── Drag ghost ── */
+/* Drag ghost */
     .kb-card.dragging {
         opacity: 0.5;
     }
 
-/* ── Групповая задача ── */
+/* Групповая задача */
     .kb-grp-list {
         max-height: 200px;
         overflow-y: auto;
@@ -2251,10 +2235,10 @@
         vertical-align: middle;
     }
 
-/* ── Скрытие элементов ── */
+/* Скрытие элементов */
     .kb-hidden { display: none !important; }
 
-/* ── Горячие клавиши (kbd внутри справки) ──────────────────── */
+/* Горячие клавиши (kbd внутри справки) */
     .help-table kbd {
         display: inline-block;
         min-width: 18px;
@@ -2270,7 +2254,7 @@
         text-align: center;
     }
 
-/* ── Справка / Help overlay ── */
+/* Справка / Help overlay */
     .help-overlay {
         display: none;
         position: fixed;
@@ -2478,7 +2462,7 @@
     .tcm-tab-content.active::-webkit-scrollbar-track { background: transparent; }
     .tcm-tab-content.active::-webkit-scrollbar-thumb { background: #c8cdd3; border-radius: 10px; }
     .tcm-tab-content.active::-webkit-scrollbar-thumb:hover { background: #a0a8b2; }
-    /* chat tab manages its own inner scroll — don't scroll the tab wrapper */
+    /* chat tab manages its own inner scroll – don't scroll the tab wrapper */
     #tcm-tab-chat.tcm-tab-content.active {
         overflow: hidden;
     }
@@ -2487,7 +2471,7 @@
         to { opacity: 1; }
     }
     /* Адекватное отображение поля "Описание" */
-    /* ── Поле «Описание» в модалке задачи: растягивается по содержимому ── */
+    /* Поле «Описание» в модалке задачи: растягивается по содержимому */
     #tcm-details-group {
         display: block;
         margin-bottom: 12px;
@@ -2520,7 +2504,7 @@
         margin-left: 4px;
     }
 
-/* ─── Чек-лист (подзадачи) ───────────────────────────────────────────── */
+/* Чек-лист (подзадачи) */
 .kb-subt-header {
     display: -ms-flexbox;
     display: flex;
@@ -2559,7 +2543,7 @@
     font-style: italic;
 }
 
-/* ── Кастомный чекбокс для IE11 (Pure CSS, без SVG) ── */
+/* Кастомный чекбокс для IE11 (Pure CSS, без SVG) */
 .kb-subt-cb-wrap {
     position: relative;
     display: inline-block;
@@ -2679,7 +2663,7 @@
     -ms-flex-negative: 0;
     flex-shrink: 0; /* Фиксируем поле ввода в самом верху вкладки, не сжимается */
     -ms-flex-order: -1;
-    order: -1; /* Подстраховка: даже если в HTML случайно остался внизу — flex его поднимет */
+    order: -1; /* Подстраховка: даже если в HTML случайно остался внизу – flex его поднимет */
 }
 .kb-subt-add input {
     -ms-flex: 1 1 auto;
@@ -2687,7 +2671,7 @@
     margin-right: 6px;
 }
 
-/* ── Подсказка над списком ── */
+/* Подсказка над списком */
 .kb-subt-hint {
     font-size: 11px;
     color: #6b7280;
@@ -2696,7 +2680,7 @@
 }
 .kb-subt-hint .fa { color: #4a6fa5; margin: 0 2px; }
 
-/* ── Рукоятка drag ── */
+/* Рукоятка drag */
 .kb-subt-drag {
     display: inline-block;
     width: 16px;
@@ -2714,7 +2698,7 @@
 .kb-subt-drag:active { cursor: grabbing; }
 .kb-subt-item:hover .kb-subt-drag { color: #4a6fa5; }
 
-/* ── DnD: перетаскиваемый элемент ── */
+/* DnD: перетаскиваемый элемент */
 .kb-subt-item.kb-subt-dragging { opacity: 0.35; }
 
 /* ── DnD: pointer-events:none на дочерних во время drag
@@ -2724,7 +2708,7 @@
     -ms-pointer-events: none;
 }
 
-/* ── DnD: линия-индикатор вставки (абсолютно позиционирована внутри .kb-subt-list) ── */
+/* DnD: линия-индикатор вставки (абсолютно позиционирована внутри .kb-subt-list) */
 #kb-subt-dropline {
     position: absolute;
     left: 4px;
@@ -2737,7 +2721,7 @@
     z-index: 10;
 }
 
-/* ── Inline-редактирование текста ── */
+/* Inline-редактирование текста */
 .kb-subt-edit-input {
     flex: 1 1 auto;
     -ms-flex: 1 1 auto;
@@ -2751,7 +2735,7 @@
     -webkit-box-shadow: 0 0 0 2px rgba(74,111,165,0.15) !important;
 }
 
-/* ── Текст пункта: лёгкий ховер чтобы dblclick был ощутим ── */
+/* Текст пункта: лёгкий ховер чтобы dblclick был ощутим */
 .kb-subt-text { cursor: text; }
 .kb-subt-text:hover { background: rgba(74,111,165,0.06); border-radius: 3px; }
 

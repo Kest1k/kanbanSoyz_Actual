@@ -292,7 +292,7 @@
         <div class="kb-col-body" id="kb-body-0">
             {% for t in col_0 %}
             <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}"
-                data-owner="{{ t.isOwner }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
+                data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
                 ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.isNew == "1" %}
                 <span class="kb-new-badge">НОВАЯ</span>
@@ -365,7 +365,7 @@
         <div class="kb-col-body" id="kb-body-1">
             {% for t in col_1 %}
             <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}" id="kbc_{{ t.id }}"
-                data-owner="{{ t.isOwner }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
+                data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
                 ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.isNew == "1" %}
                 <span class="kb-new-badge">НОВАЯ</span>
@@ -437,7 +437,7 @@
         </div>
         <div class="kb-col-body" id="kb-body-2">
             {% for t in col_2 %}
-            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" draggable="true"
                 ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
@@ -504,7 +504,7 @@
         </div>
         <div class="kb-col-body" id="kb-body-3">
             {% for t in col_3 %}
-            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" draggable="true"
+            <div class="kb-card pri-{{ t.priority }}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" draggable="true"
                 ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
@@ -1105,6 +1105,41 @@
         <div class="kb-excel-spinner"></div>
         <div class="kb-excel-spinner-text"><i class="fa fa-file-excel-o"></i> Формируем Excel…</div>
         <div class="kb-excel-spinner-sub">Excel откроется автоматически</div>
+    </div>
+</div>
+
+<!-- ── Модалка отчёта о выполнении задачи (для задач, поставленных руководителем) ── -->
+<div id="kbDoneReportOverlay" class="tcm-overlay" style="display:none;">
+    <div class="tcm-dialog" style="bottom:auto;min-height:0;width:540px;margin-left:-270px;top:80px;">
+        <div class="tcm-header">
+            <div>
+                <span class="tcm-title-bar"><i class="fa fa-check-square-o" style="color:#16a34a;"></i> Отчёт о выполнении</span>
+            </div>
+            <button type="button" class="tcm-close" onclick="kbDoneReportCancel()" title="Отмена">&#215;</button>
+        </div>
+        <div style="padding:16px 20px;">
+            <div style="font-size:13px;color:#374151;margin-bottom:12px;line-height:1.5;">
+                Эта задача создана другим пользователем. Кратко опишите результат выполнения –
+                этот текст будет добавлен как комментарий и станет виден автору задачи.
+            </div>
+            <label style="font-size:12px;font-weight:600;color:#1f2937;display:block;margin-bottom:6px;">
+                Комментарий (обязательно) <span style="color:#dc2626;">*</span>
+            </label>
+            <textarea id="kbDoneReportText" rows="5"
+                      placeholder="Что сделано, какой результат, есть ли нюансы..."
+                      style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:13px;border:1px solid #d1d5db;border-radius:6px;font-family:inherit;resize:vertical;"></textarea>
+            <div id="kbDoneReportError" style="display:none;color:#dc2626;font-size:12px;margin-top:6px;"></div>
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid #eef1f5;background:#fafbfc;text-align:right;">
+            <button type="button" class="tcm-btn" onclick="kbDoneReportCancel()"
+                    style="padding:7px 14px;font-size:12px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;margin-right:8px;">
+                Отмена
+            </button>
+            <button type="button" class="tcm-btn tcm-btn-primary" onclick="kbDoneReportSubmit()"
+                    style="padding:7px 14px;font-size:12px;border:none;background:#16a34a;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">
+                <i class="fa fa-paper-plane"></i> Отправить комментарий и закрыть задачу
+            </button>
+        </div>
     </div>
 </div>
 

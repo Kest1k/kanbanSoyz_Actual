@@ -5,8 +5,6 @@
 // Требования в PLM:
 //   WorkLoad-шаблон: WorkLoads\BASIC\Message\ExclamationKanban
 //   Атрибуты KanbanTask: Assignee (Reference → User), TaskName (String)
-// ═══════════════════════════════════════════════════════════════════════
-
 private const string MSG_TEMPLATE_PATH = @"WorkLoads\BASIC\Message\ExclamationKanban";
 
 public override void OnBeforeSave( InfoObject obj )
@@ -22,17 +20,28 @@ public override void OnBeforeSave( InfoObject obj )
     }
 }
 
-// ─── Проверка смены исполнителя ──────────────────────────────────────
+// Проверка смены исполнителя
 private void CheckAssigneeChanged( InfoObject obj )
 {
+    var taskId = "?";
+    try { taskId = obj.NameKey ?? obj.Id.ToString(); } catch { }
+
     // Получаем нового исполнителя рекомендованным способом (не через .Value.GetValue)
     User newAssignee = null;
     try { newAssignee = obj.GetUser( "Assignee" ); }
-    catch { return; }
-    if( newAssignee == null ) return;
+    catch( Exception getEx )
+    {
+        try { Service.WriteToServerLog( "KanbanTaskNotify", "GetUser(Assignee) threw for task " + taskId + ": " + getEx.Message ); } catch { }
+        return;
+    }
+    if( newAssignee == null )
+    {
+        try { Service.WriteToServerLog( "KanbanTaskNotify", "newAssignee=null for task " + taskId + " – skip notify" ); } catch { }
+        return;
+    }
 
     // Сравниваем с сохранённым значением (защита от повторных уведомлений).
-    // PersistedValue — низкоуровневый API, используем только здесь.
+    // PersistedValue – низкоуровневый API, используем только здесь.
     // PersistedValue == null → объект новый (никогда не сохранялся) → продолжаем.
     try
     {
@@ -43,18 +52,30 @@ private void CheckAssigneeChanged( InfoObject obj )
             if( persisted != null )
             {
                 var oldAssignee = persisted.GetValue<User>();
-                if( oldAssignee != null && oldAssignee.Id == newAssignee.Id ) return;
+                if( oldAssignee != null && oldAssignee.Id == newAssignee.Id )
+                {
+                    try { Service.WriteToServerLog( "KanbanTaskNotify", "Assignee unchanged (id=" + oldAssignee.Id + ") for task " + taskId + " – skip notify" ); } catch { }
+                    return;
+                }
             }
         }
     }
-    catch { /* не можем прочитать старое значение — считаем изменённым */ }
+    catch { /* не можем прочитать старое значение – считаем изменённым */ }
 
     // Не уведомляем, если назначаешь самому себе
     var currentUser = Service.GetCurrentUser();
-    if( currentUser != null && newAssignee.Id == currentUser.Id ) return;
+    if( currentUser != null && newAssignee.Id == currentUser.Id )
+    {
+        try { Service.WriteToServerLog( "KanbanTaskNotify", "Self-assign for task " + taskId + " – skip notify" ); } catch { }
+        return;
+    }
 
     var msgTemplate = Service.GetTemplate( MSG_TEMPLATE_PATH );
-    if( msgTemplate == null ) return;
+    if( msgTemplate == null )
+    {
+        try { Service.WriteToServerLog( "KanbanTaskNotify", "Template '" + MSG_TEMPLATE_PATH + "' not found – cannot send notify for task " + taskId ); } catch { }
+        return;
+    }
 
     var taskName   = obj.GetString( "TaskName" ) ?? obj.ToString();
     var senderName = FormatSenderName( currentUser );
@@ -65,25 +86,33 @@ private void CheckAssigneeChanged( InfoObject obj )
     if( prio == "urgent" )      extra += " | \u26a0 \u0421\u0440\u043e\u0447\u043d\u0430\u044f";
     else if( prio == "high" )   extra += " | \u0412\u044b\u0441\u043e\u043a\u0438\u0439 \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442";
 
-    // Сбросить список «видевших» — новый исполнитель увидит бейдж «НОВАЯ»
+    // Сбросить список «видевших» – новый исполнитель увидит бейдж «НОВАЯ»
     try { obj["SeenByList"] = ""; } catch { }
 
+    try {
     var w = new WorkItem( msgTemplate, newAssignee );
     w[ "Subject" ] = string.IsNullOrEmpty( senderName )
         ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430: " + taskName + extra
         : "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430 \u00ab" + taskName + "\u00bb \u043e\u0442 " + senderName + extra;
 
-    // Гасим штатное PLM/Windows-оповещение до отправки: наше окно покажет ExclamationKanban.OnUpdated.
+    // SilentMode оставляем (кастомный атрибут – не влияет на routing).
+    // Штатный toast подавляется через OnPostTrayNotification (KanbanTrayFilter).
     try { w[ "SilentMode" ] = true; } catch { }
     w.Params = obj.NameKey;
-    try { w.MarkAsViewedBy( newAssignee ); } catch { }
     w.StatusOperation = WorkItemBase.StatusEnum.Sent;
+    // НЕ пре-маркируем viewed – запись должна появиться в папке оповещений как "Новая".
+    // Сброс бейджа – после показа custom popup в ExclamationKanban.OnUpdated.
 
-    // Повторная отметка закрывает случаи, когда PLM пересобрал состояние при переводе в Sent.
-    try { w.MarkAsViewedBy( newAssignee ); } catch { }
+    try { Service.WriteToServerLog( "KanbanTaskNotify", "WorkItem queued OK for task " + taskId + " -> recipient id=" + newAssignee.Id + " (" + ( newAssignee.ToString() ?? "?" ) + ")" ); } catch { }
+    }
+    catch( Exception createEx )
+    {
+        try { Service.WriteToServerLog( "KanbanTaskNotify", "WorkItem create FAILED for task " + taskId + ": " + createEx.Message + " | " + createEx.StackTrace ); } catch { }
+        throw;
+    }
 }
 
-// ─── Форматирование имени отправителя: «Иванова С.А.» ────────────────
+// Форматирование имени отправителя: «Иванова С.А.»
 // Ключи атрибутов User: GivenName=Фамилия, FirstName=Имя, SecondName=Отчество
 private string FormatSenderName( User user )
 {
@@ -104,7 +133,7 @@ private string FormatSenderName( User user )
     return genitSurname + " " + initials;
 }
 
-// ─── Склонение фамилии в родительный падеж ───────────────────────────
+// Склонение фамилии в родительный падеж
 // Покрывает типичные русские фамилии. Порядок проверок важен: более
 // конкретные окончания проверяются раньше.
 //
@@ -122,7 +151,7 @@ private string DeclineSurnameGenitive( string s )
     if( string.IsNullOrEmpty( s ) || s.Length < 2 ) return s ?? "";
     var lo = s.ToLowerInvariant();
 
-    // ── Прилагательные мужские ──────────────────────────────────────
+    // Прилагательные мужские
     // -ский/-цкий и под. → -ского/-цкого (Дубровский→Дубровского)
     if( lo.EndsWith( "ский" ) || lo.EndsWith( "цкий" ) )
         return s.Substring( 0, s.Length - 2 ) + "ого";
@@ -131,7 +160,7 @@ private string DeclineSurnameGenitive( string s )
     if( lo.EndsWith( "ий" ) || lo.EndsWith( "ый" ) )
         return s.Substring( 0, s.Length - 2 ) + "ого";
 
-    // ── Прилагательные женские ──────────────────────────────────────
+    // Прилагательные женские
     // -ская/-цкая → -ской (Горская→Горской, Ковалевская→Ковалевской)
     if( lo.EndsWith( "ская" ) || lo.EndsWith( "цкая" ) )
         return s.Substring( 0, s.Length - 2 ) + "ой";
@@ -140,12 +169,12 @@ private string DeclineSurnameGenitive( string s )
     if( lo.EndsWith( "ая" ) )
         return s.Substring( 0, s.Length - 2 ) + "ой";
 
-    // ── Мужской род, окончание -ой ──────────────────────────────────
+    // Мужской род, окончание -ой
     // -ой → -ого (Толстой→Толстого)
     if( lo.EndsWith( "ой" ) )
         return s.Substring( 0, s.Length - 2 ) + "ого";
 
-    // ── Женский род на -а ───────────────────────────────────────────
+    // Женский род на -а
     // -ова/-ева/-ёва → -овой/-евой (Иванова→Ивановой, Купцова→Купцовой)
     if( lo.EndsWith( "ова" ) || lo.EndsWith( "ева" ) || lo.EndsWith( "ёва" ) )
         return s.Substring( 0, s.Length - 1 ) + "ой";
@@ -154,7 +183,7 @@ private string DeclineSurnameGenitive( string s )
     if( lo.EndsWith( "ина" ) || lo.EndsWith( "ына" ) )
         return s.Substring( 0, s.Length - 1 ) + "ой";
 
-    // ── Мужской род ─────────────────────────────────────────────────
+    // Мужской род
     // -ов/-ев/-ёв → +а (Иванов→Иванова, Медведев→Медведева)
     if( lo.EndsWith( "ов" ) || lo.EndsWith( "ев" ) || lo.EndsWith( "ёв" ) )
         return s + "а";
@@ -163,16 +192,16 @@ private string DeclineSurnameGenitive( string s )
     if( lo.EndsWith( "ин" ) || lo.EndsWith( "ын" ) )
         return s + "а";
 
-    // ── Неизменяемые ────────────────────────────────────────────────
+    // Неизменяемые
     // -о/-е/-э → без изменений (Бойко, Черненко, Шевченко)
     if( lo.EndsWith( "о" ) || lo.EndsWith( "е" ) || lo.EndsWith( "э" ) )
         return s;
 
-    // ── Первое склонение на -а ──────────────────────────────────────
+    // Первое склонение на -а
     // -а → -ы (Москвита→Москвиты, Лысагора→Лысагоры)
     if( lo.EndsWith( "а" ) )
         return s.Substring( 0, s.Length - 1 ) + "ы";
 
-    // ── Остальные (согласный, иностранные) ─ без изменений ──────────
+    // Остальные (согласный, иностранные) ─ без изменений
     return s;
 }

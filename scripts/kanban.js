@@ -1,6 +1,6 @@
 (function () {
 
-        // ── Adjust board height when create panel toggles ────────────────────
+        // Adjust board height when create panel toggles
         function boardAdjust() {
             var board = document.getElementById("kb-board");
             var panel = document.getElementById("kb-create-panel");
@@ -15,9 +15,9 @@
             setTimeout(function() { if (typeof kbFitBoard === "function") kbFitBoard(); }, 50);
         }
 
-        // ── Calendar (обобщённый: _calTargetId определяет целевой инпут) ────
+        // Calendar (обобщённый: _calTargetId определяет целевой инпут)
         var _calYear = 0, _calMonth = 0;
-        var _calTargetId = "kb-new-duedate"; // по умолчанию — панель создания
+        var _calTargetId = "kb-new-duedate"; // по умолчанию – панель создания
         var _MN = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
             "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
         var _DN = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -118,7 +118,7 @@
         }
 
         document.onclick = function (e) {
-            // calPrev/calNext перерисовывают innerHTML — кнопка исчезает из DOM
+            // calPrev/calNext перерисовывают innerHTML – кнопка исчезает из DOM
             // до того как сюда дойдёт событие, поэтому пропускаем один клик
             if (_calSkipClose) { _calSkipClose = false; return; }
             var tgt = e.target || e.srcElement;
@@ -162,7 +162,7 @@
             }
         };
 
-        // ── Kanban ───────────────────────────────────────────────────────────
+        // Kanban
         var _draggedId = null;
 
         window.kbDragStart = function (event, taskId) {
@@ -206,6 +206,12 @@
 
             // Подтверждение при перемещении В «Готово»
             if (newStatus === STATUS_DONE && oldStatus !== STATUS_DONE) {
+                // Задача поставлена другим пользователем → обязательный отчёт-комментарий
+                var isAssignedByOther = card && card.getAttribute("data-self-created") !== "1";
+                if (isAssignedByOther) {
+                    kbDoneReportShow(taskId, newStatus);
+                    return; // дальнейший перенос делает submit модалки
+                }
                 if (!confirm("Вы уверены, что задача выполнена?\nОна будет перемещена в колонку \"Готово\" и получит дату завершения.")) {
                     return; // Отмена
                 }
@@ -219,15 +225,95 @@
             }
 
             // Выполняем перемещение
+            kbDoMoveTask(taskId, newStatus);
+        };
+
+        // Перенос задачи в выбранную колонку (вынесено для переиспользования)
+        function kbDoMoveTask(taskId, newStatus) {
             try {
                 var result = window.external.InvokeTemplate("MoveTask", taskId + "|" + newStatus);
                 if (result === "OK") {
-                    // Всегда обновляем доску — сервер пересортирует по приоритету и дате
                     kbRefreshBoard();
                 } else if (result && result.indexOf("ERROR") === 0) {
                     alert("Ошибка перемещения: " + result);
                 }
             } catch (e) { alert("Ошибка: " + (e.message || e)); }
+        }
+
+        // Модалка обязательного отчёта при закрытии задачи подчинённым
+        var _kbDoneReportCtx = null; // { taskId, newStatus }
+
+        window.kbDoneReportShow = function (taskId, newStatus) {
+            _kbDoneReportCtx = { taskId: taskId, newStatus: newStatus };
+            var ov = document.getElementById("kbDoneReportOverlay");
+            var ta = document.getElementById("kbDoneReportText");
+            var err = document.getElementById("kbDoneReportError");
+            if (ta) ta.value = "";
+            if (err) { err.style.display = "none"; err.innerHTML = ""; }
+            if (ov) {
+                ov.style.display = "block";
+                ov.className = "tcm-overlay visible";
+            }
+            // Авто-фокус на текстарее
+            setTimeout(function () { try { if (ta) ta.focus(); } catch (e) { } }, 50);
+        };
+
+        window.kbDoneReportCancel = function () {
+            _kbDoneReportCtx = null;
+            var ov = document.getElementById("kbDoneReportOverlay");
+            if (ov) {
+                ov.style.display = "none";
+                ov.className = "tcm-overlay";
+            }
+        };
+
+        window.kbDoneReportSubmit = function () {
+            if (!_kbDoneReportCtx) { kbDoneReportCancel(); return; }
+            var ta = document.getElementById("kbDoneReportText");
+            var err = document.getElementById("kbDoneReportError");
+            var text = ta ? (ta.value || "").replace(/^\s+|\s+$/g, "") : "";
+
+            if (!text) {
+                if (err) {
+                    err.innerHTML = "Введите отчёт о выполнении – поле обязательно.";
+                    err.style.display = "block";
+                }
+                if (ta) try { ta.focus(); } catch (e) { }
+                return;
+            }
+            if (text.length > 2000) {
+                if (err) {
+                    err.innerHTML = "Комментарий слишком длинный (макс 2000 символов).";
+                    err.style.display = "block";
+                }
+                return;
+            }
+
+            var ctx = _kbDoneReportCtx;
+
+            // Сначала комментарий, потом перенос. Если коммент упал – не переносим.
+            var addRes = "";
+            try {
+                addRes = window.external.InvokeTemplate("AddComment", ctx.taskId + "|" + text);
+            } catch (e) {
+                if (err) {
+                    err.innerHTML = "Ошибка отправки комментария: " + (e.message || e);
+                    err.style.display = "block";
+                }
+                return;
+            }
+            var addStr = String(addRes || "");
+            if (addStr.indexOf("ERROR") === 0) {
+                if (err) {
+                    err.innerHTML = "Ошибка отправки комментария: " + addStr;
+                    err.style.display = "block";
+                }
+                return;
+            }
+
+            // Коммент ушёл – закрываем модалку и переносим задачу
+            kbDoneReportCancel();
+            kbDoMoveTask(ctx.taskId, ctx.newStatus);
         };
 
 
@@ -255,7 +341,7 @@
         window.kbDeleteTask = function (taskId) {
             var card = document.getElementById("kbc_" + taskId);
             if (card && card.getAttribute("data-owner") !== "1") {
-                alert("Эту задачу удалить нельзя.\nЗадача назначена вам другим пользователем — удалить её может только создатель.");
+                alert("Эту задачу удалить нельзя.\nЗадача назначена вам другим пользователем – удалить её может только создатель.");
                 return;
             }
             if (!confirm("Удалить задачу?")) return;
@@ -264,7 +350,7 @@
                 if (result === "OK") {
                     if (card && card.parentNode) { card.parentNode.removeChild(card); updateColCounts(); }
                 } else if (result === "ERROR:NotOwner") {
-                    alert("Эту задачу удалить нельзя.\nЗадача назначена вам другим пользователем — удалить её может только создатель.");
+                    alert("Эту задачу удалить нельзя.\nЗадача назначена вам другим пользователем – удалить её может только создатель.");
                 } else if (result && result.indexOf("ERROR") === 0) {
                     alert("Ошибка удаления: " + result);
                 }
@@ -284,7 +370,7 @@
 
             // Показываем оверлей со спиннером ДО блокирующего COM-вызова.
             // window.external.InvokeTemplate синхронный и блокирует UI-thread,
-            // поэтому отрисовку оверлея запускаем через setTimeout(0) — без него
+            // поэтому отрисовку оверлея запускаем через setTimeout(0) – без него
             // браузер не успеет перерисоваться до вызова.
             var ov = document.getElementById("kb-excel-overlay");
             if (ov) ov.style.display = "block";
@@ -312,7 +398,7 @@
             }, 30);
         };
 
-        // Step11: подсветка select при выборе «Сверхсрочная»
+        // подсветка select при выборе «Сверхсрочная»
         window.kbOnPriorityChange = function () {
             var sel = document.getElementById("kb-new-priority");
             if (!sel) return;
@@ -396,7 +482,7 @@
             }
             details = details.replace(/\|/g, " ");
 
-            // ── Групповой режим: CreateGroupTask ──────────────────────────
+            // Групповой режим: CreateGroupTask
             var modeGrpEl = document.getElementById("kb-crt-mode-group");
             if (modeGrpEl && modeGrpEl.checked) {
                 var keys = [];
@@ -417,7 +503,7 @@
                 return;
             }
 
-            // ── Одиночный режим: CreateTask ───────────────────────────────
+            // Одиночный режим: CreateTask
             var selfEl = document.getElementById("kb-crt-self");
             var isSelf = selfEl ? selfEl.checked : true;
             var crtUserEl = document.getElementById("kb-crt-user");
@@ -467,7 +553,7 @@
             if ((e.keyCode || e.which) === 27) { hideCreateTask(); }
         };
 
-        // ── Фильтр по периоду ─────────────────────────────────────────
+        // Фильтр по периоду
         var _kbPeriod = { from: "", to: "" };
         var _kbPeriodDebounce = 0;
 
@@ -498,7 +584,7 @@
                 return;
             }
             var txt = "";
-            if (sFrom && sTo)      txt = sFrom + " — " + sTo;
+            if (sFrom && sTo)      txt = sFrom + " – " + sTo;
             else if (sFrom)        txt = "с " + sFrom;
             else                   txt = "по " + sTo;
             lbl.innerHTML = txt;
@@ -562,7 +648,7 @@
         // ВАЖНО: вызывается отдельно от kbInitHierarchy, потому что
         // kbInitHierarchy делает ранний return для роли "regular" и
         // период не успеет инициализироваться. Кнопки Применить/Сбросить
-        // используют inline onclick — биндинг здесь не нужен.
+        // используют inline onclick – биндинг здесь не нужен.
         window.kbPeriodFilterInit = function () {
             var inFrom = document.getElementById("kb-period-from");
             var inTo   = document.getElementById("kb-period-to");
@@ -600,7 +686,7 @@
             var safeTo   = String(sTo).replace(/\|/g, "");
 
             try {
-                // SetPeriodFilter на сервере сам триггерит Refresh — отдельный
+                // SetPeriodFilter на сервере сам триггерит Refresh – отдельный
                 // kbRefreshBoard НЕ нужен. Это устраняет гонку PropertyBag.
                 var res = window.external.InvokeTemplate("SetPeriodFilter", safeFrom + "|" + safeTo);
                 if (String(res || "").indexOf("ERROR") === 0) {
@@ -632,11 +718,7 @@
         };
 
     }());
-
-    // ═════════════════════════════════════════════════════════════
-    // Step 10: Чат / Комментарии — JS-функции
-    // ═════════════════════════════════════════════════════════════
-
+    // Чат / Комментарии – JS-функции
     function tcmLoadComments(d) {
         var list = document.getElementById("tcm-chat-list");
         var cnt = document.getElementById("tcm-chat-count");
@@ -908,7 +990,7 @@
             .replace(/'/g, "&#39;");
     }
 
-    // ── Шаг 11: Подзадачи / чек-лист ────────────────────────────────────
+    // Подзадачи / чек-лист
     var _tcmSubtasks = { taskKey: "", items: [] };
 
     window.tcmSubtasksLoad = function (nameKey) {
@@ -1061,7 +1143,7 @@
         if (code === 13) { tcmSubtasksAdd(); e.preventDefault(); }
     };
 
-    // ── DnD-перестановка пунктов чек-листа ─────────────────────────────
+    // DnD-перестановка пунктов чек-листа
     var _tcmSubtDragId = null;
 
     window.tcmSubtasksDragStart = function (event, subtaskId) {
@@ -1072,7 +1154,7 @@
             event.dataTransfer.effectAllowed = "move";
         } catch (e) { /* IE11 quirk */ }
         // Помечаем перетаскиваемую строку + активируем режим DnD на контейнере
-        // (pointer-events:none на дочерних элементах — устраняет мигание)
+        // (pointer-events:none на дочерних элементах – устраняет мигание)
         var row = document.querySelector('.kb-subt-item[data-id="' + tcmChatEsc(subtaskId) + '"]');
         if (row) row.className += " kb-subt-dragging";
         var list = document.getElementById("tcm-subt-list");
@@ -1172,7 +1254,7 @@
         }
     };
 
-    // ── Inline-редактирование текста подзадачи ─────────────────────────
+    // Inline-редактирование текста подзадачи
     var _tcmSubtEditingId = null;
 
     window.tcmSubtasksBeginEdit = function (subtaskId) {
@@ -1259,10 +1341,10 @@
         tcmSubtasksRender();
     };
 
-    // ── Ролевая иерархия: каскадные селекторы (шаг 05) ──────────────────
+    // Ролевая иерархия: каскадные селекторы (шаг 05)
     // Роли: regular → панель скрыта; headOfSector/leadEngineer → [Сотрудник ▼];
     //        headOfDept → [Сектор ▼][Сотрудник ▼]; admin → все три.
-    // Кнопка «Мои задачи» — сбрасывает режим на «my».
+    // Кнопка «Мои задачи» – сбрасывает режим на «my».
 
     var _kbH = {
         role: "regular", myKey: "", myContext: "", viewMode: "my",
@@ -1307,7 +1389,7 @@
         kbRestoreViewMode(_kbH.viewMode || "my");
         kbInitCreateForm();
 
-        // Enter в поле поиска верхней панели — применить выбранного сотрудника
+        // Enter в поле поиска верхней панели – применить выбранного сотрудника
         // как фильтр доски. На input() мы только фильтруем визуально
         // (см. kbOnSelSearch), чтобы не дёргать RefreshBoard на каждую клавишу
         // и не сбрасывать режим при пустом запросе.
@@ -1319,7 +1401,7 @@
                 e.preventDefault();
                 var userEl = document.getElementById("kb-sel-user");
                 var userKey = userEl ? (userEl.value || "") : "";
-                if (!userKey) return; // «Нет совпадений» или пусто — не применяем
+                if (!userKey) return; // «Нет совпадений» или пусто – не применяем
                 kbUpdateMyBtn(false);
                 kbStyleBtn("kb-btn-all", false);
                 kbApplyMode();
@@ -1327,7 +1409,7 @@
         }
 
         // Фильтр периода инициализируется отдельно вне kbInitHierarchy
-        // (см. вызов в конце файла) — чтобы работал и для роли "regular".
+        // (см. вызов в конце файла) – чтобы работал и для роли "regular".
     };
 
     function kbFillDivisions() {
@@ -1358,8 +1440,8 @@
         if (!sel) return;
         kbClearSel(sel);
         var q = (searchQuery || "").toLowerCase().replace(/^\s+|\s+$/g, "");
-        // Без поиска — показываем плашку «Все сотрудники» первой (чтобы по умолчанию
-        // не выбирался случайный сотрудник). С поиском — плашки нет, и первое
+        // Без поиска – показываем плашку «Все сотрудники» первой (чтобы по умолчанию
+        // не выбирался случайный сотрудник). С поиском – плашки нет, и первое
         // совпадение автоматически становится выбранным (аналог панели создания).
         if (!q) sel.appendChild(kbOpt("", "Все сотрудники"));
         var matched = 0;
@@ -1401,7 +1483,7 @@
     };
 
     window.kbOnUserChange = function () {
-        // FIX-03: запоминаем локально, чтобы при возможном лаге RefreshBoard
+        // запоминаем локально, чтобы при возможном лаге RefreshBoard
         // селект уже не сбрасывался при следующем перерендере JS-инициализации
         var userKey = kbSelVal("kb-sel-user");
         if (userKey) _kbH.viewMode = "user:" + userKey;
@@ -1416,9 +1498,9 @@
         var sectorKey = kbSelVal("kb-sel-sector");
         var s = document.getElementById("kb-sel-search");
         var q = s ? (s.value || "") : "";
-        // Только фильтруем выпадашку визуально — первое совпадение становится
+        // Только фильтруем выпадашку визуально – первое совпадение становится
         // выбранным в списке. Доску не трогаем: чтобы применить фильтр по
-        // сотруднику, пользователь кликает по дропдауну (или жмёт Enter —
+        // сотруднику, пользователь кликает по дропдауну (или жмёт Enter –
         // см. keydown-обработчик в kbInitHierarchy). Это исключает случайное
         // переключение режима при очистке поиска.
         kbFillUsers(deptKey || null, sectorKey || null, q);
@@ -1487,7 +1569,7 @@
                 }
                 kbFillUsers(divCtx || null, userCtx || null);
             }
-            // FIX-03 v2: полная пересборка селекта — выбранный юзер ставится
+            // полная пересборка селекта – выбранный юзер ставится
             // ПЕРВОЙ опцией, selectedIndex=0. Это надёжнее в IE11/Trident,
             // потому что не зависит от того, что .value применилось корректно
             // или что нужная опция уже есть после kbFillUsers с фильтрами.
@@ -1502,20 +1584,20 @@
                     saved.push({ v: ov, t: ot });
                 }
                 kbClearSel(selUser);
-                // 1. Сначала выбранный — он же selectedIndex=0
+                // 1. Сначала выбранный – он же selectedIndex=0
                 var pickedOpt = kbOpt(userKey, userName || userKey);
                 pickedOpt.setAttribute("value", userKey); // подстраховка для IE11
                 selUser.appendChild(pickedOpt);
-                // 2. Плашка "Все сотрудники" вторым пунктом — чтобы можно было сбросить
+                // 2. Плашка "Все сотрудники" вторым пунктом – чтобы можно было сбросить
                 selUser.appendChild(kbOpt("", "Все сотрудники"));
                 // 3. Остальные пользователи
                 for (var si = 0; si < saved.length; si++) {
                     selUser.appendChild(kbOpt(saved[si].v, saved[si].t));
                 }
                 selUser.selectedIndex = 0;
-                selUser.value = userKey; // дублируем — некоторые билды IE требуют оба
+                selUser.value = userKey; // дублируем – некоторые билды IE требуют оба
 
-                // Повтор через setTimeout — на случай, если что-то на странице
+                // Повтор через setTimeout – на случай, если что-то на странице
                 // после нас сделает kbFillUsers и сбросит selection.
                 setTimeout(function () {
                     var s2 = document.getElementById("kb-sel-user");
@@ -1529,7 +1611,7 @@
                         }
                     }
                     if (!still) {
-                        // Опция исчезла — добавляем заново и выбираем
+                        // Опция исчезла – добавляем заново и выбираем
                         var p = kbOpt(userKey, userName || userKey);
                         p.setAttribute("value", userKey);
                         if (s2.firstChild) s2.insertBefore(p, s2.firstChild);
@@ -1564,7 +1646,7 @@
         }
     }
 
-    // ── Кнопка «Все задачи» / «Всё отделение» / «Весь сектор» ─────────────
+    // Кнопка «Все задачи» / «Всё отделение» / «Весь сектор»
     window.kbSetAllMode = function () {
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
@@ -1594,7 +1676,7 @@
         kbSendMode("myCreated");
     };
 
-    // ── Независимые каскадные селекторы в форме создания задачи ────────────
+    // Независимые каскадные селекторы в форме создания задачи
     // Не привязаны к панели иерархии → не вызывают RefreshBoard.
     function kbInitCreateForm() {
         var row = document.getElementById("kb-crt-assignee-row");
@@ -1657,7 +1739,7 @@
         if (!sel) return;
         kbClearSel(sel);
         var q = (searchQuery || "").toLowerCase().replace(/^\s+|\s+$/g, "");
-        // «Сам себе» — отдельный чекбокс, не опция в дропдауне
+        // «Сам себе» – отдельный чекбокс, не опция в дропдауне
         for (var i = 0; i < _kbH.users.length; i++) {
             var u = _kbH.users[i];
             if (u.key === _kbH.myKey) continue;
@@ -1705,7 +1787,7 @@
         if (searchEl) searchEl.value = "";
         kbFillCrtSectors(deptKey || null);
         kbFillCrtUsers(deptKey || null, null, "");
-        // Не вызывает kbApplyMode/kbSendMode — доска не обновляется
+        // Не вызывает kbApplyMode/kbSendMode – доска не обновляется
     };
 
     window.kbOnCrtSectorChange = function () {
@@ -1716,7 +1798,7 @@
         var searchEl = document.getElementById("kb-crt-user-search");
         if (searchEl) searchEl.value = "";
         kbFillCrtUsers(deptKey || null, sectorKey || null, "");
-        // Не вызывает kbApplyMode/kbSendMode — доска не обновляется
+        // Не вызывает kbApplyMode/kbSendMode – доска не обновляется
     };
 
     window.kbOnCrtUserSearch = function () {
@@ -1777,7 +1859,7 @@
         var o = document.createElement("option");
         o.value = value; o.text = text; return o;
     }
-    // FIX-03: проверка наличия option с конкретным value
+    // проверка наличия option с конкретным value
     function kbHasOption(sel, value) {
         if (!sel || !sel.options) return false;
         for (var i = 0; i < sel.options.length; i++) {
@@ -1799,8 +1881,7 @@
         if (el) el.value = value;
     }
 
-    // ── Шаг 05.1: Групповая задача ────────────────────────────────────────
-
+    // 1: Групповая задача
     // Экранирование для innerHTML и onchange-атрибутов в динамическом HTML
     function kbEscHtml(s) {
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -1889,7 +1970,7 @@
         var html = "";
         var shown = 0;
 
-        // Себя — первым в списке с бейджем [сам себе]
+        // Себя – первым в списке с бейджем [сам себе]
         for (var mi = 0; mi < _kbH.users.length; mi++) {
             if (_kbH.users[mi].key !== _kbH.myKey) continue;
             var me = _kbH.users[mi];
@@ -1991,8 +2072,7 @@
         kbGrpRenderList();
     };
 
-    // ── Шаг 06: Отчёты ────────────────────────────────────────────────────
-
+    // Отчёты
     window.openReport = function () {
         var overlay = document.getElementById("reportOverlay");
         if (!overlay) return;
@@ -2022,7 +2102,7 @@
         var cur = sel.value || "";  // сохраняем текущий выбор при обновлении
         kbClearSel(sel);
 
-        // Первая опция — полный охват для данной роли
+        // Первая опция – полный охват для данной роли
         if (_kbH.role === "admin") sel.appendChild(kbOpt("all", "Все задачи"));
         else if (_kbH.role === "headOfDept") sel.appendChild(kbOpt("dept", "Всё отделение"));
         else sel.appendChild(kbOpt("sector", "Весь сектор"));
@@ -2030,7 +2110,7 @@
         // Отделения (только admin)
         if (_kbH.role === "admin" && _kbH.divisions.length > 0) {
             var og1 = document.createElement("optgroup");
-            og1.label = "— Отделения —";
+            og1.label = "– Отделения –";
             for (var d = 0; d < _kbH.divisions.length; d++) {
                 var o1 = document.createElement("option");
                 o1.value = "group:" + _kbH.divisions[d].key;
@@ -2043,7 +2123,7 @@
         // Секторы (admin + headOfDept)
         if ((_kbH.role === "admin" || _kbH.role === "headOfDept") && _kbH.sectors.length > 0) {
             var og2 = document.createElement("optgroup");
-            og2.label = "— Секторы —";
+            og2.label = "– Секторы –";
             for (var s = 0; s < _kbH.sectors.length; s++) {
                 var o2 = document.createElement("option");
                 o2.value = "group:" + _kbH.sectors[s].key;
@@ -2056,7 +2136,7 @@
         // Сотрудники (все роли кроме regular)
         if (_kbH.users.length > 0) {
             var og3 = document.createElement("optgroup");
-            og3.label = "— Сотрудники —";
+            og3.label = "– Сотрудники –";
             for (var u = 0; u < _kbH.users.length; u++) {
                 var o3 = document.createElement("option");
                 o3.value = "user:" + _kbH.users[u].key;
@@ -2166,8 +2246,7 @@
         return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
-    // ── Шаг 07: Карточка задачи ──────────────────────────────────────────
-
+    // Карточка задачи
     var _tcmData = null;
     var _tcmRevsLoaded = false;
     var _tcmStNames = ["Надо сделать", "В работе", "Ожидание", "Готово"];
@@ -2195,7 +2274,7 @@
             // Подзадачи: грузим отдельным вызовом, чтобы не раздувать GetTaskDetails
             if (typeof tcmSubtasksLoad === "function") tcmSubtasksLoad(nameKey);
 
-            // FIX-05: подвязать обработчик авто-роста к textarea (один раз)
+            // подвязать обработчик авто-роста к textarea (один раз)
             var taDet = document.getElementById("tcm-details");
             if (taDet && !taDet._tcmAutoSizeBound) {
                 taDet._tcmAutoSizeBound = true;
@@ -2258,7 +2337,7 @@
 
         document.getElementById("tcm-key").value = d.nameKey || "";
         document.getElementById("tcm-title").value = d.title || "";
-        // Исполнитель — select с подчинёнными (если canFullEdit и есть subordinates)
+        // Исполнитель – select с подчинёнными (если canFullEdit и есть subordinates)
         var selAsg = document.getElementById("tcm-assignee");
         kbClearSel(selAsg);
         var subs = d.subordinates || [];
@@ -2320,7 +2399,7 @@
             selPr.appendChild(op);
         }
 
-        // Step11: urgent header + select подсветка
+        // urgent header + select подсветка
         var header = document.querySelector(".tcm-header");
         if (header) {
             if (d.priorityKey === "Urgent" || d.priorityKey === "urgent") {
@@ -2362,7 +2441,7 @@
         var calBtn = document.getElementById("tcm-cal-btn");
         if (calBtn) calBtn.style.display = canFull ? "" : "none";
 
-        // Кнопка удаления — только для создателя
+        // Кнопка удаления – только для создателя
         var btnDel = document.getElementById("tcm-btn-del");
         if (btnDel) btnDel.style.display = d.isOwner ? "" : "none";
 
@@ -2370,18 +2449,10 @@
         tcmRenderAttachments(d);
         tcmLoadComments(d);
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // Step 09: Вложения — JS-функции
-    // ═══════════════════════════════════════════════════════════════
-
+    // Вложения – JS-функции
     var _tcmAttSearchTimer = null;
-    var _crtPendingAttachments = []; // [{key, name, tmpl}] — ожидают прикрепления после создания задачи
-
-    // ═══════════════════════════════════════════════════════════════
+    var _crtPendingAttachments = []; // [{key, name, tmpl}] – ожидают прикрепления после создания задачи
     // Вложения в панели создания задачи
-    // ═══════════════════════════════════════════════════════════════
-
     window.kbCrtPickAtt = function () {
         try {
             var res = window.external.InvokeTemplate("PickObjects", "");
@@ -2666,10 +2737,10 @@
     };
 
     // tcmSave(opts):
-    //   opts.closeAfter (default true)  — закрыть карточку после успешного сохранения
-    //   opts.refreshAfter (default true) — обновить доску после успешного сохранения
-    // Без аргументов (кнопка «Сохранить», Ctrl+S, tcmDelete) — закрыть и обновить.
-    // Enter из tcmHotkey передаёт {closeAfter:false, refreshAfter:false} —
+    //   opts.closeAfter (default true)  – закрыть карточку после успешного сохранения
+    //   opts.refreshAfter (default true) – обновить доску после успешного сохранения
+    // Без аргументов (кнопка «Сохранить», Ctrl+S, tcmDelete) – закрыть и обновить.
+    // Enter из tcmHotkey передаёт {closeAfter:false, refreshAfter:false} –
     // классическое «сохранить, продолжить редактирование».
     window.tcmSave = function (opts) {
         opts = opts || {};
@@ -2795,7 +2866,7 @@
         if (err) err.style.display = "none";
     }
 
-    // ── Авто-рост textarea «Описание» по содержимому ─────────────────
+    // Авто-рост textarea «Описание» по содержимому
     function tcmAutoSizeDetails() {
         var ta = document.getElementById("tcm-details");
         if (!ta) return;
@@ -2811,7 +2882,7 @@
         return String(s).replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
     }
 
-    // ── Динамическая обрезка описания карточек по ширине колонки ─────────────
+    // Динамическая обрезка описания карточек по ширине колонки
     function truncateCardDescs() {
         var col = document.querySelector(".kb-col-body");
         var colW = col ? col.offsetWidth : 160;
@@ -2843,12 +2914,12 @@
         if (!board) return;
         var rect = board.getBoundingClientRect();
         var vh = window.innerHeight || document.documentElement.clientHeight || 0;
-        if (vh < 100 || rect.top <= 0) return; // DOM ещё не готов — не трогаем
+        if (vh < 100 || rect.top <= 0) return; // DOM ещё не готов – не трогаем
         var h = vh - rect.top - 2;
         if (h < 300) h = 300;
         board.style.height = h + "px";
     }
-    // Отложенный вызов — DOM должен успеть отрисоваться
+    // Отложенный вызов – DOM должен успеть отрисоваться
     setTimeout(kbFitBoard, 150);
     setTimeout(kbFitBoard, 500);
     if (window.addEventListener) {
@@ -2858,7 +2929,7 @@
     }
 
 
-    // ── Справка ──────────────────────────────────────────────────────────
+    // Справка
     window.openHelp = function () {
         var overlay = document.getElementById("helpOverlay");
         if (overlay) overlay.className = "help-overlay visible";
@@ -2898,7 +2969,7 @@
             _tcmRevsLoaded = true;
             tcmLoadRevs();
         }
-        // FIX-05: при возврате на «Основное» пересчитываем высоту textarea
+        // при возврате на «Основное» пересчитываем высоту textarea
         if (tabId === "main") {
             setTimeout(function () { tcmAutoSizeDetails(); }, 0);
         }
@@ -2907,7 +2978,7 @@
     // Вызов после того, как все функции определены
     kbInitHierarchy();
 
-    // Инициализация фильтра периода — отдельно от kbInitHierarchy,
+    // Инициализация фильтра периода – отдельно от kbInitHierarchy,
     // потому что та делает ранний return для роли "regular".
     if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
 
@@ -2927,7 +2998,7 @@
         }, 500);
     }
 
-    // ── Hotkeys: глобальные горячие клавиши доски ───────────────────────
+    // Hotkeys: глобальные горячие клавиши доски
     function kbIsTypingTarget(target) {
         if (!target || !target.tagName) return false;
         var tag = String(target.tagName).toLowerCase();
@@ -2997,7 +3068,7 @@
         if (code === 13 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
             if (kbIsOverlayVisible("tcmOverlay") && !kbIsTextareaTarget(target)) {
                 if (target && target.id === "tcm-chat-text") return;
-                // Enter — «сохранить, не закрывая, без рефреша доски» (быстрая правка нескольких полей)
+                // Enter – «сохранить, не закрывая, без рефреша доски» (быстрая правка нескольких полей)
                 if (typeof tcmSave === "function") tcmSave({ closeAfter: false, refreshAfter: false });
                 if (e.preventDefault) e.preventDefault();
                 return;
@@ -3007,7 +3078,7 @@
         if (code === 83 && e.ctrlKey && !e.shiftKey && !e.altKey) {
             if (kbIsOverlayVisible("tcmOverlay")) {
                 if (e.preventDefault) e.preventDefault();
-                // Ctrl+S — save+close+refresh (поведение по умолчанию tcmSave)
+                // Ctrl+S – save+close+refresh (поведение по умолчанию tcmSave)
                 if (typeof tcmSave === "function") tcmSave();
                 return false;
             }

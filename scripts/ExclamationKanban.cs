@@ -1,30 +1,97 @@
-private static System.Collections.Generic.HashSet<ulong> _notifiedItems = new System.Collections.Generic.HashSet<ulong>();
+private static System.Collections.Generic.HashSet<ulong> _notifiedItems = null;
 private static readonly object _notifyLock = new object();
+
+// Файл для персистентного dedup. Переживает рестарт клиента и cache eviction.
+private static string GetNotifiedFilePath()
+{
+    var dir = System.IO.Path.Combine(
+        System.Environment.GetFolderPath( System.Environment.SpecialFolder.LocalApplicationData ),
+        "KanbanSoyz" );
+    try { if( !System.IO.Directory.Exists( dir ) ) System.IO.Directory.CreateDirectory( dir ); } catch { }
+    return System.IO.Path.Combine( dir, "notified.txt" );
+}
+
+// Lazy-load + автообрезка старых записей (>30 дней по mtime).
+// Формат файла: <id>\t<unixTime>\n
+private static System.Collections.Generic.HashSet<ulong> GetNotifiedSet()
+{
+    if( _notifiedItems != null ) return _notifiedItems;
+    var set = new System.Collections.Generic.HashSet<ulong>();
+    try
+    {
+        var path = GetNotifiedFilePath();
+        if( System.IO.File.Exists( path ) )
+        {
+            var cutoff = ( DateTime.UtcNow - TimeSpan.FromDays( 30 ) ).Ticks / TimeSpan.TicksPerSecond;
+            var liveLines = new System.Collections.Generic.List<string>();
+            bool needsCompact = false;
+            foreach( var raw in System.IO.File.ReadAllLines( path ) )
+            {
+                var line = raw.Trim();
+                if( line.Length == 0 ) continue;
+                var parts = line.Split( '\t' );
+                ulong id;
+                if( !ulong.TryParse( parts[0], out id ) ) continue;
+                long ts = 0;
+                if( parts.Length >= 2 ) long.TryParse( parts[1], out ts );
+                if( ts > 0 && ts < cutoff ) { needsCompact = true; continue; }
+                set.Add( id );
+                liveLines.Add( line );
+            }
+            if( needsCompact )
+            {
+                try { System.IO.File.WriteAllLines( path, liveLines ); } catch { }
+            }
+        }
+    }
+    catch { }
+    _notifiedItems = set;
+    return set;
+}
+
+private static void PersistNotified( ulong id )
+{
+    try
+    {
+        var ts = ( DateTime.UtcNow.Ticks - new DateTime( 1970, 1, 1 ).Ticks ) / TimeSpan.TicksPerSecond;
+        System.IO.File.AppendAllText( GetNotifiedFilePath(), id.ToString() + "\t" + ts.ToString() + Environment.NewLine );
+    }
+    catch { }
+}
 
 public override void OnUpdated( WorkItem obj, bool isFirst )
 {
     if( !isFirst ) return;
 
-    // Guard: если нет Subject — это не наш WorkItem (пустые оповещения кэша).
+    // Guard: если нет Subject – это не наш WorkItem (пустые оповещения кэша).
     var subject = "";
     try { subject = ( obj.GetValue<string>( "Subject" ) ?? "" ).Trim(); } catch { }
     if( string.IsNullOrEmpty( subject ) ) return;
 
-    // Kanban-нагрузка заранее помечается просмотренной на сервере,
-    // чтобы штатный Exclamation не попал в PLM-почту/оповещения.
     if( !obj.IsUserRecipient( Service.GetCurrentUser() )
         || Math.Abs( ( obj.DateActivated - DateTime.Now ).TotalMinutes ) >= 180.0 )
         return;
 
-    // Защита от дублей (thread-safe)
-    lock (_notifyLock)
+    // Primary guard: серверный флаг новизны. Если уже viewed на сервере
+    // (предыдущая сессия / другой клиент уже показал popup) – не показываем.
+    // Покрывает: рестарт клиента, cache eviction, параллельные сессии.
+    bool isNew = true;
+    try { isNew = obj.IsNewForCurrentUser; } catch { }
+    if( !isNew ) return;
+
+    // Secondary guard: persistent file dedup. Защита если MarkAsViewedByCurrentUser
+    // тихо упал и серверный флаг новизны остался true.
+    lock( _notifyLock )
     {
-        if (_notifiedItems.Contains(obj.Id)) return;
-        _notifiedItems.Add(obj.Id);
+        var set = GetNotifiedSet();
+        if( set.Contains( obj.Id ) ) return;
+        set.Add( obj.Id );
+        PersistNotified( obj.Id );
     }
 
-    // Дублируем отметку на клиенте, чтобы уведомление не оставалось новым
-    try { obj.MarkAsViewedByCurrentUser(); } catch { }
+    // НЕ маркируем viewed до показа – иначе IsNewForCurrentUser=false и при
+    // случайном повторном OnUpdated в этом же процессе сработает фильтр выше.
+    // Маркируем после закрытия формы (см. ниже).
 
     System.Console.Beep( 250, 500 );
 
@@ -110,7 +177,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         sb.Append( @"\par}" );
         var rtfText = sb.ToString();
 
-        // ── Замер МАКСИМАЛЬНОЙ ширины строк (без переноса) ───────────
+        // Замер МАКСИМАЛЬНОЙ ширины строк (без переноса)
         const int sidePadding = 18;
         const int topPadding  = 18;
         const int botPadding  = 12;
@@ -148,7 +215,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         if( formWidth < minFormWidth ) formWidth = minFormWidth;
         if( formWidth > maxFormWidth ) formWidth = maxFormWidth;
 
-        // ── Замер высоты содержимого под выбранную ширину ────────────
+        // Замер высоты содержимого под выбранную ширину
         int contentHeight = 60;
         using( var measurer = new System.Windows.Forms.RichTextBox() )
         {
@@ -184,7 +251,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             form.Shown          += ( s, e ) => { try { form.Activate(); form.BringToFront(); } catch {} };
             form.KeyDown        += ( s, e ) => { if( e.KeyCode == System.Windows.Forms.Keys.Escape ) form.Close(); };
 
-            // ── Нижняя панель с кнопкой по центру ─────────────────────
+            // Нижняя панель с кнопкой по центру
             var buttonPanel = new System.Windows.Forms.TableLayoutPanel();
             buttonPanel.Dock        = System.Windows.Forms.DockStyle.Bottom;
             buttonPanel.Height      = buttonBar;
@@ -222,7 +289,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             
             buttonPanel.Controls.Add( btnOpen, 0, 0 );
             
-            // ── Текстовая область ─────────────────────────────────────
+            // Текстовая область
             var rtb = new System.Windows.Forms.RichTextBox();
             rtb.Dock        = System.Windows.Forms.DockStyle.Fill;
             rtb.ReadOnly    = true;
@@ -246,7 +313,13 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
             form.ShowDialog();
         }
 
-        try { obj.MarkAsViewedByCurrentUser(); } catch { }
+        // Сбрасываем бейдж "Новое" в папке оповещений после показа popup.
+        // IsNewForCurrentUser → false на сервере → следующий OnUpdated этого
+        // WorkItem (рестарт / cache eviction) скипнет первый guard.
+        try { obj.MarkAsViewedByCurrentUser(); } catch
+        {
+            try { Service.WriteToServerLog( "KanbanExclamation", "MarkAsViewedByCurrentUser failed post-show for WorkItem " + obj.Id ); } catch { }
+        }
 
         if( navigateToBoard )
         {
@@ -321,21 +394,11 @@ private void OpenBoardFromNotification( string taskKey, string targetTab )
 
 public override void ManageMailShortcuts( WorkItem obj, UserItemLink creatorLink, UserItemLink[] recipientLinks )
 {
+    // НЕ обнуляем recipientLinks – WorkItem должен попасть в стандартную папку
+    // оповещений PLM (как было до 5 мая).
+    // Штатный popup-toast подавляется через OnPostTrayNotification (KanbanTrayFilter).
+    // Кастомный RTF popup показывается через OnUpdated в этом файле.
     try { obj[ "SilentMode" ] = true; } catch { }
-
-    try
-    {
-        if( recipientLinks == null ) return;
-
-        for( int i = 0; i < recipientLinks.Length; i++ )
-        {
-            var link = recipientLinks[i];
-            if( link == null || link.User == null ) continue;
-            try { obj.MarkAsViewedBy( link.User ); } catch { }
-            recipientLinks[i] = null;
-        }
-    }
-    catch { }
 }
 
 private InfoObject GetBoardPage()
