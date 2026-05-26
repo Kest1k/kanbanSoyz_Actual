@@ -26,6 +26,7 @@
         var _calSkipClose = false;
         function calEl() {
             if (_calTargetId === "tcm-duedate") return document.getElementById("kb-cal-tcm");
+            if (_calTargetId === "kbReturnNewDue") return document.getElementById("kb-cal-kbReturnNewDue");
             if (_calTargetId === "kb-period-from") return document.getElementById("kb-cal-kb-period-from");
             if (_calTargetId === "kb-period-to") return document.getElementById("kb-cal-kb-period-to");
             if (_calTargetId === "rpt-period-from") return document.getElementById("kb-cal-rpt-period-from");
@@ -41,8 +42,11 @@
                 cal.style.display = "none";
             } else {
                 // Закрыть другой попап если открыт
-                var other = document.getElementById(_calTargetId === "tcm-duedate" ? "kb-cal" : "kb-cal-tcm");
-                if (other) other.style.display = "none";
+                var ids = ["kb-cal", "kb-cal-tcm", "kb-cal-kbReturnNewDue", "kb-cal-kb-period-from", "kb-cal-kb-period-to", "kb-cal-rpt-period-from", "kb-cal-rpt-period-to"];
+                for (var ci = 0; ci < ids.length; ci++) {
+                    var other = document.getElementById(ids[ci]);
+                    if (other && other !== cal) other.style.display = "none";
+                }
                 var inp = document.getElementById(_calTargetId);
                 var val = inp ? inp.value : "";
                 var now = new Date();
@@ -127,6 +131,7 @@
             var cals = [
                 document.getElementById("kb-cal"),
                 document.getElementById("kb-cal-tcm"),
+                document.getElementById("kb-cal-kbReturnNewDue"),
                 document.getElementById("kb-cal-kb-period-from"),
                 document.getElementById("kb-cal-kb-period-to"),
                 document.getElementById("kb-cal-rpt-period-from"),
@@ -140,7 +145,7 @@
                 var inside = false;
                 while (node) {
                     if (node === cal) { inside = true; break; }
-                    if (node.id === "kb-new-duedate" || node.id === "tcm-duedate" || node.id === "kb-period-from" || node.id === "kb-period-to" || node.id === "rpt-period-from" || node.id === "rpt-period-to") { inside = true; break; }
+                    if (node.id === "kb-new-duedate" || node.id === "tcm-duedate" || node.id === "kbReturnNewDue" || node.id === "kb-period-from" || node.id === "kb-period-to" || node.id === "rpt-period-from" || node.id === "rpt-period-to") { inside = true; break; }
                     if (node.className && node.className.indexOf("kb-date-btn") !== -1) { inside = true; break; }
                     node = node.parentNode;
                 }
@@ -219,9 +224,14 @@
 
             // Подтверждение при перемещении ИЗ «Готово»
             if (oldStatus === STATUS_DONE && newStatus !== STATUS_DONE) {
-                if (!confirm("Вернуть выполненную задачу в работу?\nДата завершения будет очищена.")) {
-                    return; // Отмена
+                var isCreator = card && card.getAttribute("data-self-created") === "1";
+                var isAdmin = _kbH && _kbH.role === "admin";
+                if (!isCreator && !isAdmin) {
+                    alert("Возвращать задачу из «Готово» может только постановщик.");
+                    return;
                 }
+                kbReturnShow(taskId, newStatus, card);
+                return;
             }
 
             // Выполняем перемещение
@@ -229,13 +239,26 @@
         };
 
         // Перенос задачи в выбранную колонку (вынесено для переиспользования)
-        function kbDoMoveTask(taskId, newStatus) {
+        function kbMoveErrorText(result) {
+            if (result === "ERROR:OnlyCreatorCanReturn") return "Возвращать задачу из «Готово» может только постановщик.";
+            if (result === "ERROR:ReturnReasonRequired") return "Укажите причину возврата.";
+            if (result === "ERROR:ReturnReasonTooLong") return "Причина возврата слишком длинная.";
+            if (result === "ERROR:NewDueDateRequired") return "Укажите новый срок в формате ДД.ММ.ГГГГ.";
+            if (result === "ERROR:Forbidden") return "Нет доступа к этой задаче.";
+            return "Ошибка перемещения: " + result;
+        }
+
+        function kbDoMoveTask(taskId, newStatus, reason, newDue) {
             try {
-                var result = window.external.InvokeTemplate("MoveTask", taskId + "|" + newStatus);
+                var param = taskId + "|" + newStatus;
+                if (reason !== undefined || newDue !== undefined) {
+                    param += "|" + (reason || "").replace(/\|/g, "/") + "|" + (newDue || "");
+                }
+                var result = window.external.InvokeTemplate("MoveTask", param);
                 if (result === "OK") {
                     kbRefreshBoard();
                 } else if (result && result.indexOf("ERROR") === 0) {
-                    alert("Ошибка перемещения: " + result);
+                    alert(kbMoveErrorText(result));
                 }
             } catch (e) { alert("Ошибка: " + (e.message || e)); }
         }
@@ -314,6 +337,78 @@
             // Коммент ушёл – закрываем модалку и переносим задачу
             kbDoneReportCancel();
             kbDoMoveTask(ctx.taskId, ctx.newStatus);
+        };
+
+        // Модалка возврата задачи из «Готово»
+        var _kbReturnCtx = null; // { taskId, newStatus }
+
+        window.kbReturnShow = function (taskId, newStatus, card) {
+            _kbReturnCtx = { taskId: taskId, newStatus: newStatus };
+            var ov = document.getElementById("kbReturnOverlay");
+            var reason = document.getElementById("kbReturnReason");
+            var newDue = document.getElementById("kbReturnNewDue");
+            var curDue = document.getElementById("kbReturnCurDue");
+            var err = document.getElementById("kbReturnError");
+            var due = card ? (card.getAttribute("data-due") || "") : "";
+            if (reason) reason.value = "";
+            if (newDue) newDue.value = "";
+            if (curDue) curDue.innerHTML = due || "не указан";
+            if (err) { err.style.display = "none"; err.innerHTML = ""; }
+            if (ov) {
+                ov.style.display = "block";
+                ov.className = "tcm-overlay visible";
+            }
+            setTimeout(function () { try { if (reason) reason.focus(); } catch (e) { } }, 50);
+        };
+
+        window.kbReturnCancel = function () {
+            _kbReturnCtx = null;
+            var ov = document.getElementById("kbReturnOverlay");
+            if (ov) {
+                ov.style.display = "none";
+                ov.className = "tcm-overlay";
+            }
+            var cal = document.getElementById("kb-cal-kbReturnNewDue");
+            if (cal) cal.style.display = "none";
+        };
+
+        window.kbReturnSubmit = function () {
+            if (!_kbReturnCtx) { kbReturnCancel(); return; }
+            var reasonEl = document.getElementById("kbReturnReason");
+            var dueEl = document.getElementById("kbReturnNewDue");
+            var err = document.getElementById("kbReturnError");
+            var reason = reasonEl ? (reasonEl.value || "").replace(/^\s+|\s+$/g, "") : "";
+            var newDue = dueEl ? (dueEl.value || "").replace(/^\s+|\s+$/g, "") : "";
+
+            if (!reason) {
+                if (err) { err.innerHTML = "Укажите причину возврата."; err.style.display = "block"; }
+                if (reasonEl) try { reasonEl.focus(); } catch (e) { }
+                return;
+            }
+            if (reason.length > 2000) {
+                if (err) { err.innerHTML = "Причина возврата слишком длинная (макс. 2000 символов)."; err.style.display = "block"; }
+                return;
+            }
+            if (!/^\d{2}\.\d{2}\.\d{4}$/.test(newDue)) {
+                if (err) { err.innerHTML = "Укажите новый срок в формате ДД.ММ.ГГГГ."; err.style.display = "block"; }
+                if (dueEl) try { dueEl.focus(); } catch (e2) { }
+                return;
+            }
+
+            var ctx = _kbReturnCtx;
+            try {
+                var res = window.external.InvokeTemplate("MoveTask",
+                    ctx.taskId + "|" + ctx.newStatus + "|" + reason.replace(/\|/g, "/") + "|" + newDue);
+                var s = String(res || "");
+                if (s === "OK") {
+                    kbReturnCancel();
+                    kbRefreshBoard();
+                    return;
+                }
+                if (err) { err.innerHTML = kbMoveErrorText(s); err.style.display = "block"; }
+            } catch (e3) {
+                if (err) { err.innerHTML = "Ошибка: " + (e3.message || e3); err.style.display = "block"; }
+            }
         };
 
 
@@ -435,6 +530,10 @@
             if (crtUserEl) crtUserEl.value = "";
             var crtUserSearchEl = document.getElementById("kb-crt-user-search");
             if (crtUserSearchEl) crtUserSearchEl.value = "";
+            var privateEl = document.getElementById("kb-crt-private");
+            if (privateEl) privateEl.checked = false;
+            var privateWrap = document.getElementById("kb-crt-private-wrap");
+            if (privateWrap) privateWrap.style.display = "inline-block";
             // Сброс группового режима
             var modeOneEl = document.getElementById("kb-crt-mode-one");
             if (modeOneEl) modeOneEl.checked = true;
@@ -508,8 +607,10 @@
             var isSelf = selfEl ? selfEl.checked : true;
             var crtUserEl = document.getElementById("kb-crt-user");
             var assignee = (!isSelf && crtUserEl) ? (crtUserEl.value || "") : "";
+            var privEl = document.getElementById("kb-crt-private");
+            var isPrivate = privEl && privEl.checked ? "1" : "0";
 
-            var param = title + "|" + status + "|" + priority + "|" + dueDate + "|" + details + "|" + tags + "|" + assignee;
+            var param = title + "|" + status + "|" + priority + "|" + dueDate + "|" + details + "|" + tags + "|" + assignee + "|" + isPrivate;
             try {
                 var result = window.external.InvokeTemplate("CreateTask", param);
                 if (result && result.indexOf("ERROR") === 0) {
@@ -1681,16 +1782,24 @@
     function kbInitCreateForm() {
         var row = document.getElementById("kb-crt-assignee-row");
         if (!row) return;
-        if (_kbH.role === "regular") { row.style.display = "none"; return; }
+        var isRegular = _kbH.role === "regular";
         row.style.display = "";
 
-        if (_kbH.role === "admin") { kbFillCrtDepts(); }
-        if (_kbH.role === "admin" || _kbH.role === "headOfDept") { kbFillCrtSectors(null); }
-        kbFillCrtUsers(null, null);
+        if (!isRegular) {
+            if (_kbH.role === "admin") { kbFillCrtDepts(); }
+            if (_kbH.role === "admin" || _kbH.role === "headOfDept") { kbFillCrtSectors(null); }
+            kbFillCrtUsers(null, null);
+        }
 
         // Сбросить в одиночный режим
         var modeOneEl = document.getElementById("kb-crt-mode-one");
         if (modeOneEl) modeOneEl.checked = true;
+        var modeGroupEl = document.getElementById("kb-crt-mode-group");
+        if (modeGroupEl) modeGroupEl.checked = false;
+        var modeOneWrap = document.getElementById("kb-crt-mode-one-wrap");
+        var modeGroupWrap = document.getElementById("kb-crt-mode-group-wrap");
+        if (modeOneWrap) modeOneWrap.style.display = isRegular ? "none" : "";
+        if (modeGroupWrap) modeGroupWrap.style.display = isRegular ? "none" : "";
         var singleWrap = document.getElementById("kb-crt-single-wrap");
         if (singleWrap) singleWrap.style.display = "";
         var groupRow = document.getElementById("kb-crt-group-row");
@@ -1702,6 +1811,12 @@
         // Сбрасываем чекбокс в «Сам себе» и скрываем селекторы
         var selfEl = document.getElementById("kb-crt-self");
         if (selfEl) selfEl.checked = true;
+        var selfWrap = document.getElementById("kb-crt-self-wrap");
+        if (selfWrap) selfWrap.style.display = isRegular ? "none" : "inline-block";
+        var privateEl = document.getElementById("kb-crt-private");
+        if (privateEl) privateEl.checked = false;
+        var privateWrap = document.getElementById("kb-crt-private-wrap");
+        if (privateWrap) privateWrap.style.display = "inline-block";
         // Принудительно скрываем все селекторы при инициализации (Сам себе = вкл)
         var deptWrap = document.getElementById("kb-crt-dept-wrap");
         var sectorWrap = document.getElementById("kb-crt-sector-wrap");
@@ -1755,6 +1870,9 @@
     window.kbOnSelfChange = function () {
         var selfEl = document.getElementById("kb-crt-self");
         var isSelf = selfEl ? selfEl.checked : true;
+        var privateWrap = document.getElementById("kb-crt-private-wrap");
+        var modeGrp = document.getElementById("kb-crt-mode-group");
+        if (privateWrap) privateWrap.style.display = (modeGrp && modeGrp.checked) ? "none" : "inline-block";
 
         var deptWrap = document.getElementById("kb-crt-dept-wrap");
         var sectorWrap = document.getElementById("kb-crt-sector-wrap");
@@ -1897,6 +2015,12 @@
         var groupRow = document.getElementById("kb-crt-group-row");
         if (singleWrap) singleWrap.style.display = isGroup ? "none" : "";
         if (groupRow) groupRow.style.display = isGroup ? "" : "none";
+        var privateWrap = document.getElementById("kb-crt-private-wrap");
+        if (privateWrap) privateWrap.style.display = isGroup ? "none" : "inline-block";
+        if (isGroup) {
+            var privateEl = document.getElementById("kb-crt-private");
+            if (privateEl) privateEl.checked = false;
+        }
 
         if (isGroup) {
             _kbGrpSelected = {};
@@ -2358,6 +2482,19 @@
             selAsg.disabled = true;
         }
         document.getElementById("tcm-duedate").value = d.dueDate || "";
+        var privEl = document.getElementById("tcm-private");
+        if (privEl) privEl.checked = !!d.isPrivate;
+        var origDueEl = document.getElementById("tcm-original-due");
+        if (origDueEl) {
+            if (d.originalDueDate) {
+                var rc = parseInt(d.returnCount, 10) || 0;
+                origDueEl.innerHTML = "Изначальный срок: <b>" + tcmEsc(d.originalDueDate) + "</b>" + (rc > 0 ? " · возвратов: <b>" + rc + "</b>" : "");
+                origDueEl.style.display = "";
+            } else {
+                origDueEl.innerHTML = "";
+                origDueEl.style.display = "none";
+            }
+        }
         document.getElementById("tcm-details").value = d.details || "";
         tcmAutoSizeDetails();   // FIX-05
 
@@ -2438,6 +2575,7 @@
         if (tagsRO) tagsRO.readOnly = !canFull;
         document.getElementById("tcm-duedate").readOnly = !canFull;
         document.getElementById("tcm-priority").disabled = !canFull;
+        if (privEl) privEl.disabled = !canFull;
         var calBtn = document.getElementById("tcm-cal-btn");
         if (calBtn) calBtn.style.display = canFull ? "" : "none";
 
@@ -2756,16 +2894,25 @@
         var tags = document.getElementById("tcm-tags") ? document.getElementById("tcm-tags").value : "";
         var selAsg = document.getElementById("tcm-assignee");
         var assigneeKey = (selAsg && !selAsg.disabled) ? selAsg.value : "";
+        var privEl = document.getElementById("tcm-private");
+        var isPrivate = privEl && privEl.checked ? "1" : "0";
 
         if (!title || !title.replace(/\s/g, "")) {
             tcmShowMsg("err", "Введите название задачи"); return;
         }
 
-        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + assigneeKey + "|" + details;
+        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + assigneeKey + "|" + isPrivate + "|" + details;
         try {
             var res = window.external.InvokeTemplate("SaveTask", param);
             if (!res || (typeof res === "string" && res.indexOf("ERROR") === 0)) {
-                tcmShowMsg("err", String(res)); return;
+                if (String(res) === "ERROR:ReturnReasonRequired") {
+                    tcmShowMsg("err", "Для возврата из «Готово» перетащите карточку на доске и укажите причину с новым сроком.");
+                } else if (String(res) === "ERROR:Forbidden") {
+                    tcmShowMsg("err", "Нет доступа к этой задаче.");
+                } else {
+                    tcmShowMsg("err", String(res));
+                }
+                return;
             }
             // Обновляем бейдж и сохранённые данные
             var st = parseInt(status, 10) || 0;
@@ -2775,7 +2922,7 @@
                 badge.className = "tcm-badge " + (_tcmStClasses[st] || "tcm-s0");
                 badge.innerHTML = tcmEsc(snames[st] || "");
             }
-            if (_tcmData) { _tcmData.status = st; }
+            if (_tcmData) { _tcmData.status = st; _tcmData.isPrivate = (isPrivate === "1"); }
 
             if (closeAfter) {
                 tcmClose();
@@ -3023,6 +3170,7 @@
     }
 
     function kbHotkeyEscape() {
+        if (kbIsOverlayVisible("kbReturnOverlay")) { kbReturnCancel(); return; }
         if (kbIsOverlayVisible("whatsNewOverlay")) { closeWhatsNew();  return; }
         if (kbIsOverlayVisible("helpOverlay"))     { closeHelp();      return; }
         if (kbIsOverlayVisible("tcmOverlay"))      { tcmClose();       return; }

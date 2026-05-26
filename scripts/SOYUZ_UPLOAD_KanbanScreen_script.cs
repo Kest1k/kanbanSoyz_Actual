@@ -79,6 +79,8 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                     // allowedIds == null → режим «all» для admin, показываем всё
                     if( allowedIds != null && !allowedIds.Contains( assignee.Id.ToString() ) )
                         continue;
+                    if( !CanUserSeeTask( task, currentUser ) )
+                        continue;
 
                     if( viewMode == "myCreated" )
                     {
@@ -226,15 +228,17 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
 }
 
 // MoveTask
-// inputParams (JS → C#): object[] { "nameKey|newStatus" }
+// inputParams (JS → C#): object[] { "nameKey|newStatus|returnReason|newDueDate" }
 
 private object DoMoveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 3 );
+    var parts = ParsePipeArgs( raw, 4 );
     if( parts.Length < 2 ) return "ERROR:BadFormat";
 
     var nameKey   = parts[0].Trim();
+    var comment   = parts.Length > 2 ? parts[2].Trim() : "";
+    var newDueRaw = parts.Length > 3 ? parts[3].Trim() : "";
     int newStatus;
     if( !int.TryParse( parts[1].Trim(), out newStatus ) || newStatus < 0 || newStatus > 3 )
         return "ERROR:BadStatus";
@@ -246,6 +250,7 @@ private object DoMoveTask( object inputParams )
     // Двигать может: исполнитель, создатель или админ
     var currentUser = Service.GetCurrentUser();
     var curRole     = GetUserRole( currentUser );
+    if( !CanUserSeeTask( task, currentUser ) ) return "ERROR:Forbidden";
     if( curRole != "admin" )
     {
         bool isOwner = false;
@@ -272,6 +277,53 @@ private object DoMoveTask( object inputParams )
     }
 
     int oldStatus = GetStatusIndex( task );
+    bool isReturnFromDone = (oldStatus == STATUS_DONE && newStatus != STATUS_DONE);
+    string oldDueDate = "";
+    try
+    {
+        var oldDue = task.GetValue<DateTime>( "DueDate" );
+        if( oldDue != default(DateTime) ) oldDueDate = oldDue.ToString( "dd.MM.yyyy" );
+    }
+    catch { }
+
+    if( isReturnFromDone )
+    {
+        string creatorKey = "";
+        try { creatorKey = task.GetString( "Creator" ) ?? ""; } catch { }
+        var curKey = GetUserStableKey( currentUser );
+        if( curRole != "admin" && !string.IsNullOrEmpty( creatorKey ) && creatorKey != curKey )
+            return "ERROR:OnlyCreatorCanReturn";
+
+        if( string.IsNullOrEmpty( comment ) ) return "ERROR:ReturnReasonRequired";
+        if( comment.Length > 2000 ) return "ERROR:ReturnReasonTooLong";
+
+        DateTime newDue;
+        if( !DateTime.TryParseExact( newDueRaw, "dd.MM.yyyy",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out newDue ) )
+            return "ERROR:NewDueDateRequired";
+
+        DateTime origDue = default(DateTime);
+        try { origDue = task.GetValue<DateTime>( "OriginalDueDate" ); } catch { }
+        if( origDue == default(DateTime) )
+        {
+            DateTime currentDue = default(DateTime);
+            try { currentDue = task.GetValue<DateTime>( "DueDate" ); } catch { }
+            if( currentDue != default(DateTime) )
+                try { task["OriginalDueDate"] = currentDue; } catch { }
+        }
+
+        try { task["DueDate"] = newDue; } catch { }
+        int rc = 0;
+        try { rc = task.GetValue<int>( "ReturnCount" ); } catch { }
+        try { task["ReturnCount"] = rc + 1; } catch { }
+
+        System.Collections.Generic.Dictionary<string, string> ignored;
+        var addCommentErr = AppendCommentToTask( task, currentUser,
+            "Возврат из «Готово». Новый срок: " + newDue.ToString( "dd.MM.yyyy" ) + ".\n\n" + comment,
+            false, out ignored );
+        if( !string.IsNullOrEmpty( addCommentErr ) ) return addCommentErr;
+    }
 
     // Устанавливаем новый статус через NamedValue (KanbanStatus – Enumeration)
     SetTaskStatus( task, newStatus );
@@ -282,7 +334,7 @@ private object DoMoveTask( object inputParams )
         // Переход В «Готово» – записываем дату завершения
         task["CompletedDate"] = DateTime.Now;
     }
-    else if( oldStatus == STATUS_DONE && newStatus != STATUS_DONE )
+    else if( isReturnFromDone )
     {
         // Возврат ИЗ «Готово» – очищаем дату
         task["CompletedDate"] = null;
@@ -298,9 +350,13 @@ private object DoMoveTask( object inputParams )
             var nsn = newStatus >= 0 && newStatus < 4 ? stNames[newStatus] : "?";
             string authorName = "";
             try { var cu = Service.GetCurrentUser(); if( cu != null ) authorName = cu.ToString() ?? ""; } catch { }
+            var changes = "[{\"f\":\"Статус\",\"o\":\"" + JsonEscape( osn ) + "\",\"n\":\"" + JsonEscape( nsn ) + "\"}";
+            if( isReturnFromDone )
+                changes += ",{\"f\":\"Срок\",\"o\":\"" + JsonEscape( oldDueDate ) + "\",\"n\":\"" + JsonEscape( newDueRaw ) + "\"}";
+            changes += "]";
             var entry = "{\"d\":\"" + DateTime.Now.ToString( "dd.MM.yyyy HH:mm" )
                       + "\",\"a\":\"" + JsonEscape( authorName )
-                      + "\",\"c\":[{\"f\":\"Статус\",\"o\":\"" + JsonEscape( osn ) + "\",\"n\":\"" + JsonEscape( nsn ) + "\"}]}";
+                      + "\",\"c\":" + changes + "}";
             var oldLog = task.GetString( "ChangeLog" ) ?? "";
             string newLog;
             if( string.IsNullOrEmpty( oldLog ) || oldLog.Trim() == "[]" )
@@ -319,14 +375,14 @@ private object DoMoveTask( object inputParams )
 
 
 // CreateTask
-// inputParams (JS → C#): object[] { "title|status|priority|dueDate|details|tags|assigneeKey" }
+// inputParams (JS → C#): object[] { "title|status|priority|dueDate|details|tags|assigneeKey|isPrivate" }
 // Только title обязателен; остальные – с дефолтами.
 private object DoCreateTask( object inputParams )
 {
     var raw = GetParamStr( inputParams );
 
-    // Разбираем: title|status|priority|dueDate|details|tags|assigneeKey
-    var parts  = ParsePipeArgs( raw, 7 );
+    // Разбираем: title|status|priority|dueDate|details|tags|assigneeKey|isPrivate
+    var parts  = ParsePipeArgs( raw, 8 );
     var title  = parts.Length > 0 ? parts[0].Trim() : "";
     if( string.IsNullOrEmpty( title ) ) return "ERROR:EmptyTitle";
 
@@ -343,6 +399,7 @@ private object DoCreateTask( object inputParams )
     var detailsStr  = parts.Length > 4 ? parts[4].Trim() : "";
     var tagsStr     = parts.Length > 5 ? parts[5].Trim() : "";
     var assigneeKey = parts.Length > 6 ? parts[6].Trim() : "";
+    var isPrivate   = parts.Length > 7 && parts[7].Trim() == "1";
 
     // Создаём объект
     var container = Service.GetDataContainer( "All_Kanban_Tasks_Folder" );
@@ -383,6 +440,8 @@ private object DoCreateTask( object inputParams )
     // Теги
     if( !string.IsNullOrEmpty( tagsStr ) )
         task["Tags"] = tagsStr;
+
+    try { task["IsPrivate"] = isPrivate; } catch { }
 
     // Исполнитель = текущий пользователь (по умолчанию)
     var currentUser = Service.GetCurrentUser();
@@ -489,6 +548,7 @@ private object DoCreateGroupTask( object inputParams )
         if( !string.IsNullOrEmpty( detailsStr ) ) task["TaskDetails"] = detailsStr;
         if( !string.IsNullOrEmpty( tagsStr ) ) task["Tags"] = tagsStr;
         task["Assignee"] = assignee;
+        try { task["IsPrivate"] = false; } catch { }
         if( !string.IsNullOrEmpty( creatorKey ) )
             try { task["Creator"] = creatorKey; } catch { }
         task.Save();
@@ -507,6 +567,7 @@ private object DoOpenTask( object inputParams )
 
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     Service.UI.OpenPropertiesPane( task );
     return "OK";
@@ -520,6 +581,7 @@ private object DoDeleteTask( object inputParams )
 
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     // Создатель или начальник подчинённого может удалить задачу
     try
@@ -824,6 +886,20 @@ private object BuildCardData( InfoObject task, int status )
     }
     catch { }
 
+    string originalDueDateStr = "";
+    try
+    {
+        var odd = task.GetValue<DateTime>( "OriginalDueDate" );
+        if( odd != default(DateTime) )
+            originalDueDateStr = odd.ToString( "dd.MM.yyyy" );
+    }
+    catch { }
+
+    int returnCount = 0;
+    try { returnCount = task.GetValue<int>( "ReturnCount" ); } catch { }
+
+    var isPrivate = IsTaskPrivate( task ) ? "1" : "0";
+
     var priority = task.GetNamedValue( "Priority" )?.GetValue<string>() ?? "medium";
     var isUrgent = priority == "urgent" ? "1" : "0";
 
@@ -993,6 +1069,9 @@ private object BuildCardData( InfoObject task, int status )
         assigneeShort   = HtmlEnc( assigneeShort ),
         dueDate         = dueDateStr,
         completedDate   = completedDateStr,
+        originalDueDate = originalDueDateStr,
+        returnCount     = returnCount,
+        isPrivate       = isPrivate,
         attachmentCount = GetAttachmentCount( task ),
         commentCount    = GetCommentCount( task ),
         subtaskTotal    = subtaskTotal,
@@ -1073,6 +1152,41 @@ private string GetUserStableKey( User user )
     return !string.IsNullOrEmpty( user.NameKey ) ? user.NameKey
          : !string.IsNullOrEmpty( user.AccountId ) ? user.AccountId
          : user.Id.ToString();
+}
+
+private bool IsTaskPrivate( InfoObject task )
+{
+    if( task == null ) return false;
+    try { return task.GetValue<bool>( "IsPrivate" ); } catch { }
+    try
+    {
+        var s = (task.GetString( "IsPrivate" ) ?? "").Trim();
+        return s == "1" || s.Equals( "true", System.StringComparison.OrdinalIgnoreCase );
+    }
+    catch { }
+    return false;
+}
+
+private bool CanUserSeeTask( InfoObject task, User currentUser )
+{
+    if( task == null ) return false;
+    if( !IsTaskPrivate( task ) ) return true;
+    if( currentUser == null ) return false;
+
+    var curKey = GetUserStableKey( currentUser );
+    string creatorKey = "";
+    try { creatorKey = task.GetString( "Creator" ) ?? ""; } catch { }
+
+    string assigneeKey = "";
+    try
+    {
+        var assignee = task.GetUser( "Assignee" );
+        assigneeKey = GetUserStableKey( assignee );
+    }
+    catch { }
+
+    return ( !string.IsNullOrEmpty( creatorKey ) && curKey == creatorKey )
+        || ( !string.IsNullOrEmpty( assigneeKey ) && curKey == assigneeKey );
 }
 
 private User FindUserByKeyOrNull( string userKey )
@@ -1368,6 +1482,7 @@ private object DoGetReport( object inputParams )
         if( assignee == null ) continue;
 
         if( allowedIds != null && !allowedIds.Contains( assignee.Id.ToString() ) ) continue;
+        if( IsTaskPrivate( task ) ) continue;
 
         totalTasks++;
         int status = GetStatusIndex( task );
@@ -1517,6 +1632,7 @@ private object DoGetTaskDetails( object inputParams )
 
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     int    status       = GetStatusIndex( task );
     string title        = task.GetString( "TaskName" )    ?? "";
@@ -1526,9 +1642,12 @@ private object DoGetTaskDetails( object inputParams )
     string dueDate      = "";
     string createdAt    = "";
     string completedAt  = "";
+    string originalDueDate = "";
     string assigneeName = "";
     string priorityKey  = "";
     string priorityName = "";
+    bool   isPrivate    = IsTaskPrivate( task );
+    int    returnCount  = 0;
 
     // Исполнитель
     try
@@ -1557,6 +1676,9 @@ private object DoGetTaskDetails( object inputParams )
     try { createdAt = task.DateCreated.ToString( "dd.MM.yyyy HH:mm" ); } catch { }
     try { var cd = task.GetValue<DateTime>( "CompletedDate" );
           if( cd != default(DateTime) ) completedAt = cd.ToString( "dd.MM.yyyy HH:mm" ); } catch { }
+    try { var odd = task.GetValue<DateTime>( "OriginalDueDate" );
+          if( odd != default(DateTime) ) originalDueDate = odd.ToString( "dd.MM.yyyy" ); } catch { }
+    try { returnCount = task.GetValue<int>( "ReturnCount" ); } catch { }
 
     // Просроченность
     bool isOverdue = false;
@@ -1727,6 +1849,9 @@ private object DoGetTaskDetails( object inputParams )
     sb.Append( "\"priorityName\":\"" + JsonEscape( priorityName )  + "\"," );
     sb.Append( "\"assignee\":\""     + JsonEscape( assigneeName )  + "\"," );
     sb.Append( "\"dueDate\":\""      + JsonEscape( dueDate )       + "\"," );
+    sb.Append( "\"originalDueDate\":\"" + JsonEscape( originalDueDate ) + "\"," );
+    sb.Append( "\"returnCount\":"    + returnCount                 + "," );
+    sb.Append( "\"isPrivate\":"      + (isPrivate ? "true" : "false") + "," );
     sb.Append( "\"details\":\""      + JsonEscape( details )       + "\"," );
     sb.Append( "\"createdAt\":\""    + JsonEscape( createdAt )     + "\"," );
     sb.Append( "\"completedAt\":\""  + JsonEscape( completedAt )   + "\"," );
@@ -1801,12 +1926,12 @@ private object DoGetTaskDetails( object inputParams )
 }
 
 // SaveTask
-// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|details"
-// details может содержать символы | – Split с лимитом 8 берёт всё остальное
+// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|isPrivate|details"
+// details может содержать символы | – Split с лимитом 9 берёт всё остальное
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 8 );
+    var parts = ParsePipeArgs( raw, 9 );
 
     var nameKey       = parts.Length > 0 ? parts[0].Trim() : "";
     var title         = parts.Length > 1 ? parts[1].Trim() : "";
@@ -1815,12 +1940,23 @@ private object DoSaveTask( object inputParams )
     var dueDateStr    = parts.Length > 4 ? parts[4].Trim() : "";
     var tagsStr       = parts.Length > 5 ? parts[5].Trim() : "";
     var assigneeKeyIn = parts.Length > 6 ? parts[6].Trim() : "";
-    var detailsStr    = parts.Length > 7 ? parts[7] : "";       // НЕ Trim – пробелы в конце важны
+    var isPrivateIn   = "";
+    var detailsStr    = "";
+    if( parts.Length > 8 )
+    {
+        isPrivateIn = parts[7].Trim();
+        detailsStr  = parts[8];       // НЕ Trim – пробелы в конце важны
+    }
+    else
+    {
+        detailsStr  = parts.Length > 7 ? parts[7] : "";
+    }
 
     if( string.IsNullOrEmpty( nameKey ) ) return "ERROR:EmptyId";
 
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     int newStatus = 0;
     int.TryParse( statusStr, out newStatus );
@@ -1868,6 +2004,7 @@ private object DoSaveTask( object inputParams )
     string oldTitle     = task.GetString( "TaskName" )    ?? "";
     string oldDetails   = task.GetString( "TaskDetails" ) ?? "";
     string oldTags      = "";
+    bool   oldIsPrivate = IsTaskPrivate( task );
     try { oldTags = task.GetString( "Tags" ) ?? ""; } catch { }
     string oldPrioKey   = "";
     string oldPrioName  = "";
@@ -1885,6 +2022,8 @@ private object DoSaveTask( object inputParams )
         task["TaskName"]    = title;
         task["TaskDetails"] = detailsStr;
         task["Tags"]        = tagsStr;
+        if( isPrivateIn == "1" || isPrivateIn == "0" )
+            try { task["IsPrivate"] = (isPrivateIn == "1"); } catch { }
 
         // Приоритет
         if( !string.IsNullOrEmpty( prioKey ) )
@@ -1908,6 +2047,9 @@ private object DoSaveTask( object inputParams )
             task["DueDate"] = null;
         }
     }
+
+    if( oldStatus == STATUS_DONE && newStatus != STATUS_DONE )
+        return "ERROR:ReturnReasonRequired";
 
     // Статус – могут менять все
     SetTaskStatus( task, newStatus );
@@ -1994,6 +2136,12 @@ private object DoSaveTask( object inputParams )
             changes.Append( "{\"f\":\"Теги\",\"o\":\"" + JsonEscape( oldTags ) + "\",\"n\":\"" + JsonEscape( tagsStr ) + "\"}" );
             hasChange = true;
         }
+        if( canFullEdit && (isPrivateIn == "1" || isPrivateIn == "0") && (isPrivateIn == "1") != oldIsPrivate )
+        {
+            if( hasChange ) changes.Append( "," );
+            changes.Append( "{\"f\":\"Приватность\",\"o\":\"" + (oldIsPrivate ? "Приватная" : "Обычная") + "\",\"n\":\"" + (isPrivateIn == "1" ? "Приватная" : "Обычная") + "\"}" );
+            hasChange = true;
+        }
         if( assigneeChanged )
         {
             if( hasChange ) changes.Append( "," );
@@ -2035,6 +2183,7 @@ private object DoGetTaskHistory( object inputParams )
 
     var task = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "[]";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "[]";
 
     // Пробуем ChangeLog
     try
@@ -2106,6 +2255,7 @@ private object DoGetAttachments( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "[]";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "[]";
 
     var sb    = new System.Text.StringBuilder();
     sb.Append( "[" );
@@ -2184,6 +2334,7 @@ private object DoAddAttachment( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     // Ищем объект через SearchOperation по NameKey
     var target = FindInfoObjectByKey( objKey );
@@ -2229,6 +2380,7 @@ private object DoRemoveAttachment( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     try
     {
@@ -2315,6 +2467,7 @@ private object DoOpenObject( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     try
     {
@@ -2426,6 +2579,7 @@ private object DoPickAndAttach( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     try
     {
@@ -2531,6 +2685,7 @@ private object DoPickAndAttachContainer( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     try
     {
@@ -2591,6 +2746,7 @@ private object DoAddContainer( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     uint contId;
     if( !uint.TryParse( contIdStr, out contId ) ) return "ERROR:InvalidId";
@@ -2637,6 +2793,7 @@ private object DoRemoveContainer( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     try
     {
@@ -2677,6 +2834,7 @@ private object DoOpenContainer( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     try
     {
@@ -2833,6 +2991,46 @@ private int GetCommentCount( InfoObject task )
     catch { return 0; }
 }
 
+private string AppendCommentToTask(
+    InfoObject task,
+    User currentUser,
+    string text,
+    bool saveTask,
+    out System.Collections.Generic.Dictionary<string, string> newItem )
+{
+    newItem = null;
+    if( task == null ) return "ERROR:TaskNotFound";
+    if( string.IsNullOrEmpty( text ) || text.Trim().Length == 0 ) return "ERROR:EmptyParams";
+
+    text = text.Trim();
+    if( text.Length > 2000 ) text = text.Substring( 0, 2000 );
+    text = NormalizeCommentText( text );
+
+    var userKey  = currentUser != null
+                 ? (string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.AccountId : currentUser.NameKey)
+                 : "";
+    var userName = currentUser != null ? currentUser.ToString() : "";
+
+    var json  = task.GetString( "CommentsJSON" ) ?? "";
+    var items = ParseComments( json );
+    if( items.Count >= 200 ) return "ERROR:LimitReached";
+
+    newItem = new System.Collections.Generic.Dictionary<string, string>();
+    newItem["text"]       = text;
+    newItem["author"]     = userKey;
+    newItem["authorName"] = userName;
+    newItem["date"]       = DateTime.Now.ToString( "dd.MM.yyyy HH:mm" );
+    items.Add( newItem );
+    var newIndex = (items.Count - 1).ToString();
+
+    task["CommentsJSON"] = SerializeComments( items );
+    newItem["index"] = newIndex;
+    if( saveTask ) task.Save();
+
+    try { SendCommentNotification( task, currentUser, text ); } catch { }
+    return null;
+}
+
 // AddComment
 private object DoAddComment( object inputParams )
 {
@@ -2851,39 +3049,24 @@ private object DoAddComment( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     var currentUser = Service.GetCurrentUser();
-    var userKey  = currentUser != null
-                 ? (string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.AccountId : currentUser.NameKey)
-                 : "";
-    var userName = currentUser != null ? currentUser.ToString() : "";
+    System.Collections.Generic.Dictionary<string, string> newItem;
+    var err = AppendCommentToTask( task, currentUser, text, true, out newItem );
+    if( !string.IsNullOrEmpty( err ) ) return err;
 
-    var json  = task.GetString( "CommentsJSON" ) ?? "";
-    var items = ParseComments( json );
-
-    if( items.Count >= 200 ) return "ERROR:LimitReached";
-
-    var newItem = new System.Collections.Generic.Dictionary<string, string>();
-    newItem["text"]       = text;
-    newItem["author"]     = userKey;
-    newItem["authorName"] = userName;
-    newItem["date"]       = DateTime.Now.ToString( "dd.MM.yyyy HH:mm" );
-    items.Add( newItem );
-
-    task["CommentsJSON"] = SerializeComments( items );
-    task.Save();
-
-    try { SendCommentNotification( task, currentUser, text ); } catch { }
-
+    var userName = "";
+    try { newItem.TryGetValue( "authorName", out userName ); } catch { }
     var initials = GetInitials( userName );
-    return "{\"text\":\"" + JsonEscape( text ) + "\","
-         + "\"author\":\"" + JsonEscape( userKey ) + "\","
+    return "{\"text\":\"" + JsonEscape( newItem["text"] ) + "\","
+         + "\"author\":\"" + JsonEscape( newItem["author"] ) + "\","
          + "\"authorName\":\"" + JsonEscape( userName ) + "\","
          + "\"initials\":\"" + JsonEscape( initials ) + "\","
          + "\"date\":\"" + JsonEscape( newItem["date"] ) + "\","
          + "\"editedAt\":\"\","
          + "\"isMine\":true,"
-         + "\"index\":" + (items.Count - 1) + "}";
+         + "\"index\":" + newItem["index"] + "}";
 }
 
 // GetComments
@@ -2894,6 +3077,7 @@ private object DoGetComments( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "[]";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "[]";
 
     var json  = task.GetString( "CommentsJSON" ) ?? "";
     var items = ParseComments( json );
@@ -2951,6 +3135,7 @@ private object DoDeleteComment( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     var json  = task.GetString( "CommentsJSON" ) ?? "";
     var items = ParseComments( json );
@@ -2998,6 +3183,7 @@ private object DoEditComment( object inputParams )
 
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
     var json  = task.GetString( "CommentsJSON" ) ?? "";
     var items = ParseComments( json );
@@ -3030,6 +3216,7 @@ private object DoGetCardCommentCount( object inputParams )
     var nameKey = GetParamStr( inputParams );
     var task    = GetTaskByKeyOrNull( nameKey );
     if( task == null ) return "0";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "0";
     return GetCommentCount( task ).ToString();
 }
 // Подзадачи / чекбоксы (Phase 2 – задача №2)
@@ -3069,6 +3256,7 @@ private object DoAddSubtask( object inputParams )
     {
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "ERROR:NotFound";
+        if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
         // Чтение оригинальной оболочки – вне транзакции.
         var json  = task.GetString( "SubtasksJSON" ) ?? "";
@@ -3152,6 +3340,7 @@ private object DoToggleSubtask( object inputParams )
     {
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "ERROR:NotFound";
+        if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
         var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
 
@@ -3241,6 +3430,7 @@ private object DoEditSubtask( object inputParams )
     {
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "ERROR:NotFound";
+        if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
         var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
 
@@ -3322,6 +3512,7 @@ private object DoReorderSubtasks( object inputParams )
     {
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "ERROR:NotFound";
+        if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
         var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
         if( items.Count != newOrder.Length ) return "ERROR:Mismatch";
@@ -3372,6 +3563,7 @@ private object DoDeleteSubtask( object inputParams )
     {
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "ERROR:NotFound";
+        if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
 
         var items = ParseSubtasks( task.GetString( "SubtasksJSON" ) ?? "" );
 
@@ -3422,6 +3614,7 @@ private object DoGetSubtasks( object inputParams )
     {
         var task = GetTaskByKeyOrNull( taskKey );
         if( task == null ) return "[]";
+        if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "[]";
         var json = task.GetString( "SubtasksJSON" ) ?? "";
         return string.IsNullOrEmpty( json ) ? "[]" : json;
     }
@@ -3656,6 +3849,7 @@ private object DoExportToExcel( InfoObject obj, object inputParams )
 
         if( allowedIds != null && !allowedIds.Contains( assignee.Id.ToString() ) )
             continue;
+        if( IsTaskPrivate( task ) ) continue;
 
         if( viewMode == "myCreated" )
         {

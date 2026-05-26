@@ -161,6 +161,46 @@
         transform: translateY(-1px);
     }
 
+    .kb-card-private-bg {
+        background: #f5f3ff;
+        border-left-color: #7c3aed !important;
+    }
+
+    .kb-card-private-bg:hover {
+        background: #ede9fe;
+    }
+
+    .kb-card-private {
+        display: inline-block;
+        font-size: 10px;
+        padding: 1px 6px;
+        border-radius: 10px;
+        background: #ede9fe;
+        color: #6d28d9;
+        font-weight: 600;
+        margin-bottom: 4px;
+        line-height: 15px;
+    }
+
+    .kb-due-orig {
+        font-size: 11px;
+        color: #9ca3af;
+        text-decoration: line-through;
+        margin-left: 4px;
+        margin-right: 4px;
+    }
+
+    .kb-badge-returned {
+        display: inline-block;
+        background: #fee2e2;
+        color: #b91c1c;
+        padding: 1px 6px;
+        border-radius: 10px;
+        font-size: 11px;
+        margin-left: 4px;
+        line-height: 15px;
+    }
+
     /* Приоритеты – левая полоска */
     .kb-card.pri-high   { border-left-color: #e74c3c; }
     .kb-card.pri-medium { border-left-color: #f39c12; }
@@ -544,6 +584,14 @@
     #kb-cal-tcm {
         left: auto;
         right: 0;
+    }
+
+    #kbReturnOverlay .tcm-dialog {
+        overflow: visible;
+    }
+
+    #kbReturnOverlay .kb-cal {
+        z-index: 10010;
     }
 
     .kb-cal-hdr {
@@ -1369,6 +1417,34 @@
         padding: 4px 0 2px;
     }
     .tcm-meta span { margin-right: 10px; }
+
+    .tcm-private-toggle {
+        display: inline-block;
+        font-size: 12px;
+        color: #6d28d9;
+        font-weight: 600;
+        line-height: 30px;
+        cursor: pointer;
+    }
+    .tcm-private-toggle input {
+        margin-right: 6px;
+        vertical-align: middle;
+    }
+    .tcm-private-toggle span {
+        vertical-align: middle;
+    }
+    .kb-private-help {
+        color: #8b5cf6;
+        font-size: 11px;
+        margin-left: 3px;
+        opacity: 0.8;
+    }
+    .tcm-original-due {
+        min-height: 30px;
+        line-height: 30px;
+        font-size: 12px;
+        color: #64748b;
+    }
 
     .tcm-msg {
         padding: 8px 12px;
@@ -2749,4 +2825,17 @@
     border-radius: 3px;
     font-size: 11px;
     font-variant-numeric: tabular-nums;
+}
+
+.kb-card.kb-card-private-bg,
+#kb-col-3 .kb-card.kb-card-private-bg,
+.kb-card.pri-urgent.kb-card-private-bg {
+    background: #f5f3ff;
+    border-left-color: #7c3aed !important;
+}
+
+.kb-card.kb-card-private-bg:hover,
+#kb-col-3 .kb-card.kb-card-private-bg:hover,
+.kb-card.pri-urgent.kb-card-private-bg:hover {
+    background: #ede9fe;
 }

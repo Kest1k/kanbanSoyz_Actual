@@ -361,6 +361,7 @@ private void OpenBoardFromNotification( string taskKey, string targetTab )
     if( existingTab != null )
     {
         existingTab.Activate();
+        if( string.IsNullOrEmpty( taskKey ) ) return;
 
         var sheet = existingTab.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
         if( sheet != null && sheet.ScriptingObject != null )
@@ -368,17 +369,32 @@ private void OpenBoardFromNotification( string taskKey, string targetTab )
             var io = sheet.ScriptingObject as InfoObject;
             if( io != null )
             {
-                var web = io.PropertyBag["Viewer"] as System.Windows.Forms.WebBrowser;
-                if( web != null && web.Document != null )
+                // Уже открытая доска могла быть устаревшей: например, задача была
+                // возвращена из «Готово» другим пользователем. Поэтому сначала
+                // перерисовываем доску, а карточку открываем через AutoOpenTask
+                // после свежего render.
+                io.PropertyBag["AutoOpenTask"] = taskKey + "|" + targetTab;
+                try
                 {
-                    try
+                    io.Invoke( "Refresh", null );
+                    return;
+                }
+                catch( Exception refreshEx )
+                {
+                    try { Service.WriteToServerLog( "KanbanExclamation", "Refresh existing board failed: " + refreshEx.Message ); } catch { }
+
+                    var web = io.PropertyBag["Viewer"] as System.Windows.Forms.WebBrowser;
+                    if( web != null && web.Document != null )
                     {
-                        // Передаем ДВА параметра в JS массив
-                        web.Document.InvokeScript( "tcmOpen", new object[] { taskKey, targetTab } );
-                    }
-                    catch( Exception ex )
-                    {
-                        Service.WriteToServerLog( "KanbanExclamation", "JS Error: " + ex.Message );
+                        try
+                        {
+                            // Fallback: если Refresh недоступен, хотя бы открыть карточку.
+                            web.Document.InvokeScript( "tcmOpen", new object[] { taskKey, targetTab } );
+                        }
+                        catch( Exception ex )
+                        {
+                            Service.WriteToServerLog( "KanbanExclamation", "JS Error: " + ex.Message );
+                        }
                     }
                 }
             }
@@ -387,7 +403,8 @@ private void OpenBoardFromNotification( string taskKey, string targetTab )
     else
     {
         // Записываем ключ и вкладку через разделитель |
-        boardObj.PropertyBag["AutoOpenTask"] = taskKey + "|" + targetTab;
+        if( !string.IsNullOrEmpty( taskKey ) )
+            boardObj.PropertyBag["AutoOpenTask"] = taskKey + "|" + targetTab;
         Service.UI.OpenPropertiesPane( boardObj );
     }
 }
