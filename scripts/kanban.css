@@ -2839,3 +2839,37 @@
 .kb-card.pri-urgent.kb-card-private-bg:hover {
     background: #ede9fe;
 }
+
+
+/* Лёгкое зеленоватое свечение у кнопки "Прикрепить файлы с компьютера".
+   Деликатно: тонкая зелёная рамка + бледный фон, без жирной тени. */
+.kb-btn-localfile,
+button.kb-btn-localfile {
+    border: 1px solid rgba(34, 197, 94, 0.35) !important;
+    background: #f6fefa !important;
+    box-shadow: none !important;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+.kb-btn-localfile:hover,
+button.kb-btn-localfile:hover {
+    border-color: rgba(34, 197, 94, 0.6) !important;
+    background: #ecfdf3 !important;
+    box-shadow: 0 0 4px rgba(34, 197, 94, 0.25) !important;
+}
+
+/* Блок кнопок вложений в карточке задачи должен переноситься на новую строку,
+   чтобы третья кнопка ("Прикрепить файл с компьютера") не обрезалась. */
+.tcm-att {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 4px;
+}
+.tcm-att > .tcm-lbl,
+.tcm-att > .tcm-att-list,
+.tcm-att > .tcm-att-search {
+    flex: 1 0 100%;
+}
+.tcm-att > .tcm-btn {
+    flex: 0 0 auto;
+}

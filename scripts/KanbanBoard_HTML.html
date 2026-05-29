@@ -280,6 +280,8 @@
                     style="font-size:11px;">&#128206; Прикрепить объект</button>
                 <button type="button" class="btn btn-xs btn-default" onclick="kbCrtPickCont()"
                     style="font-size:11px; margin-left:4px;">&#128193; Прикрепить папку/проект</button>
+                <button type="button" class="btn btn-xs btn-default kb-btn-localfile" onclick="kbCrtPickLocal()"
+                    style="font-size:11px; margin-left:4px;">&#128194; Прикрепить файлы с компьютера</button>
                 <span id="kb-crt-att-chips" style="margin-left:4px;"></span>
             </td>
         </tr>
@@ -757,6 +759,8 @@
                         style="font-size:12px; padding:3px 10px;">+ Прикрепить объект</button>
                     <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmAttPickNativeCont()"
                         style="font-size:12px; padding:3px 10px; margin-left:4px;">+ Прикрепить папку/проект</button>
+                    <button type="button" class="tcm-btn tcm-btn-secondary kb-btn-localfile" onclick="tcmAttPickLocal()"
+                        style="font-size:12px; padding:3px 10px; margin-left:4px;">+ Прикрепить файлы с компьютера</button>
                     <div class="tcm-att-search" id="tcm-att-search">
                         <input type="text" class="tcm-att-sinp" id="tcm-att-sinp"
                             placeholder="Поиск объекта по имени..." onkeyup="tcmAttSearchKeyup()">
@@ -898,8 +902,16 @@
                     <tr>
                         <td class="help-action"><i class="fa fa-paperclip"></i> Вложения</td>
                         <td>Внутри карточки можно прикрепить <b>объект</b> (чертёж, 3D-модель, документ, информационный
-                            объект) кнопкой <b>«+ Прикрепить объект»</b> или <b>контейнер</b> (папку, проект) кнопкой
-                            <b>«+ Прикрепить папку/проект»</b>
+                            объект) кнопкой <b>«+ Прикрепить объект»</b>, <b>контейнер</b> (папку, проект) кнопкой
+                            <b>«+ Прикрепить папку/проект»</b>, либо <b>файлы с компьютера</b> кнопкой
+                            <b>«+ Прикрепить файлы с компьютера»</b> – можно выбрать сразу несколько файлов.
+                            При прикреплении из проводника появится выбор режима:
+                            <b>«Внутри задачи»</b> – файлы создаются как «Простой документ (без версий)» в служебном
+                            хранилище канбана, скрытом от обычной навигации, доступ только через карточку самой
+                            задачи; или <b>«В хранилище PLM»</b> – вы выбираете папку, файл становится полноценным
+                            «Техническим документом» с версионированием, поиском и переиспользованием.
+                            В списке вложений тип документа показывается по расширению (PDF, текст, таблица,
+                            картинка, чертёж, 3D-модель и т.д.). Общий лимит – <b>50 вложений</b> на задачу.
                         </td>
                     </tr>
                     <tr>
@@ -1108,6 +1120,26 @@
             <button type="button" class="tcm-close" onclick="closeWhatsNew()" title="Закрыть">&#215;</button>
         </div>
         <div class="help-body">
+            <div style="margin-bottom: 20px; border-left: 3px solid #0ea5e9; padding-left: 15px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">
+                    <i class="fa fa-paperclip" style="color:#0ea5e9;"></i> Прикрепление файлов с компьютера
+                </div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">29.05.2026</div>
+                <ul class="help-tips">
+                    <li>Появилась кнопка <b>«+ Прикрепить файлы с компьютера»</b> – и в панели создания задачи,
+                        и в карточке. Можно выбрать сразу несколько файлов одним диалогом.</li>
+                    <li>После выбора файлов вы указываете режим хранения:
+                        <b>«Внутри задачи»</b> – файлы создаются как «Простой документ (без версий)» в служебном
+                        хранилище канбана, скрытом от обычной навигации; доступ к ним только через карточку
+                        самой задачи. Подходит для рабочих файлов, черновиков, скриншотов.</li>
+                    <li><b>«В хранилище PLM»</b> – вы выбираете папку, файл становится полноценным
+                        «Техническим документом» (с версионированием, поиском, переиспользованием).</li>
+                    <li>В списке вложений отображается тип документа по расширению: <b>PDF</b>,
+                        <b>текстовый документ</b>, <b>таблица</b>, <b>картинка</b>, <b>чертёж</b>,
+                        <b>3D-модель</b> и т.д. – с цветной иконкой.</li>
+                    <li>Общий лимит – <b>50 вложений</b> на задачу (объекты + папки + файлы суммарно).</li>
+                </ul>
+            </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #7c3aed; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">
                     <i class="fa fa-lock" style="color:#7c3aed;"></i> Приватные задачи
@@ -1299,6 +1331,52 @@
             <button type="button" class="tcm-btn tcm-btn-primary" onclick="kbReturnSubmit()"
                     style="padding:7px 14px;font-size:12px;border:none;background:#dc2626;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">
                 <i class="fa fa-paper-plane"></i> Вернуть на доработку
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Модалка выбора режима хранения файла из проводника ── -->
+<div id="kbFileModeOverlay" class="tcm-overlay" style="display:none;">
+    <div class="tcm-dialog" style="bottom:auto;min-height:0;width:520px;margin-left:-260px;top:80px;">
+        <div class="tcm-header">
+            <div>
+                <span class="tcm-title-bar"><i class="fa fa-paperclip" style="color:#0ea5e9;"></i> Как сохранить файл?</span>
+            </div>
+            <button type="button" class="tcm-close" onclick="kbFileModeCancel()" title="Отмена">&#215;</button>
+        </div>
+        <div style="padding:16px 20px;">
+            <label style="display:block;margin-bottom:12px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;">
+                <input type="radio" name="kbFileMode" id="kbFileModeInline" value="inline" checked
+                    style="margin-right:8px;vertical-align:middle;">
+                <span style="font-weight:600;font-size:13px;color:#1f2937;">
+                    <i class="fa fa-paperclip" style="color:#f59e0b;"></i> Внутри задачи
+                </span>
+                <div style="font-size:11px;color:#6b7280;margin-top:4px;margin-left:24px;line-height:1.4;">
+                    Быстро. Файл хранится рядом с задачей в общем контейнере канбана. Подойдёт для рабочих файлов,
+                    черновиков, скриншотов – без отдельного места в хранилище.
+                </div>
+            </label>
+            <label style="display:block;margin-bottom:8px;padding:10px 12px;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;">
+                <input type="radio" name="kbFileMode" id="kbFileModeIO" value="io"
+                    style="margin-right:8px;vertical-align:middle;">
+                <span style="font-weight:600;font-size:13px;color:#1f2937;">
+                    <i class="fa fa-folder-open" style="color:#0ea5e9;"></i> В хранилище PLM
+                </span>
+                <div style="font-size:11px;color:#6b7280;margin-top:4px;margin-left:24px;line-height:1.4;">
+                    Полноценный документ. Выбираете папку в хранилище – файл становится отдельным ИО
+                    шаблона «Документ». Можно искать, переиспользовать, открывать вне канбана.
+                </div>
+            </label>
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid #eef1f5;background:#fafbfc;text-align:right;">
+            <button type="button" class="tcm-btn" onclick="kbFileModeCancel()"
+                style="padding:7px 14px;font-size:12px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;margin-right:8px;">
+                Отмена
+            </button>
+            <button type="button" class="tcm-btn tcm-btn-primary" onclick="kbFileModeConfirm()"
+                style="padding:7px 14px;font-size:12px;border:none;background:#0ea5e9;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">
+                <i class="fa fa-check"></i> Продолжить
             </button>
         </div>
     </div>

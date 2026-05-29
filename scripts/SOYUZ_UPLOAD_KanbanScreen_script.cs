@@ -205,6 +205,9 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "AddContainer":            return DoAddContainer( inputParams );
             case "RemoveContainer":         return DoRemoveContainer( inputParams );
             case "OpenContainer":           return DoOpenContainer( inputParams );
+            case "PickLocalFiles":          return DoPickLocalFiles( inputParams );
+            case "PickStorageContainer":    return DoPickStorageContainer( inputParams );
+            case "AttachLocalFile":         return DoAttachLocalFile( inputParams );
             case "AddComment":    return DoAddComment( inputParams );
             case "GetComments":   return DoGetComments( inputParams );
             case "DeleteComment": return DoDeleteComment( inputParams );
@@ -2346,14 +2349,12 @@ private object DoAddAttachment( object inputParams )
         var editTask = task.GetEditable();
         var attr     = editTask.GetAttribute( "AttachedObjects" );
         var set      = attr.LinkedInfoObjects.SafeToSet();
-        int cnt      = 0;
         foreach( InfoObject io in set )
         {
             var ioKey = string.IsNullOrEmpty( io.NameKey ) ? io.Id.ToString() : io.NameKey;
             if( ioKey == objKey ) return "ERROR:AlreadyAttached";
-            cnt++;
         }
-        if( cnt >= 20 ) return "ERROR:LimitReached";
+        if( GetAttachmentCount( editTask ) >= 50 ) return "ERROR:LimitReached";
         set.Add( target );
         attr.LinkedInfoObjects = set;
         AppendAttachmentChangeLog( editTask, "Добавлен объект", target.ToString() ?? objKey );
@@ -2612,14 +2613,17 @@ private object DoPickAndAttach( object inputParams )
         }
 
         var addedItems = new System.Collections.Generic.List<string>();
+        int totalCnt = GetAttachmentCount( editTask );
         foreach( var newItem in selected )
         {
             if( newItem == null ) continue;
             var itemKey = string.IsNullOrEmpty( newItem.NameKey ) ? newItem.Id.ToString() : newItem.NameKey;
             if( existingKeys.Contains( itemKey ) ) continue; // пропускаем дубликаты
+            if( totalCnt >= 50 ) return "ERROR:LimitReached";
             currentSet.Add( newItem );
             existingKeys.Add( itemKey );
             addedItems.Add( newItem.ToString() ?? itemKey );
+            totalCnt++;
         }
         if( addedItems.Count == 0 ) return "CANCELLED";
         attr.LinkedInfoObjects = currentSet.ToArray();
@@ -2703,13 +2707,16 @@ private object DoPickAndAttachContainer( object inputParams )
             existingIds.Add( dc.Id );
 
         var addedNames = new System.Collections.Generic.List<string>();
+        int totalCntC = GetAttachmentCount( editTask );
         foreach( var dc in selected )
         {
             if( dc == null ) continue;
             if( existingIds.Contains( dc.Id ) ) continue; // пропускаем дубликаты
+            if( totalCntC >= 50 ) return "ERROR:LimitReached";
             currentSet.Add( dc );
             existingIds.Add( dc.Id );
             addedNames.Add( dc.ToString() ?? dc.Id.ToString() );
+            totalCntC++;
         }
         if( addedNames.Count == 0 ) return "CANCELLED";
         attr.LinkedDataContainers = currentSet.ToArray();
@@ -2759,13 +2766,11 @@ private object DoAddContainer( object inputParams )
         var editTask = task.GetEditable();
         var attr     = editTask.GetAttribute( "AttachedContainers" );
         var set      = attr.LinkedDataContainers.SafeToSet();
-        int cnt      = 0;
         foreach( DataContainer existing in set )
         {
             if( existing.Id == contId ) return "ERROR:AlreadyAttached";
-            cnt++;
         }
-        if( cnt >= 20 ) return "ERROR:LimitReached";
+        if( GetAttachmentCount( editTask ) >= 50 ) return "ERROR:LimitReached";
         set.Add( dc );
         attr.LinkedDataContainers = set.ToArray();
         AppendAttachmentChangeLog( editTask, "Добавлен контейнер", dc.ToString() ?? contIdStr );
@@ -2851,6 +2856,231 @@ private object DoOpenContainer( object inputParams )
         return "ERROR:ContainerNotFound";
     }
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
+}
+
+// PickLocalFiles
+// Открывает Windows OpenFileDialog (мультивыбор). Возвращает JSON-массив
+// [{path, name, size}] или "CANCELLED".
+private object DoPickLocalFiles( object inputParams )
+{
+    try
+    {
+        using( var ofd = new System.Windows.Forms.OpenFileDialog() )
+        {
+            ofd.Title       = "Выберите файлы для прикрепления";
+            ofd.Filter      = "Все файлы (*.*)|*.*";
+            ofd.Multiselect = true;
+            if( ofd.ShowDialog() != System.Windows.Forms.DialogResult.OK ) return "CANCELLED";
+            var files = ofd.FileNames;
+            if( files == null || files.Length == 0 ) return "CANCELLED";
+
+            var sb = new System.Text.StringBuilder();
+            sb.Append( "[" );
+            bool first = true;
+            foreach( var p in files )
+            {
+                if( string.IsNullOrEmpty( p ) ) continue;
+                long size = 0;
+                try { size = new System.IO.FileInfo( p ).Length; } catch { }
+                var name = System.IO.Path.GetFileName( p );
+                if( !first ) sb.Append( "," );
+                sb.Append( "{\"path\":\"" + JsonEscape( p    ) + "\","
+                         + "\"name\":\""  + JsonEscape( name ) + "\","
+                         + "\"size\":"    + size + "}" );
+                first = false;
+            }
+            sb.Append( "]" );
+            return sb.ToString();
+        }
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "Ошибка диалога выбора файла" );
+        return "ERROR:" + ex.Message;
+    }
+}
+
+// PickStorageContainer
+// Открывает PLM-диалог выбора папки/проекта для размещения нового документа.
+// Возвращает: "containerId|displayName" или "CANCELLED".
+private object DoPickStorageContainer( object inputParams )
+{
+    try
+    {
+        uint lastId = 0;
+        try
+        {
+            var v = Service.GetUserRegistryValue( @"UserSettings\Kanban\LastFileContainer", 0 );
+            if( v != null ) lastId = (uint)Convert.ToInt32( v );
+        }
+        catch { }
+
+        var p = new SelectDataContainerParams
+        {
+            Caption = "Выберите папку для размещения файла"
+        };
+        if( lastId > 0 )
+        {
+            try { p.SelectedDataContainer = Service.GetDataContainer( lastId ); } catch { }
+        }
+
+        var dc = Service.UI.SelectDataContainer( p );
+        if( dc == null ) return "CANCELLED";
+
+        try { Service.SetUserRegistryValue( @"UserSettings\Kanban\LastFileContainer", (int)dc.Id ); } catch { }
+        return dc.Id.ToString() + "|" + ( dc.ToString() ?? dc.Id.ToString() );
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "Ошибка выбора контейнера" );
+        return "ERROR:" + ex.Message;
+    }
+}
+
+// AttachLocalFile
+// inputParams: "taskNameKey|filePath|containerIdOrEmpty"
+// Создаёт InfoObject по шаблону Documents\Document, прописывает Body=FileDesc(filePath),
+// кладёт в указанный контейнер (или в контейнер задач, если containerId пуст),
+// потом линкует в AttachedObjects текущей задачи.
+private object DoAttachLocalFile( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 3 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var taskKey  = parts[0].Trim();
+    var filePath = parts[1].Trim();
+    var contStr  = parts.Length > 2 ? parts[2].Trim() : "";
+
+    if( string.IsNullOrEmpty( taskKey ) || string.IsNullOrEmpty( filePath ) )
+        return "ERROR:EmptyParams";
+    if( !System.IO.File.Exists( filePath ) ) return "ERROR:FileNotFound";
+
+    var task = GetTaskByKeyOrNull( taskKey );
+    if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
+
+    // Контейнер: либо выбранный, либо контейнер задач (для режима "Внутри задачи")
+    DataContainer container = null;
+    if( !string.IsNullOrEmpty( contStr ) )
+    {
+        uint cid;
+        if( !uint.TryParse( contStr, out cid ) ) return "ERROR:InvalidContainerId";
+        container = Service.GetDataContainer( cid );
+        if( container == null ) return "ERROR:ContainerNotFound";
+    }
+    else
+    {
+        // Отдельный контейнер для inline-файлов с ключом All_Kanban_LocalFiles_Folder
+        // (заводится администратором вручную на корне хранилища).
+        container = Service.GetDataContainer( "All_Kanban_LocalFiles_Folder" );
+        if( container == null ) return "ERROR:KanbanLocalFilesContainerNotFound";
+    }
+
+    var isInline = string.IsNullOrEmpty( contStr );
+
+    try
+    {
+        if( GetAttachmentCount( task ) >= 50 ) return "ERROR:LimitReached";
+
+        var fileName = System.IO.Path.GetFileName( filePath );
+        var docName  = System.IO.Path.GetFileNameWithoutExtension( fileName );
+        if( string.IsNullOrEmpty( docName ) ) docName = fileName;
+
+        InfoObject mainDoc = null;
+
+        if( isInline )
+        {
+            // Inline-режим: реальный однофазный шаблон "Простой документ (без версий)".
+            // Файл прямо в Body, один Save, без виртуального диалога и без Machinery.
+            var simpleTemplate = Service.GetTemplate( @"InfoObjects\BASIC\Documents\SimpleDocumentKanban" );
+            if( simpleTemplate == null ) return "ERROR:SimpleDocTemplateNotFound";
+
+            var sd = new InfoObject( container, simpleTemplate );
+            // DocumentName храним с расширением - чтобы UI канбана мог определять
+            // тип документа по расширению, а в дереве PLM было видно полное имя файла.
+            try { sd["DocumentName"]         = fileName; } catch { }
+            try { sd["FileName"]             = fileName; } catch { }
+            try { sd["DoNotGeneratePreview"] = true; }     catch { }
+            // Ключ задачи-владельца - для проверки доступа в PreCheckOperation
+            // шаблона SimpleDocumentKanban: документ виден только тем, кто видит задачу.
+            try { sd["OwnerTaskKey"]         = taskKey; }  catch { }
+            try { sd.GetAttribute( "Body" ).Value.UploadFile( filePath ); }
+            catch( Exception fex ) { return "ERROR:UploadFileFailed:" + fex.Message; }
+            try { sd.IsBySystem = false; } catch { }
+
+            using( Service.EnterNewGroupOperation() )
+            {
+                sd.Save();
+                Service.SaveChanges();
+            }
+            mainDoc = sd;
+        }
+        else
+        {
+            // PLM-режим: Технический документ – двухфазная схема (главный + версия).
+            // Требует лицензии PMSZ.PLMSoyuz.Machinery (есть на проде).
+            var docTemplate = Service.GetTemplate( @"InfoObjects\STD\Documents\Document\TechnicalDocument" );
+            if( docTemplate == null ) return "ERROR:DocTemplateNotFound";
+            var verTemplate = Service.GetTemplate( @"InfoObjects\STD\Documents\DocumentVersion\TechnicalDocumentVersion" );
+            if( verTemplate == null ) return "ERROR:VerTemplateNotFound";
+
+            // 1. Главный объект – без ActualVersion (его выставим после persist версии)
+            var td = new InfoObject( container, docTemplate );
+            try { td["DocumentDesignation"] = docName; } catch { }
+            try { td["ProductName"]         = docName; } catch { }
+            try { td.IsBySystem = false; } catch { }
+            using( Service.EnterNewGroupOperation() )
+            {
+                td.Save();
+                Service.SaveChanges();
+            }
+
+            // 2. Версия – дочерняя к уже persisted td, файл в Body версии
+            var ver = new InfoObject( td, verTemplate );
+            try { ver["ProductName"]         = docName; } catch { }
+            try { ver["DocumentDesignation"] = docName; } catch { }
+            try { ver["DoNotGeneratePreview"] = true; } catch { }
+            try { ver.GetAttribute( "Body" ).Value.UploadFile( filePath ); }
+            catch( Exception fex ) { return "ERROR:UploadFileFailed:" + fex.Message; }
+            try { ver.IsBySystem = false; } catch { }
+            using( Service.EnterNewGroupOperation() )
+            {
+                ver.Save();
+                Service.SaveChanges();
+            }
+
+            // 3. Проставляем ActualVersion после persist версии
+            var editTd = td.GetEditable();
+            editTd["ActualVersion"] = ver;
+            using( Service.EnterNewGroupOperation() )
+            {
+                editTd.Save();
+                Service.SaveChanges();
+            }
+            mainDoc = td;
+        }
+
+        // Линкуем созданный документ в AttachedObjects задачи
+        var editTask = task.GetEditable();
+        var attr     = editTask.GetAttribute( "AttachedObjects" );
+        var set      = attr.LinkedInfoObjects.SafeToSet();
+        set.Add( mainDoc );
+        attr.LinkedInfoObjects = set;
+        AppendAttachmentChangeLog( editTask, "Добавлен файл", fileName );
+        using( Service.EnterNewGroupOperation() )
+        {
+            editTask.Save();
+            Service.SaveChanges();
+        }
+        var key = string.IsNullOrEmpty( mainDoc.NameKey ) ? mainDoc.Id.ToString() : mainDoc.NameKey;
+        return "OK|" + key;
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "Ошибка прикрепления файла" );
+        return "ERROR:" + ex.Message;
+    }
 }
 
 // ─── Вспомогательный поиск InfoObject по NameKey (для DoAddAttachment) ─

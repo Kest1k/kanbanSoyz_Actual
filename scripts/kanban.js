@@ -620,8 +620,17 @@
                     if (newTaskKey && _crtPendingAttachments.length > 0) {
                         for (var ai = 0; ai < _crtPendingAttachments.length; ai++) {
                             var att = _crtPendingAttachments[ai];
-                            var cmd = (att.type === "container") ? "AddContainer" : "AddAttachment";
-                            try { window.external.InvokeTemplate(cmd, newTaskKey + "|" + att.key); } catch (ae) { }
+                            try {
+                                if (att.type === "container") {
+                                    window.external.InvokeTemplate("AddContainer", newTaskKey + "|" + att.key);
+                                } else if (att.type === "localfile-inline") {
+                                    window.external.InvokeTemplate("AttachLocalFile", newTaskKey + "|" + att.path + "|");
+                                } else if (att.type === "localfile-io") {
+                                    window.external.InvokeTemplate("AttachLocalFile", newTaskKey + "|" + att.path + "|" + (att.containerId || ""));
+                                } else {
+                                    window.external.InvokeTemplate("AddAttachment", newTaskKey + "|" + att.key);
+                                }
+                            } catch (ae) { }
                         }
                     }
                     hideCreateTask();
@@ -2587,6 +2596,88 @@
         tcmRenderAttachments(d);
         tcmLoadComments(d);
     }
+    // Определение типа документа и иконки по расширению имени файла.
+    // Возвращает { label, icon, color }; если расширение не распознано -
+    // дефолт "Файл". Используется в рендере чипов и списка вложений.
+    function kbFileTypeFromName(name) {
+        var def = { label: "Файл", icon: "fa-file-o", color: "#6b7280" };
+        if (!name) return def;
+        var m = String(name).match(/\.([a-z0-9]+)$/i);
+        if (!m) return def;
+        var ext = m[1].toLowerCase();
+        var DRAWING   = ["Чертёж",             "fa-pencil-square-o",   "#0ea5e9"];
+        var MODEL3D   = ["3D модель",          "fa-cube",              "#0891b2"];
+        var SPEC      = ["Спецификация",       "fa-list-alt",          "#0d9488"];
+        var IMG       = ["Картинка",           "fa-file-image-o",      "#7c3aed"];
+        var DOCT      = ["Текстовый документ", "fa-file-word-o",       "#2563eb"];
+        var TXT       = ["Текстовый файл",     "fa-file-text-o",       "#6b7280"];
+        var TABLE     = ["Таблица",            "fa-file-excel-o",      "#16a34a"];
+        var PRES      = ["Презентация",        "fa-file-powerpoint-o", "#d97706"];
+        var ARCH      = ["Архив",              "fa-file-archive-o",    "#6b7280"];
+        var VID       = ["Видео",              "fa-file-video-o",      "#7c3aed"];
+        var AUD       = ["Аудио",              "fa-file-audio-o",      "#7c3aed"];
+        var CODE      = ["Код / разметка",     "fa-file-code-o",       "#475569"];
+        var map = {
+            // Документы
+            pdf:    ["PDF документ",       "fa-file-pdf-o",        "#dc2626"],
+            doc: DOCT, docx: DOCT, rtf: DOCT, odt: DOCT, pages: DOCT,
+            txt: TXT, log: TXT, md: TXT,
+            // Таблицы
+            xls: TABLE, xlsx: TABLE, xlsm: TABLE, xlsb: TABLE, csv: TABLE, tsv: TABLE, ods: TABLE, numbers: TABLE,
+            // Презентации
+            ppt: PRES, pptx: PRES, odp: PRES, key: PRES,
+            // Картинки
+            jpg: IMG, jpeg: IMG, png: IMG, gif: IMG, bmp: IMG, webp: IMG, svg: IMG, tif: IMG, tiff: IMG, heic: IMG, ico: IMG, psd: IMG, ai: IMG, eps: IMG, cdr: IMG,
+            // Чертежи (плоские) - AutoCAD, SolidWorks, Компас, Inventor, CATIA, Pro/E
+            dwg: DRAWING, dxf: DRAWING, dwt: DRAWING, dws: DRAWING, dwf: DRAWING, dwfx: DRAWING,
+            slddrw: DRAWING, drwdot: DRAWING,
+            cdw: DRAWING, frw: DRAWING,
+            idw: DRAWING, ipn: DRAWING,
+            drw: DRAWING, frm: DRAWING,
+            catdrawing: DRAWING,
+            // Спецификации (Компас)
+            spw: SPEC,
+            // 3D модели (нейтральные)
+            step: MODEL3D, stp: MODEL3D, stpz: MODEL3D, iges: MODEL3D, igs: MODEL3D,
+            stl: MODEL3D, obj: MODEL3D, ply: MODEL3D, fbx: MODEL3D, dae: MODEL3D,
+            blend: MODEL3D, "3mf": MODEL3D, "3dxml": MODEL3D, glb: MODEL3D, gltf: MODEL3D,
+            x_t: MODEL3D, x_b: MODEL3D, xmt_txt: MODEL3D, xmt_bin: MODEL3D, sat: MODEL3D, sab: MODEL3D, jt: MODEL3D, skp: MODEL3D,
+            // 3D модели (SolidWorks)
+            sldprt: MODEL3D, sldasm: MODEL3D, sldlfp: MODEL3D, sldftp: MODEL3D, sldblk: MODEL3D, sldmat: MODEL3D,
+            prtdot: MODEL3D, asmdot: MODEL3D, slddrt: MODEL3D,
+            // 3D модели (Компас-3D)
+            m3d: MODEL3D, a3d: MODEL3D, t3d: MODEL3D, kdw: DOCT,
+            // 3D модели (Autodesk Inventor)
+            ipt: MODEL3D, iam: MODEL3D,
+            // 3D модели (Pro/E, Creo, NX, CATIA)
+            prt: MODEL3D, asm: MODEL3D,
+            catpart: MODEL3D, catproduct: MODEL3D, catshape: MODEL3D, "3dm": MODEL3D,
+            // Архивы
+            zip: ARCH, rar: ARCH, "7z": ARCH, tar: ARCH, gz: ARCH, bz2: ARCH, xz: ARCH,
+            // Видео / аудио
+            mp4: VID, avi: VID, mov: VID, mkv: VID, webm: VID, wmv: VID, flv: VID,
+            mp3: AUD, wav: AUD, flac: AUD, ogg: AUD, m4a: AUD, aac: AUD,
+            // Код / разметка
+            html: CODE, htm: CODE, xml: CODE, json: CODE, yaml: CODE, yml: CODE,
+            js: CODE, ts: CODE, css: CODE, py: CODE, java: CODE, cs: CODE, cpp: CODE, c: CODE, h: CODE,
+            sql: CODE, sh: CODE, ps1: CODE, bat: CODE
+        };
+        var hit = map[ext];
+        if (!hit) return def;
+        return { label: hit[0], icon: hit[1], color: hit[2] };
+    }
+    window.kbFileTypeFromName = kbFileTypeFromName;
+
+    // Расширения файлов, для которых мы подменяем подпись типа документа.
+    // Если расширение есть в карте - вложение трактуем как локальный файл
+    // (даже если шаблон в PLM "Простой документ (без версий)" / "Технический документ").
+    function kbIsKnownFileName(name) {
+        if (!name) return false;
+        if (!/\.[a-z0-9_]+$/i.test(String(name))) return false;
+        return kbFileTypeFromName(name).label !== "Файл";
+    }
+    window.kbIsKnownFileName = kbIsKnownFileName;
+
     // Вложения – JS-функции
     var _tcmAttSearchTimer = null;
     var _crtPendingAttachments = []; // [{key, name, tmpl}] – ожидают прикрепления после создания задачи
@@ -2609,7 +2700,7 @@
                     if (_crtPendingAttachments[j].key === it.key) { dup = true; break; }
                 }
                 if (dup) continue;
-                if (_crtPendingAttachments.length >= 20) break;
+                if (_crtPendingAttachments.length >= 50) break;
                 _crtPendingAttachments.push({ key: it.key, name: it.name || it.key, tmpl: it.tmpl || "", type: "object" });
                 added++;
             }
@@ -2637,7 +2728,7 @@
                     if (_crtPendingAttachments[j].key === it.key && _crtPendingAttachments[j].type === "container") { dup = true; break; }
                 }
                 if (dup) continue;
-                if (_crtPendingAttachments.length >= 20) break;
+                if (_crtPendingAttachments.length >= 50) break;
                 _crtPendingAttachments.push({ key: it.key, name: it.name || it.key, tmpl: "", type: "container" });
                 added++;
             }
@@ -2653,12 +2744,23 @@
         var html = "";
         for (var i = 0; i < _crtPendingAttachments.length; i++) {
             var it = _crtPendingAttachments[i];
-            var icon = (it.type === "container") ? "&#128193; " : "&#128196; ";
-            var bg = (it.type === "container") ? "#e8f5e9" : "#e8f0fe";
-            var bd = (it.type === "container") ? "#c5e1c5" : "#c5d8fd";
+            var iconHtml = "", bg, bd, label = it.name;
+            if (it.type === "container") {
+                iconHtml = '<i class="fa fa-folder-open" style="margin-right:4px;color:#16a34a;"></i>';
+                bg = "#e8f5e9"; bd = "#c5e1c5";
+            } else if (it.type === "localfile-inline" || it.type === "localfile-io") {
+                var ft = kbFileTypeFromName(it.name);
+                iconHtml = '<i class="fa ' + ft.icon + '" style="margin-right:4px;color:' + ft.color + ';"></i>';
+                if (it.type === "localfile-inline") { bg = "#fff7e0"; bd = "#f0d68c"; }
+                else                                { bg = "#e0f2fe"; bd = "#7dd3fc"; }
+                label = it.name + ' · ' + ft.label;
+            } else {
+                iconHtml = '<i class="fa fa-file-o" style="margin-right:4px;color:#2563eb;"></i>';
+                bg = "#e8f0fe"; bd = "#c5d8fd";
+            }
             html += '<span style="display:inline-flex;align-items:center;background:' + bg + ';border:1px solid ' + bd + ';' +
                 'border-radius:3px;padding:1px 6px;font-size:11px;margin-left:3px;vertical-align:middle;">' +
-                icon + tcmAttEsc(it.name) +
+                iconHtml + tcmAttEsc(label) +
                 ' <button type="button" onclick="kbCrtRemoveAtt(' + i + ')" title="Убрать"' +
                 ' style="border:none;background:none;cursor:pointer;padding:0 0 0 4px;font-size:13px;color:#888;line-height:1;">&times;</button>' +
                 '</span>';
@@ -2669,6 +2771,82 @@
     window.kbCrtRemoveAtt = function (idx) {
         _crtPendingAttachments.splice(idx, 1);
         kbCrtRenderAtts();
+    };
+
+    // Модалка выбора режима хранения файла из проводника.
+    // callback(mode, containerId, containerName) - mode "inline" или "io"; для inline containerId="".
+    // Если пользователь отменил - callback не вызывается.
+    var _kbFileModeCb = null;
+    window.kbFileModeOpen = function (cb) {
+        _kbFileModeCb = cb;
+        var ov = document.getElementById("kbFileModeOverlay");
+        if (!ov) { alert("Окно режима недоступно"); return; }
+        var r1 = document.getElementById("kbFileModeInline");
+        if (r1) r1.checked = true;
+        ov.style.display = "block";
+    };
+    window.kbFileModeCancel = function () {
+        var ov = document.getElementById("kbFileModeOverlay");
+        if (ov) ov.style.display = "none";
+        _kbFileModeCb = null;
+    };
+    window.kbFileModeConfirm = function () {
+        var modeIO = document.getElementById("kbFileModeIO");
+        var isIO = modeIO && modeIO.checked;
+        var ov = document.getElementById("kbFileModeOverlay");
+        if (ov) ov.style.display = "none";
+        var cb = _kbFileModeCb;
+        _kbFileModeCb = null;
+        if (!cb) return;
+        if (!isIO) { cb("inline", "", ""); return; }
+        // Спрашиваем контейнер
+        try {
+            var r = window.external.InvokeTemplate("PickStorageContainer", "");
+            var s = String(r || "");
+            if (!s || s === "CANCELLED") return;
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка выбора папки: " + s); return; }
+            var sep = s.indexOf("|");
+            var cid = sep >= 0 ? s.substring(0, sep) : s;
+            var cname = sep >= 0 ? s.substring(sep + 1) : s;
+            cb("io", cid, cname);
+        } catch (e) {
+            alert("Ошибка выбора папки: " + (e.message || e));
+        }
+    };
+
+    // Выбор локального файла из проводника в панели создания задачи.
+    // Файлы попадают в _crtPendingAttachments как localfile-inline / localfile-io,
+    // и обрабатываются после CreateTask (см. doCreateTask).
+    window.kbCrtPickLocal = function () {
+        try {
+            var res = window.external.InvokeTemplate("PickLocalFiles", "");
+            var s = String(res || "");
+            if (!s || s === "CANCELLED") return;
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка: " + s); return; }
+            var files;
+            try { files = JSON.parse(s); } catch (e) { alert("Ошибка разбора ответа"); return; }
+            if (!files || !files.length) return;
+            kbFileModeOpen(function (mode, cid, cname) {
+                var added = 0;
+                for (var i = 0; i < files.length; i++) {
+                    var f = files[i];
+                    if (!f.path) continue;
+                    if (_crtPendingAttachments.length >= 50) break;
+                    _crtPendingAttachments.push({
+                        type: mode === "io" ? "localfile-io" : "localfile-inline",
+                        path: f.path,
+                        name: f.name || f.path,
+                        size: f.size || 0,
+                        containerId: mode === "io" ? cid : "",
+                        containerName: mode === "io" ? cname : ""
+                    });
+                    added++;
+                }
+                if (added > 0) kbCrtRenderAtts();
+            });
+        } catch (e) {
+            alert("Ошибка открытия диалога: " + (e.message || e));
+        }
     };
 
     function tcmRenderAttachments(d) {
@@ -2695,13 +2873,24 @@
             for (var i = 0; i < items.length; i++) {
                 var it = items[i];
                 var isContainer = (it.type === "container");
-                var icon = isContainer ? "&#128193;" : "&#128196;";
+                var iconHtml, typeLabel;
+                if (isContainer) {
+                    iconHtml  = '<i class="fa fa-folder-open" style="color:#16a34a;"></i>';
+                    typeLabel = "Папка/проект";
+                } else if (kbIsKnownFileName(it.name)) {
+                    var ft   = kbFileTypeFromName(it.name);
+                    iconHtml = '<i class="fa ' + ft.icon + '" style="color:' + ft.color + ';"></i>';
+                    typeLabel = ft.label;
+                } else {
+                    iconHtml = '<i class="fa fa-file-o" style="color:#2563eb;"></i>';
+                    typeLabel = it.tmpl || "";
+                }
                 var div = document.createElement("div");
                 div.className = "tcm-att-item";
                 div.innerHTML =
-                    '<span class="tcm-att-icon">' + icon + '</span>' +
+                    '<span class="tcm-att-icon">' + iconHtml + '</span>' +
                     '<a href="#" class="tcm-att-name" onclick="tcmAttOpen(\'' + tcmAttEsc(it.key) + '\',\'' + tcmAttEsc(it.type || 'object') + '\'); return false;" title="' + tcmAttEsc(it.name) + '">' + tcmAttEsc(it.name) + '</a>' +
-                    '<span class="tcm-att-type">(' + tcmAttEsc(it.tmpl || (isContainer ? "Папка/проект" : "")) + ')</span>' +
+                    '<span class="tcm-att-type">(' + tcmAttEsc(typeLabel) + ')</span>' +
                     '<span class="tcm-att-date">' + tcmAttEsc(it.date || "") + '</span>' +
                     '<button class="tcm-att-del" onclick="tcmAttRemove(\'' + tcmAttEsc(it.key) + '\',\'' + tcmAttEsc(it.type || 'object') + '\'); return false;" title="Открепить">&times;</button>';
                 list.appendChild(div);
@@ -2776,6 +2965,43 @@
             if (s.indexOf("ERROR") === 0) { alert("Ошибка: " + s); return; }
             tcmRenderAttachments(_tcmData);
             tcmInvalidateRevsCache();
+        } catch (e) {
+            alert("Ошибка открытия диалога: " + (e.message || e));
+        }
+    };
+
+    // Прикрепление файла с локального диска к уже существующей задаче.
+    // Открывает OpenFileDialog → модалка выбора режима хранения → создание ИО → линковка.
+    window.tcmAttPickLocal = function () {
+        if (!_tcmData || !_tcmData.nameKey) return;
+        var taskKey = _tcmData.nameKey;
+        try {
+            var res = window.external.InvokeTemplate("PickLocalFiles", "");
+            var s = String(res || "");
+            if (!s || s === "CANCELLED") return;
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка: " + s); return; }
+            var files;
+            try { files = JSON.parse(s); } catch (e) { alert("Ошибка разбора ответа"); return; }
+            if (!files || !files.length) return;
+            kbFileModeOpen(function (mode, cid, cname) {
+                var contParam = mode === "io" ? cid : "";
+                var ok = 0, errMsg = "";
+                for (var i = 0; i < files.length; i++) {
+                    var f = files[i];
+                    if (!f.path) continue;
+                    try {
+                        var r = window.external.InvokeTemplate("AttachLocalFile",
+                            taskKey + "|" + f.path + "|" + contParam);
+                        var rs = String(r || "");
+                        if (rs.indexOf("OK") === 0) ok++;
+                        else if (rs === "ERROR:LimitReached") { errMsg = "Достигнут лимит вложений (50)"; break; }
+                        else if (rs.indexOf("ERROR") === 0) { errMsg = rs; break; }
+                    } catch (e2) { errMsg = e2.message || String(e2); break; }
+                }
+                if (errMsg) alert("Прикреплено: " + ok + ". Ошибка: " + errMsg);
+                tcmRenderAttachments(_tcmData);
+                tcmInvalidateRevsCache();
+            });
         } catch (e) {
             alert("Ошибка открытия диалога: " + (e.message || e));
         }
