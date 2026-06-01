@@ -208,6 +208,9 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "PickLocalFiles":          return DoPickLocalFiles( inputParams );
             case "PickStorageContainer":    return DoPickStorageContainer( inputParams );
             case "AttachLocalFile":         return DoAttachLocalFile( inputParams );
+            case "EditLocalFile":           return DoEditLocalFile( inputParams );
+            case "SaveLocalFileEdit":       return DoSaveLocalFileEdit( inputParams );
+            case "CancelLocalFileEdit":     return DoCancelLocalFileEdit( inputParams );
             case "AddComment":    return DoAddComment( inputParams );
             case "GetComments":   return DoGetComments( inputParams );
             case "DeleteComment": return DoDeleteComment( inputParams );
@@ -2280,9 +2283,42 @@ private object DoGetAttachments( object inputParams )
                     var name = io.ToString() ?? key;
                     var tmpl = "";
                     try { tmpl = io.Template != null ? (io.Template.NameUI ?? "") : ""; } catch { }
+
+                    // Признак локального файла: тело файла хранится прямо в Body
+                    // самого объекта (Простой документ без версий). Для такого
+                    // объекта доступны открытие файлом и редактирование (check-out).
+                    var isFile = "0";
+                    var lockState = "";   // "", "me", "other"
+                    var lockBy = "";
+                    try
+                    {
+                        var fd = io.GetValue<FileDesc>( "Body" );
+                        if( fd != null && fd.IsFileBodyExists )
+                        {
+                            isFile = "1";
+                            try
+                            {
+                                if( io.IsLocked )
+                                {
+                                    lockState = io.IsLockedByMe ? "me" : "other";
+                                    if( !io.IsLockedByMe )
+                                    {
+                                        try { var ul = io.UserLock; if( ul != null && ul.User != null ) lockBy = ul.User.ToString() ?? ""; }
+                                        catch { }
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+
                     sb.Append( "{\"key\":\"" + JsonEscape( key  ) + "\","
                              + "\"name\":\"" + JsonEscape( name ) + "\","
                              + "\"tmpl\":\"" + JsonEscape( tmpl ) + "\","
+                             + "\"isfile\":\"" + isFile + "\","
+                             + "\"lock\":\"" + lockState + "\","
+                             + "\"lockby\":\"" + JsonEscape( lockBy ) + "\","
                              + "\"type\":\"object\"}" );
                     first = false;
                 }
@@ -2479,6 +2515,30 @@ private object DoOpenObject( object inputParams )
             var ioKey = string.IsNullOrEmpty( io.NameKey ) ? io.Id.ToString() : io.NameKey;
             if( ioKey == objKey )
             {
+                // Локальный файл (Простой документ без версий) хранит тело прямо
+                // в Body на самом объекте - открываем файл сразу в ассоциированном
+                // приложении, минуя карточку свойств. У Технического документа
+                // Body лежит на версии (ActualVersion), не на главном объекте, -
+                // для него остаётся штатное открытие карточки.
+                try
+                {
+                    var fd = io.GetValue<FileDesc>( "Body" );
+                    if( fd != null && fd.IsFileBodyExists )
+                    {
+                        var name = fd.OriginalName;
+                        if( string.IsNullOrEmpty( name ) )
+                            name = io.GetString( "FileName" )
+                                ?? io.GetString( "DocumentName" )
+                                ?? "file";
+                        var dir = System.IO.Path.Combine( System.IO.Path.GetTempPath(), "KanbanFiles" );
+                        try { System.IO.Directory.CreateDirectory( dir ); } catch { }
+                        var path = fd.WriteFileTo( dir, name );
+                        System.Diagnostics.Process.Start( path );
+                        return "OK";
+                    }
+                }
+                catch { /* не вышло открыть файлом - падаем на карточку */ }
+
                 Service.UI.OpenPropertiesPane( io );
                 return "OK";
             }
@@ -2486,6 +2546,192 @@ private object DoOpenObject( object inputParams )
         return "ERROR:ObjectNotFound";
     }
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
+}
+
+// ─── Редактирование локального файла (check-out / check-in) ───
+// Файл (Простой документ без версий) скачивается в стабильную папку
+// %TEMP%\KanbanEdit\<id>\<name>, открывается в ассоциированном приложении,
+// объект блокируется долговременной блокировкой. По кнопке "Сохранить в PLM"
+// изменённый файл заливается обратно в Body и блокировка снимается.
+
+// Находит вложенный ИО задачи по ключу
+private InfoObject FindAttachedObject( InfoObject task, string objKey )
+{
+    try
+    {
+        var attr = task.GetAttribute( "AttachedObjects" );
+        var set  = attr.LinkedInfoObjects.SafeToSet();
+        foreach( InfoObject io in set )
+        {
+            var k = string.IsNullOrEmpty( io.NameKey ) ? io.Id.ToString() : io.NameKey;
+            if( k == objKey ) return io;
+        }
+    }
+    catch { }
+    return null;
+}
+
+// Стабильный путь локальной копии для редактирования
+private string GetEditFilePath( InfoObject io )
+{
+    string name = null;
+    try { var fd = io.GetValue<FileDesc>( "Body" ); if( fd != null ) name = fd.OriginalName; } catch { }
+    if( string.IsNullOrEmpty( name ) )
+        name = io.GetString( "FileName" ) ?? io.GetString( "DocumentName" ) ?? "file";
+    // Убираем недопустимые символы из имени
+    try { foreach( var c in System.IO.Path.GetInvalidFileNameChars() ) name = name.Replace( c, '_' ); } catch { }
+    var dir = System.IO.Path.Combine( System.IO.Path.GetTempPath(), "KanbanEdit", io.Id.ToString() );
+    return System.IO.Path.Combine( dir, name );
+}
+
+// EditLocalFile: "taskNameKey|objectKey"
+// Блокирует объект, скачивает файл, открывает в ассоциированном приложении.
+private object DoEditLocalFile( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var task = GetTaskByKeyOrNull( parts[0].Trim() );
+    if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
+
+    var io = FindAttachedObject( task, parts[1].Trim() );
+    if( io == null ) return "ERROR:ObjectNotFound";
+
+    FileDesc fd = null;
+    try { fd = io.GetValue<FileDesc>( "Body" ); } catch { }
+    if( fd == null || !fd.IsFileBodyExists ) return "ERROR:NotLocalFile";
+
+    // Проверка чужой блокировки
+    try
+    {
+        if( io.IsLocked && !io.IsLockedByMe )
+        {
+            var who = "";
+            try { var ul = io.UserLock; if( ul != null && ul.User != null ) who = ul.User.ToString() ?? ""; } catch { }
+            return "ERROR:LockedByOther:" + who;
+        }
+    }
+    catch { }
+
+    try
+    {
+        if( !io.IsLocked ) io.Lock();
+    }
+    catch( Exception lex ) { return "ERROR:LockFailed:" + lex.Message; }
+
+    try
+    {
+        var path = GetEditFilePath( io );
+        var dir  = System.IO.Path.GetDirectoryName( path );
+        try { System.IO.Directory.CreateDirectory( dir ); } catch { }
+        var name = System.IO.Path.GetFileName( path );
+        var written = fd.WriteFileTo( dir, name );
+        System.Diagnostics.Process.Start( written );
+        return "OK";
+    }
+    catch( Exception ex )
+    {
+        try { if( io.IsLockedByMe ) io.Unlock(); } catch { }
+        Service.HandleException( ex, "Ошибка открытия файла на редактирование" );
+        return "ERROR:" + ex.Message;
+    }
+}
+
+// SaveLocalFileEdit: "taskNameKey|objectKey"
+// Заливает изменённый локальный файл обратно в Body и снимает блокировку.
+private object DoSaveLocalFileEdit( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var task = GetTaskByKeyOrNull( parts[0].Trim() );
+    if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
+
+    var io = FindAttachedObject( task, parts[1].Trim() );
+    if( io == null ) return "ERROR:ObjectNotFound";
+
+    try
+    {
+        if( io.IsLocked && !io.IsLockedByMe ) return "ERROR:LockedByOther";
+    }
+    catch { }
+
+    var path = GetEditFilePath( io );
+    if( !System.IO.File.Exists( path ) ) return "ERROR:LocalFileMissing";
+
+    try
+    {
+        // Файл может быть всё ещё открыт в Word/Excel/CAD (эксклюзивная блокировка
+        // на запись). Читаем его через FileShare.ReadWrite в память - так чтение
+        // не конфликтует с открытым приложением. Заливаем снимок в Body.
+        var fileName = System.IO.Path.GetFileName( path );
+        DateTime created  = DateTime.Now, modified = DateTime.Now;
+        try { created  = System.IO.File.GetCreationTime( path );  } catch { }
+        try { modified = System.IO.File.GetLastWriteTime( path ); } catch { }
+
+        var editIo = io.GetEditable();
+        bool uploaded = false;
+        try
+        {
+            byte[] bytes;
+            using( var fs = new System.IO.FileStream( path, System.IO.FileMode.Open,
+                       System.IO.FileAccess.Read, System.IO.FileShare.ReadWrite ) )
+            using( var ms = new System.IO.MemoryStream() )
+            {
+                fs.CopyTo( ms );
+                bytes = ms.ToArray();
+            }
+            var upStream = new System.IO.MemoryStream( bytes );
+            editIo.GetAttribute( "Body" ).Value.UploadFile( upStream, fileName, created, modified );
+            uploaded = true;
+        }
+        catch( System.IO.IOException )
+        {
+            // Файл занят так, что даже share-чтение не вышло - просим закрыть.
+            return "ERROR:FileBusy";
+        }
+
+        if( !uploaded ) return "ERROR:ReadFailed";
+
+        using( Service.EnterNewGroupOperation() )
+        {
+            editIo.Save();
+            Service.SaveChanges();
+        }
+        try { if( editIo.IsLockedByMe ) editIo.Unlock(); }
+        catch { try { if( io.IsLockedByMe ) io.Unlock(); } catch { } }
+        try { System.IO.File.Delete( path ); } catch { }
+        return "OK";
+    }
+    catch( Exception ex )
+    {
+        Service.HandleException( ex, "Ошибка сохранения файла в PLM" );
+        return "ERROR:" + ex.Message;
+    }
+}
+
+// CancelLocalFileEdit: "taskNameKey|objectKey"
+// Снимает блокировку без сохранения, удаляет временную копию.
+private object DoCancelLocalFileEdit( object inputParams )
+{
+    var raw   = GetParamStr( inputParams );
+    var parts = ParsePipeArgs( raw, 2 );
+    if( parts.Length < 2 ) return "ERROR:BadFormat";
+
+    var task = GetTaskByKeyOrNull( parts[0].Trim() );
+    if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
+
+    var io = FindAttachedObject( task, parts[1].Trim() );
+    if( io == null ) return "ERROR:ObjectNotFound";
+
+    try { if( io.IsLockedByMe ) io.Unlock(); } catch { }
+    try { var p = GetEditFilePath( io ); if( System.IO.File.Exists( p ) ) System.IO.File.Delete( p ); } catch { }
+    return "OK";
 }
 
 // PickObject

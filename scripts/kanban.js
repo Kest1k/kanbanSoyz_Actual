@@ -2885,6 +2885,25 @@
                     iconHtml = '<i class="fa fa-file-o" style="color:#2563eb;"></i>';
                     typeLabel = it.tmpl || "";
                 }
+                // Кнопки редактирования для локальных файлов (check-out/check-in)
+                var editHtml = "";
+                if (it.isfile === "1") {
+                    var k = tcmAttEsc(it.key);
+                    if (it.lock === "me") {
+                        editHtml =
+                            '<span class="tcm-att-editing" title="Вы редактируете этот файл">' +
+                            '<i class="fa fa-pencil"></i> редактируется</span>' +
+                            '<button class="tcm-att-act tcm-att-save" onclick="tcmAttSaveLocal(\'' + k + '\'); return false;" title="Залить изменения обратно в PLM">Сохранить в PLM</button>' +
+                            '<button class="tcm-att-act tcm-att-cancel" onclick="tcmAttCancelLocal(\'' + k + '\'); return false;" title="Отменить редактирование, снять блокировку">Отменить</button>';
+                    } else if (it.lock === "other") {
+                        editHtml =
+                            '<span class="tcm-att-locked" title="Файл редактирует другой пользователь">' +
+                            '<i class="fa fa-lock"></i> ' + tcmAttEsc(it.lockby || "занят") + '</span>';
+                    } else {
+                        editHtml =
+                            '<button class="tcm-att-act tcm-att-edit" onclick="tcmAttEditLocal(\'' + k + '\'); return false;" title="Открыть для редактирования (блокирует файл)"><i class="fa fa-pencil"></i> Редактировать</button>';
+                    }
+                }
                 var div = document.createElement("div");
                 div.className = "tcm-att-item";
                 div.innerHTML =
@@ -2892,6 +2911,7 @@
                     '<a href="#" class="tcm-att-name" onclick="tcmAttOpen(\'' + tcmAttEsc(it.key) + '\',\'' + tcmAttEsc(it.type || 'object') + '\'); return false;" title="' + tcmAttEsc(it.name) + '">' + tcmAttEsc(it.name) + '</a>' +
                     '<span class="tcm-att-type">(' + tcmAttEsc(typeLabel) + ')</span>' +
                     '<span class="tcm-att-date">' + tcmAttEsc(it.date || "") + '</span>' +
+                    editHtml +
                     '<button class="tcm-att-del" onclick="tcmAttRemove(\'' + tcmAttEsc(it.key) + '\',\'' + tcmAttEsc(it.type || 'object') + '\'); return false;" title="Открепить">&times;</button>';
                 list.appendChild(div);
             }
@@ -2908,6 +2928,65 @@
             window.external.InvokeTemplate(cmd, _tcmData.nameKey + "|" + objKey);
         } catch (e) {
             alert("Не удалось открыть объект: " + (e.message || e));
+        }
+    };
+
+    // Взять локальный файл на редактирование (check-out): блокирует, скачивает, открывает
+    window.tcmAttEditLocal = function (objKey) {
+        if (!_tcmData || !_tcmData.nameKey) return;
+        try {
+            var res = window.external.InvokeTemplate("EditLocalFile", _tcmData.nameKey + "|" + objKey);
+            var s = String(res || "");
+            if (s.indexOf("OK") === 0) {
+                tcmRenderAttachments(_tcmData);
+                tcmInvalidateRevsCache();
+                alert("Файл открыт для редактирования.\nПосле правки и сохранения в программе вернитесь сюда и нажмите «Сохранить в PLM».");
+                return;
+            }
+            if (s.indexOf("ERROR:LockedByOther") === 0) {
+                var who = s.substring("ERROR:LockedByOther:".length);
+                alert("Файл уже редактирует другой пользователь" + (who ? ": " + who : "") + ".");
+                return;
+            }
+            if (s === "ERROR:NotLocalFile") { alert("Этот объект не является локальным файлом."); return; }
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка: " + s); return; }
+        } catch (e) {
+            alert("Ошибка открытия на редактирование: " + (e.message || e));
+        }
+    };
+
+    // Сохранить изменённый локальный файл обратно в PLM (check-in)
+    window.tcmAttSaveLocal = function (objKey) {
+        if (!_tcmData || !_tcmData.nameKey) return;
+        try {
+            var res = window.external.InvokeTemplate("SaveLocalFileEdit", _tcmData.nameKey + "|" + objKey);
+            var s = String(res || "");
+            if (s === "OK") {
+                tcmRenderAttachments(_tcmData);
+                tcmInvalidateRevsCache();
+                alert("Изменения сохранены в PLM.");
+                return;
+            }
+            if (s === "ERROR:LocalFileMissing") { alert("Локальная копия файла не найдена. Возможно, редактирование было отменено."); return; }
+            if (s === "ERROR:LockedByOther") { alert("Файл заблокирован другим пользователем."); return; }
+            if (s === "ERROR:FileBusy") { alert("Файл занят и не читается. Сохраните и закройте его в программе, затем повторите."); return; }
+            if (s === "ERROR:ReadFailed") { alert("Не удалось прочитать локальную копию. Повторите попытку."); return; }
+            if (s.indexOf("ERROR") === 0) { alert("Ошибка сохранения: " + s); return; }
+        } catch (e) {
+            alert("Ошибка сохранения: " + (e.message || e));
+        }
+    };
+
+    // Отменить редактирование локального файла (снять блокировку без сохранения)
+    window.tcmAttCancelLocal = function (objKey) {
+        if (!_tcmData || !_tcmData.nameKey) return;
+        if (!confirm("Отменить редактирование? Несохранённые изменения в PLM не попадут.")) return;
+        try {
+            window.external.InvokeTemplate("CancelLocalFileEdit", _tcmData.nameKey + "|" + objKey);
+            tcmRenderAttachments(_tcmData);
+            tcmInvalidateRevsCache();
+        } catch (e) {
+            alert("Ошибка отмены: " + (e.message || e));
         }
     };
 
