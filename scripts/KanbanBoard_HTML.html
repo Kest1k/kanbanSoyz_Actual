@@ -350,6 +350,9 @@
                     {% if t.returnCount > 0 %}
                     <span class="kb-badge-returned" title="Возвращалась {{ t.returnCount }} раз(а)">↩ {{ t.returnCount }}</span>
                     {% endif %}
+                    {% if t.hasDirectumLink == "1" %}
+                    <span class="kb-dlink-badge" title="Есть ссылка Directum">D</span>
+                    {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
                         <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
@@ -434,6 +437,9 @@
                     {% if t.returnCount > 0 %}
                     <span class="kb-badge-returned" title="Возвращалась {{ t.returnCount }} раз(а)">↩ {{ t.returnCount }}</span>
                     {% endif %}
+                    {% if t.hasDirectumLink == "1" %}
+                    <span class="kb-dlink-badge" title="Есть ссылка Directum">D</span>
+                    {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
                         <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
@@ -514,6 +520,9 @@
                     {% if t.returnCount > 0 %}
                     <span class="kb-badge-returned" title="Возвращалась {{ t.returnCount }} раз(а)">↩ {{ t.returnCount }}</span>
                     {% endif %}
+                    {% if t.hasDirectumLink == "1" %}
+                    <span class="kb-dlink-badge" title="Есть ссылка Directum">D</span>
+                    {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge" title="Вложения: {{ t.attachmentCount }}">
                         <i class="fa fa-paperclip"></i> {{ t.attachmentCount }}
@@ -581,6 +590,9 @@
                     {% endif %}
                     {% if t.returnCount > 0 %}
                     <span class="kb-badge-returned" title="Возвращалась {{ t.returnCount }} раз(а)">↩ {{ t.returnCount }}</span>
+                    {% endif %}
+                    {% if t.hasDirectumLink == "1" %}
+                    <span class="kb-dlink-badge" title="Есть ссылка Directum">D</span>
                     {% endif %}
                     {% if t.attachmentCount > 0 %}
                     <span class="kb-attach-badge">
@@ -734,7 +746,7 @@
                             </span>
                         </label>
                     </div>
-                    <div class="tcm-fg">
+                    <div class="tcm-fg" id="tcm-original-due-group" style="display:none;">
                         <label class="tcm-lbl">Изначальный срок</label>
                         <div id="tcm-original-due" class="tcm-original-due" style="display:none;"></div>
                     </div>
@@ -749,7 +761,6 @@
                         placeholder="Через запятую...">
                     <div id="tcm-tag-suggestions" class="tcm-tag-suggestions"></div>
                 </div>
-                <div class="tcm-meta" id="tcm-meta"></div>
                 <div class="tcm-msg tcm-msg-ok" id="tcm-msg-ok">Сохранено!</div>
                 <div class="tcm-msg tcm-msg-err" id="tcm-msg-err"></div>
                 <div class="tcm-att" id="tcm-att">
@@ -767,6 +778,23 @@
                         <div class="tcm-att-results" id="tcm-att-results"></div>
                     </div>
                 </div>
+                <div class="tcm-dlinks" id="tcm-dlinks">
+                    <div class="tcm-lbl">ССЫЛКИ DIRECTUM <span class="tcm-att-count" id="tcm-dlinks-count"></span></div>
+                    <div class="tcm-dlinks-list" id="tcm-dlinks-list"></div>
+                    <div class="tcm-dlink-add" id="tcm-dlink-add" style="display:none;">
+                        <input type="text" id="tcm-dlink-input" class="form-control input-sm"
+                            placeholder="http://server-d:8080/job.asp?sys=...&amp;id=..."
+                            onkeydown="tcmDlinkAddKeydown(event)">
+                        <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmDlinkAdd()"
+                            style="font-size:12px; padding:3px 10px;">Добавить</button>
+                        <button type="button" class="tcm-btn tcm-btn-secondary" onclick="tcmDlinkAddCancel()"
+                            style="font-size:12px; padding:3px 10px;">Отмена</button>
+                    </div>
+                    <button type="button" class="tcm-btn tcm-btn-secondary" id="tcm-dlink-addbtn"
+                        onclick="tcmDlinkAddShow()" style="font-size:12px; padding:3px 10px;">+ Добавить ссылку</button>
+                    <div id="tcm-dlink-msg" class="tcm-dlink-msg"></div>
+                </div>
+                <div class="tcm-meta" id="tcm-meta"></div>
             </div>
             <div id="tcm-tab-subt" class="tcm-tab-content">
                 <div class="kb-subt-header">
@@ -782,13 +810,13 @@
             </div>
             <div id="tcm-tab-chat" class="tcm-tab-content">
                 <div class="tcm-chat" id="tcm-chat">
-                    <div class="tcm-chat-list" id="tcm-chat-list"></div>
                     <div class="tcm-chat-input">
                         <textarea id="tcm-chat-text" class="tcm-area" placeholder="Написать комментарий..."
                             onkeydown="tcmChatKeydown(event)"></textarea>
                         <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSendComment()"
                             style="padding:6px 14px; font-size:12px;">Отправить</button>
                     </div>
+                    <div class="tcm-chat-list" id="tcm-chat-list"></div>
                 </div>
             </div>
             <div id="tcm-tab-hist" class="tcm-tab-content">
@@ -928,6 +956,17 @@
                             сохранения. <i>Файлы режима «В хранилище PLM» (Технические документы) редактируются
                             штатными средствами PLM – «Взять для редактирования» / «Сохранить в PLM».</i>
                         </td>
+                    </tr>
+                    <tr>
+                        <td class="help-action"><i class="fa fa-external-link" style="color:#ed7d1a;"></i> Ссылки
+                            Directum</td>
+                        <td>Внизу карточки в блоке <b>«Ссылки Directum»</b> можно прикрепить объекты из Directum –
+                            <b>карточку задачи, документ, папку</b>. В Directum щёлкните по объекту
+                            <b>правой кнопкой мыши → «Копировать ссылку»</b>, затем в карточке нажмите
+                            <b>«+ Добавить ссылку»</b>, вставьте ссылку (вида <i>http://server-d:8080/…</i>) и
+                            <b>«Добавить»</b>. Ссылок может быть несколько. <b>Клик по ссылке сразу открывает
+                            страницу в Directum</b> – без скачивания файла. Значок <b style="color:#ed7d1a;">D</b>
+                            на карточке доски = у задачи есть ссылка. Добавлять может любой, кто видит задачу.</td>
                     </tr>
                     <tr>
                         <td class="help-action"><i class="fa fa-comment"></i> Комментарии</td>
@@ -1135,6 +1174,32 @@
             <button type="button" class="tcm-close" onclick="closeWhatsNew()" title="Закрыть">&#215;</button>
         </div>
         <div class="help-body">
+            <div style="margin-bottom: 20px; border-left: 3px solid #ed7d1a; padding-left: 15px;">
+                <div style="font-weight: bold; font-size: 14px; color: #1f2937;">
+                    <i class="fa fa-external-link" style="color:#ed7d1a;"></i> Ссылки на Directum в задаче
+                </div>
+                <div style="font-size: 11px; color: #6b7280; margin-bottom: 8px;">01.06.2026</div>
+                <ul class="help-tips">
+                    <li>В карточке задачи (внизу, рядом с вложениями) появился блок <b>«Ссылки Directum»</b>.
+                        К задаче можно прикрепить <b>карточку задачи, документ или папку</b> из Directum.</li>
+                    <li><b>Как получить ссылку:</b> в Directum щёлкните по нужному объекту (задаче, документу,
+                        папке) <b>правой кнопкой мыши → «Копировать ссылку»</b>. Затем в карточке нажмите
+                        <b>«+ Добавить ссылку»</b>, вставьте скопированную ссылку (вида
+                        <i>http://server-d:8080/…</i>) и нажмите <b>«Добавить»</b>.</li>
+                    <li>Ссылок может быть <b>несколько</b>. Каждая отображается компактным оранжевым значком
+                        <b style="color:#ed7d1a;">D</b> с номером объекта.</li>
+                    <li><b>Клик по ссылке сразу открывает нужную страницу в Directum</b> – без скачивания
+                        .isb-файла и без лишних окон браузера. Тип объекта определяется автоматически.</li>
+                    <li>Если у задачи есть ссылка, на карточке доски виден оранжевый значок
+                        <b style="color:#ed7d1a;">D</b> – сразу понятно, что задача связана с объектом Directum.</li>
+                    <li>Добавлять и открывать ссылки может <b>любой, кто видит задачу</b> (как вложения и
+                        комментарии), а не только автор.</li>
+                    <li><b>Мелкие доработки интерфейса:</b> в обсуждении строка ввода комментария теперь сверху;
+                        в чек-листе выполненные пункты автоматически уходят вниз, а новые добавляются сверху
+                        (перетаскивание мышью сохранилось); карточка задачи стала чище – служебная строка
+                        «Создано / Поручил» убрана вниз.</li>
+                </ul>
+            </div>
             <div style="margin-bottom: 20px; border-left: 3px solid #0ea5e9; padding-left: 15px;">
                 <div style="font-weight: bold; font-size: 14px; color: #1f2937;">
                     <i class="fa fa-paperclip" style="color:#0ea5e9;"></i> Прикрепление файлов с компьютера

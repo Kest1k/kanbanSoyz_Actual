@@ -211,6 +211,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "EditLocalFile":           return DoEditLocalFile( inputParams );
             case "SaveLocalFileEdit":       return DoSaveLocalFileEdit( inputParams );
             case "CancelLocalFileEdit":     return DoCancelLocalFileEdit( inputParams );
+            case "OpenDirectumLink":        return DoOpenDirectumLink( inputParams );
             case "AddComment":    return DoAddComment( inputParams );
             case "GetComments":   return DoGetComments( inputParams );
             case "DeleteComment": return DoDeleteComment( inputParams );
@@ -223,6 +224,8 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "EditSubtask":     return DoEditSubtask( inputParams );
             case "ReorderSubtasks": return DoReorderSubtasks( inputParams );
             case "ClearAutoOpen": obj.PropertyBag.Remove( "AutoOpenTask" ); return "OK";
+            case "GetWhatsNewSeen": return DoGetWhatsNewSeen();
+            case "SetWhatsNewSeen": return DoSetWhatsNewSeen( inputParams );
         }
     }
     catch( Exception ex )
@@ -1062,6 +1065,10 @@ private object BuildCardData( InfoObject task, int status )
     try { subtaskTotal = task.GetValue<int>( "SubtasksTotal" ); } catch { }
     try { subtaskDone  = task.GetValue<int>( "SubtasksDone"  ); } catch { }
 
+    string directumLink = "";
+    try { directumLink = task.GetString( "DirectumLink" ) ?? ""; } catch { }
+    string hasDirectumLink = string.IsNullOrEmpty( directumLink.Trim() ) ? "0" : "1";
+
     return new {
         id              = taskId,
         isOwner         = isOwner,
@@ -1079,6 +1086,7 @@ private object BuildCardData( InfoObject task, int status )
         returnCount     = returnCount,
         isPrivate       = isPrivate,
         attachmentCount = GetAttachmentCount( task ),
+        hasDirectumLink = hasDirectumLink,
         commentCount    = GetCommentCount( task ),
         subtaskTotal    = subtaskTotal,
         subtaskDone     = subtaskDone,
@@ -1303,6 +1311,27 @@ private object DoSetViewMode( InfoObject obj, object inputParams )
     if( string.IsNullOrEmpty( mode ) ) mode = "my";
     obj.PropertyBag["KbViewMode"] = mode;
     return "OK";
+}
+
+// «Что нового»: персональная отметка о просмотренной версии хранится в пользовательском
+// реестре PLM (per-user, переживает перезапуск, у пользователя есть права на свою ветку).
+// Сигнатура версии вычисляется на клиенте по верхней записи списка (её дате) – ручной
+// "бамп" не нужен: добавили новую запись сверху → сигнатура сменилась → кнопка снова пульсирует.
+private object DoGetWhatsNewSeen()
+{
+    try { return Service.GetUserRegistryValue<string>( @"KanbanScreen\WhatsNewSeen", "" ) ?? ""; }
+    catch { return ""; }
+}
+
+private object DoSetWhatsNewSeen( object inputParams )
+{
+    try
+    {
+        var sig = GetParamStr( inputParams ) ?? "";
+        Service.SetUserRegistryValue<string>( @"KanbanScreen\WhatsNewSeen", sig );
+        return "OK";
+    }
+    catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
 // Invoke: GetHierarchyInfo
@@ -1645,6 +1674,8 @@ private object DoGetTaskDetails( object inputParams )
     string details      = task.GetString( "TaskDetails" ) ?? "";
     string tags         = "";
     try { tags = task.GetString( "Tags" ) ?? ""; } catch { }
+    string directumLink = "";
+    try { directumLink = task.GetString( "DirectumLink" ) ?? ""; } catch { }
     string dueDate      = "";
     string createdAt    = "";
     string completedAt  = "";
@@ -1859,6 +1890,7 @@ private object DoGetTaskDetails( object inputParams )
     sb.Append( "\"returnCount\":"    + returnCount                 + "," );
     sb.Append( "\"isPrivate\":"      + (isPrivate ? "true" : "false") + "," );
     sb.Append( "\"details\":\""      + JsonEscape( details )       + "\"," );
+    sb.Append( "\"directumLink\":\"" + JsonEscape( directumLink )  + "\"," );
     sb.Append( "\"createdAt\":\""    + JsonEscape( createdAt )     + "\"," );
     sb.Append( "\"completedAt\":\""  + JsonEscape( completedAt )   + "\"," );
     sb.Append( "\"isOwner\":"        + (isOwner ? "true" : "false")     + "," );
@@ -1932,12 +1964,12 @@ private object DoGetTaskDetails( object inputParams )
 }
 
 // SaveTask
-// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|isPrivate|details"
-// details может содержать символы | – Split с лимитом 9 берёт всё остальное
+// inputParams: "nameKey|title|status|priorityKey|dueDate|tags|assigneeKey|isPrivate|directumLink|details"
+// details может содержать символы | – Split с лимитом 10 берёт всё остальное
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 9 );
+    var parts = ParsePipeArgs( raw, 10 );
 
     var nameKey       = parts.Length > 0 ? parts[0].Trim() : "";
     var title         = parts.Length > 1 ? parts[1].Trim() : "";
@@ -1946,12 +1978,21 @@ private object DoSaveTask( object inputParams )
     var dueDateStr    = parts.Length > 4 ? parts[4].Trim() : "";
     var tagsStr       = parts.Length > 5 ? parts[5].Trim() : "";
     var assigneeKeyIn = parts.Length > 6 ? parts[6].Trim() : "";
-    var isPrivateIn   = "";
-    var detailsStr    = "";
-    if( parts.Length > 8 )
+    var isPrivateIn    = "";
+    var directumLinkIn = "";
+    var detailsStr     = "";
+    if( parts.Length > 9 )
     {
+        // Новый формат: …|isPrivate|directumLink|details
+        isPrivateIn    = parts[7].Trim();
+        directumLinkIn = parts[8].Trim();
+        detailsStr     = parts[9];    // НЕ Trim – пробелы в конце важны
+    }
+    else if( parts.Length > 8 )
+    {
+        // Прежний формат: …|isPrivate|details
         isPrivateIn = parts[7].Trim();
-        detailsStr  = parts[8];       // НЕ Trim – пробелы в конце важны
+        detailsStr  = parts[8];
     }
     else
     {
@@ -2012,6 +2053,8 @@ private object DoSaveTask( object inputParams )
     string oldTags      = "";
     bool   oldIsPrivate = IsTaskPrivate( task );
     try { oldTags = task.GetString( "Tags" ) ?? ""; } catch { }
+    string oldDirectumLink = "";
+    try { oldDirectumLink = task.GetString( "DirectumLink" ) ?? ""; } catch { }
     string oldPrioKey   = "";
     string oldPrioName  = "";
     string oldDueDate   = "";
@@ -2053,6 +2096,10 @@ private object DoSaveTask( object inputParams )
             task["DueDate"] = null;
         }
     }
+
+    // Ссылки Directum может добавлять/менять любой, кто видит задачу (как вложения и
+    // комментарии), а не только автор — поэтому пишем вне блока canFullEdit.
+    task["DirectumLink"] = directumLinkIn;
 
     if( oldStatus == STATUS_DONE && newStatus != STATUS_DONE )
         return "ERROR:ReturnReasonRequired";
@@ -2142,6 +2189,12 @@ private object DoSaveTask( object inputParams )
             changes.Append( "{\"f\":\"Теги\",\"o\":\"" + JsonEscape( oldTags ) + "\",\"n\":\"" + JsonEscape( tagsStr ) + "\"}" );
             hasChange = true;
         }
+        if( directumLinkIn != oldDirectumLink )
+        {
+            if( hasChange ) changes.Append( "," );
+            changes.Append( "{\"f\":\"Ссылка Directum\",\"o\":\"" + JsonEscape( oldDirectumLink ) + "\",\"n\":\"" + JsonEscape( directumLinkIn ) + "\"}" );
+            hasChange = true;
+        }
         if( canFullEdit && (isPrivateIn == "1" || isPrivateIn == "0") && (isPrivateIn == "1") != oldIsPrivate )
         {
             if( hasChange ) changes.Append( "," );
@@ -2176,6 +2229,101 @@ private object DoSaveTask( object inputParams )
 
     task.Save();
     return "OK";
+}
+
+// OpenDirectumLink
+// inputParams: полная ссылка Directum, напр. http://server-d:8080/job.asp?sys=dir54&id=4083827
+// Тихо (без браузера) тянем .isb с сервера обычным HTTP-запросом, сохраняем во временную
+// папку Kanban и открываем ассоциированной программой (ISBExec) – страница Directum
+// открывается напрямую. ComponentType (задание=10/документ=8/…) проставляет сам сервер.
+// При недоступности сервера возвращаем FetchFailed – клиент откроет ссылку штатно (браузером).
+// Возвращает: OK | ERROR:EmptyLink | ERROR:BadLink | ERROR:FetchFailed | ERROR:NoAssoc | ERROR:<текст>
+private object DoOpenDirectumLink( object inputParams )
+{
+    var url = GetParamStr( inputParams );
+    if( url != null ) url = url.Trim();
+    if( string.IsNullOrEmpty( url ) ) return "ERROR:EmptyLink";
+
+    string sys = null, id = null;
+    try
+    {
+        var mSys = System.Text.RegularExpressions.Regex.Match(
+            url, @"[?&]sys=([^&\s]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase );
+        if( mSys.Success ) sys = System.Uri.UnescapeDataString( mSys.Groups[1].Value );
+
+        var mId = System.Text.RegularExpressions.Regex.Match(
+            url, @"[?&]id=([^&\s]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase );
+        if( mId.Success ) id = System.Uri.UnescapeDataString( mId.Groups[1].Value );
+    }
+    catch { }
+
+    if( string.IsNullOrEmpty( sys ) || string.IsNullOrEmpty( id ) )
+        return "ERROR:BadLink";
+
+    // Тихо скачиваем настоящий .isb прямо с сервера Directum обычным HTTP-запросом из кода –
+    // без браузера и без ручного сохранения. Сервер сам подставляет правильный ComponentType
+    // (задание = 10, документ = 8 и т.д.), поэтому одинаковые на вид ссылки на задание и на
+    // документ открываются корректно. Учётные данные – текущего пользователя (NTLM/Kerberos).
+    string isb = null;
+    if( url.StartsWith( "http://", StringComparison.OrdinalIgnoreCase )
+     || url.StartsWith( "https://", StringComparison.OrdinalIgnoreCase ) )
+    {
+        try
+        {
+            var req = (System.Net.HttpWebRequest)System.Net.WebRequest.Create( url );
+            req.Method                = "GET";
+            req.UseDefaultCredentials = true;
+            req.AllowAutoRedirect     = true;
+            req.Timeout               = 15000;
+            req.UserAgent             = "KanbanSoyz";
+            using( var resp = (System.Net.HttpWebResponse)req.GetResponse() )
+            using( var sr   = new System.IO.StreamReader( resp.GetResponseStream(), System.Text.Encoding.GetEncoding( 1251 ) ) )
+            {
+                var body = sr.ReadToEnd();
+                // Принимаем ответ, только если это действительно .isb-файл
+                if( !string.IsNullOrEmpty( body )
+                 && body.IndexOf( "Version=ISB",    StringComparison.OrdinalIgnoreCase ) >= 0
+                 && body.IndexOf( "ComponentType=", StringComparison.OrdinalIgnoreCase ) >= 0 )
+                {
+                    isb = body;
+                }
+            }
+        }
+        catch { /* нет сети/сервера либо ответ не .isb – откат на штатное открытие в браузере */ }
+    }
+
+    // Сервер недоступен или вернул не .isb – пусть клиент откроет ссылку штатно (старый путь).
+    if( string.IsNullOrEmpty( isb ) )
+        return "ERROR:FetchFailed";
+
+    try
+    {
+        var dir = System.IO.Path.Combine( System.IO.Path.GetTempPath(), "KanbanFiles" );
+        try { System.IO.Directory.CreateDirectory( dir ); } catch { }
+
+        var safeId = id;
+        try { foreach( var c in System.IO.Path.GetInvalidFileNameChars() ) safeId = safeId.Replace( c, '_' ); } catch { }
+
+        var path = System.IO.Path.Combine( dir, safeId + ".isb" );
+        // .isb – ANSI-файл (Windows-1251); содержимое здесь только ASCII, но кодировку
+        // задаём явно, чтобы ISBExec гарантированно прочитал файл.
+        System.IO.File.WriteAllText( path, isb, System.Text.Encoding.GetEncoding( 1251 ) );
+
+        try
+        {
+            System.Diagnostics.Process.Start( path );
+        }
+        catch( System.ComponentModel.Win32Exception )
+        {
+            // Нет ассоциации .isb с ISBExec на этой машине (не установлен клиент Directum)
+            return "ERROR:NoAssoc";
+        }
+        return "OK";
+    }
+    catch( Exception ex )
+    {
+        return "ERROR:" + ex.Message;
+    }
 }
 
 // GetTaskHistory

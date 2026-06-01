@@ -859,11 +859,12 @@
                 return;
             }
 
-            for (var i = 0; i < items.length; i++) {
+            // Новые комментарии — сверху (строка ввода тоже сверху)
+            for (var i = items.length - 1; i >= 0; i--) {
                 list.appendChild(tcmRenderComment(items[i]));
             }
 
-            list.scrollTop = list.scrollHeight;
+            list.scrollTop = 0;
         } catch (e) {
             list.innerHTML = '<div class="tcm-chat-empty">Ошибка загрузки комментариев</div>';
             if (cnt) cnt.innerHTML = "";
@@ -932,8 +933,10 @@
                 var empty = list.querySelector(".tcm-chat-empty");
                 if (empty) list.removeChild(empty);
 
-                list.appendChild(tcmRenderComment(newComment));
-                list.scrollTop = list.scrollHeight;
+                var firstChild = list.firstChild;
+                if (firstChild) list.insertBefore(tcmRenderComment(newComment), firstChild);
+                else list.appendChild(tcmRenderComment(newComment));
+                list.scrollTop = 0;
             }
 
             var cnt = document.getElementById("tcm-chat-count");
@@ -1103,13 +1106,51 @@
     // Подзадачи / чек-лист
     var _tcmSubtasks = { taskKey: "", items: [] };
 
+    // Канонический порядок: невыполненные (в своём порядке) сверху,
+    // затем выполненные — последние отмеченные выше (по doneAt ↓).
+    function tcmSubtNormalize(items) {
+        items = items || [];
+        var undone = [], done = [];
+        for (var i = 0; i < items.length; i++) {
+            if (items[i] && items[i].done === "1") done.push(items[i]);
+            else undone.push(items[i]);
+        }
+        done.sort(function (a, b) { return String(b.doneAt || "").localeCompare(String(a.doneAt || "")); });
+        return undone.concat(done);
+    }
+
+    // Сохраняет текущий порядок пунктов на сервере (тот же путь, что и DnD).
+    function tcmSubtPersistOrder() {
+        var ids = [];
+        for (var i = 0; i < _tcmSubtasks.items.length; i++) ids.push(_tcmSubtasks.items[i].id);
+        if (!ids.length) return;
+        var safeKey  = String(_tcmSubtasks.taskKey).replace(/\|/g, "");
+        var orderStr = ids.join(",").replace(/\|/g, "");
+        try { window.external.InvokeTemplate("ReorderSubtasks", safeKey + "|" + orderStr); } catch (e) { }
+    }
+
+    // После переключения галочки: выполненный → наверх группы выполненных,
+    // снятый → наверх всего списка.
+    function tcmSubtMoveAfterToggle(idx) {
+        var arr = _tcmSubtasks.items;
+        if (idx < 0 || idx >= arr.length) return;
+        var it = arr.splice(idx, 1)[0];
+        if (it.done === "1") {
+            var firstDone = arr.length;
+            for (var i = 0; i < arr.length; i++) { if (arr[i].done === "1") { firstDone = i; break; } }
+            arr.splice(firstDone, 0, it);
+        } else {
+            arr.unshift(it);
+        }
+    }
+
     window.tcmSubtasksLoad = function (nameKey) {
         _tcmSubtasks.taskKey = nameKey || "";
         _tcmSubtasks.items   = [];
         var safeKey = String(nameKey || "").replace(/\|/g, "");
         try {
             var raw = window.external.InvokeTemplate("GetSubtasks", safeKey);
-            _tcmSubtasks.items = JSON.parse(String(raw || "[]"));
+            _tcmSubtasks.items = tcmSubtNormalize(JSON.parse(String(raw || "[]")));
             if (!_tcmSubtasks.items || !_tcmSubtasks.items.length) _tcmSubtasks.items = [];
         } catch (e) { _tcmSubtasks.items = []; }
         tcmSubtasksRender();
@@ -1152,13 +1193,12 @@
         }
         list.innerHTML = html || '<div class="kb-subt-empty">Нет подзадач</div>';
 
-        // Инжектируем линию-индикатор для DnD (единственный перемещаемый элемент)
+        // Линия-индикатор для DnD
         var dlExist = document.createElement("div");
         dlExist.id = "kb-subt-dropline";
         dlExist.style.display = "none";
         list.appendChild(dlExist);
 
-        // Скрываем индикатор когда мышь уходит за пределы списка
         list.ondragleave = function (event) {
             var related = event.relatedTarget || event.toElement;
             if (!related || !list.contains(related)) {
@@ -1195,9 +1235,10 @@
             var s = String(raw || "");
             if (s.indexOf("ERROR") === 0) { alert("Ошибка добавления: " + s); return; }
             var obj = JSON.parse(s);
-            _tcmSubtasks.items.push(obj);
+            _tcmSubtasks.items.unshift(obj);   // новый пункт — наверх
             inp.value = "";
             tcmSubtasksRender();
+            tcmSubtPersistOrder();             // зафиксировать порядок на сервере
             tcmInvalidateRevsCache();
             _tcmRevsLoaded = false;
             var rb = document.getElementById("tcm-revs-body");
@@ -1216,10 +1257,12 @@
             for (var i = 0; i < _tcmSubtasks.items.length; i++) {
                 if (_tcmSubtasks.items[i].id === subtaskId) {
                     _tcmSubtasks.items[i] = obj;
+                    tcmSubtMoveAfterToggle(i);  // выполненный → вниз, снятый → наверх
                     break;
                 }
             }
             tcmSubtasksRender();
+            tcmSubtPersistOrder();             // зафиксировать новый порядок
             tcmInvalidateRevsCache();
             _tcmRevsLoaded = false;
             var rb = document.getElementById("tcm-revs-body");
@@ -2504,6 +2547,8 @@
                 origDueEl.style.display = "none";
             }
         }
+        var origDueGroup = document.getElementById("tcm-original-due-group");
+        if (origDueGroup) origDueGroup.style.display = d.originalDueDate ? "" : "none";
         document.getElementById("tcm-details").value = d.details || "";
         tcmAutoSizeDetails();   // FIX-05
 
@@ -2523,6 +2568,21 @@
         var tagsEl = document.getElementById("tcm-tags");
         if (tagsEl) tagsEl.value = d.tags || "";
         tcmRenderTagSuggestions(d.availableTags || []);
+
+        // Ссылки Directum (список, хранится как строки через \n)
+        _tcmDlinks = [];
+        if (d.directumLink) {
+            var rawLinks = String(d.directumLink).split("\n");
+            for (var dli = 0; dli < rawLinks.length; dli++) {
+                var lk = rawLinks[dli].replace(/^\s+|\s+$/g, "");
+                if (lk) _tcmDlinks.push(lk);
+            }
+        }
+        _tcmDlinksCanEdit = true;   // ссылки добавляет любой, кто видит задачу (как вложения)
+        tcmDlinksRender();
+        tcmDlinkAddCancel();
+        var dlinkMsg = document.getElementById("tcm-dlink-msg");
+        if (dlinkMsg) { dlinkMsg.textContent = ""; dlinkMsg.className = "tcm-dlink-msg"; }
 
         // Статус select
         var selSt = document.getElementById("tcm-status");
@@ -3201,12 +3261,13 @@
         var assigneeKey = (selAsg && !selAsg.disabled) ? selAsg.value : "";
         var privEl = document.getElementById("tcm-private");
         var isPrivate = privEl && privEl.checked ? "1" : "0";
+        var directumLink = (_tcmDlinks || []).join("\n");
 
         if (!title || !title.replace(/\s/g, "")) {
             tcmShowMsg("err", "Введите название задачи"); return;
         }
 
-        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + assigneeKey + "|" + isPrivate + "|" + details;
+        var param = nameKey + "|" + title + "|" + status + "|" + prio + "|" + dueDate + "|" + tags + "|" + assigneeKey + "|" + isPrivate + "|" + directumLink + "|" + details;
         try {
             var res = window.external.InvokeTemplate("SaveTask", param);
             if (!res || (typeof res === "string" && res.indexOf("ERROR") === 0)) {
@@ -3254,6 +3315,129 @@
             try { window.external.InvokeTemplate("RefreshBoard", ""); } catch (e2) { }
         } catch (e) {
             tcmShowMsg("err", "Ошибка: " + (e.message || e));
+        }
+    };
+
+    // ── Ссылки Directum (список) ─────────────────────────────────────
+    var _tcmDlinks = [];
+    var _tcmDlinksCanEdit = true;
+
+    function tcmDlinkMsg(text, kind) {
+        var msg = document.getElementById("tcm-dlink-msg");
+        if (!msg) return;
+        msg.textContent = text || "";
+        msg.className = "tcm-dlink-msg" + (kind ? " tcm-dlink-msg-" + kind : "");
+    }
+
+    // Короткая подпись чипа из URL: "Directum: <id>" либо обрезанный адрес.
+    function tcmDlinkLabel(url) {
+        var m = String(url).match(/[?&]id=(\d+)/i);
+        if (m) return "Directum: " + m[1];
+        var u = String(url).replace(/^https?:\/\//i, "");
+        return u.length > 36 ? u.substring(0, 33) + "…" : u;
+    }
+
+    window.tcmDlinksRender = function () {
+        var list = document.getElementById("tcm-dlinks-list");
+        var cnt  = document.getElementById("tcm-dlinks-count");
+        if (!list) return;
+        var items = _tcmDlinks || [];
+        if (cnt) cnt.textContent = items.length ? "(" + items.length + ")" : "";
+        if (!items.length) {
+            list.innerHTML = '<div class="tcm-dlinks-empty">Ссылок нет</div>';
+        } else {
+            var html = "";
+            for (var i = 0; i < items.length; i++) {
+                var lbl  = tcmChatEsc(tcmDlinkLabel(items[i]));
+                var full = tcmChatEsc(items[i]);
+                html += '<span class="tcm-dlink-chip" title="' + full + '">'
+                      + '<span class="tcm-dlink-chip-ico">D</span>'
+                      + '<span class="tcm-dlink-chip-open" onclick="tcmOpenDirectum(' + i + ')" title="Открыть в Directum">'
+                      + lbl + ' <i class="fa fa-external-link"></i></span>'
+                      + (_tcmDlinksCanEdit
+                          ? '<button type="button" class="tcm-dlink-chip-del" onclick="tcmDlinkRemove(' + i + ')" title="Удалить ссылку">×</button>'
+                          : '')
+                      + '</span>';
+            }
+            list.innerHTML = html;
+        }
+        var addBtn = document.getElementById("tcm-dlink-addbtn");
+        if (addBtn) addBtn.style.display = _tcmDlinksCanEdit ? "" : "none";
+    };
+
+    window.tcmDlinkAddShow = function () {
+        var box = document.getElementById("tcm-dlink-add");
+        var btn = document.getElementById("tcm-dlink-addbtn");
+        if (box) box.style.display = "";
+        if (btn) btn.style.display = "none";
+        var inp = document.getElementById("tcm-dlink-input");
+        if (inp) { inp.value = ""; inp.focus(); }
+    };
+
+    window.tcmDlinkAddCancel = function () {
+        var box = document.getElementById("tcm-dlink-add");
+        var btn = document.getElementById("tcm-dlink-addbtn");
+        if (box) box.style.display = "none";
+        if (btn) btn.style.display = _tcmDlinksCanEdit ? "" : "none";
+        var inp = document.getElementById("tcm-dlink-input");
+        if (inp) inp.value = "";
+    };
+
+    window.tcmDlinkAdd = function () {
+        var inp = document.getElementById("tcm-dlink-input");
+        if (!inp) return;
+        var url = (inp.value || "").replace(/^\s+|\s+$/g, "").replace(/[\r\n]/g, "");
+        if (!url) { tcmDlinkMsg("Вставьте ссылку Directum", "err"); return; }
+        if (!/[?&]sys=/i.test(url) || !/[?&]id=/i.test(url)) {
+            tcmDlinkMsg("Ссылка не похожа на Directum (нужны sys= и id=)", "err"); return;
+        }
+        for (var i = 0; i < _tcmDlinks.length; i++) {
+            if (_tcmDlinks[i] === url) { tcmDlinkMsg("Такая ссылка уже добавлена", "err"); tcmDlinkAddCancel(); return; }
+        }
+        _tcmDlinks.push(url);
+        tcmDlinksRender();
+        tcmDlinkAddCancel();
+        tcmDlinkMsg("Ссылка добавлена. Не забудьте «Сохранить».", "ok");
+        setTimeout(function () { tcmDlinkMsg("", ""); }, 3000);
+    };
+
+    window.tcmDlinkAddKeydown = function (e) {
+        if (e.keyCode === 13) { e.preventDefault(); if (e.stopPropagation) e.stopPropagation(); tcmDlinkAdd(); }
+    };
+
+    window.tcmDlinkRemove = function (idx) {
+        if (idx < 0 || idx >= _tcmDlinks.length) return;
+        _tcmDlinks.splice(idx, 1);
+        tcmDlinksRender();
+    };
+
+    // Открывает объект в Directum: сервер тихо тянет .isb и запускает (ISBExec).
+    window.tcmOpenDirectum = function (idx) {
+        var url = (typeof idx === "number") ? _tcmDlinks[idx] : idx;
+        url = (url || "").replace(/^\s+|\s+$/g, "");
+        if (!url) { tcmDlinkMsg("Пустая ссылка", "err"); return; }
+
+        var res;
+        try {
+            res = window.external.InvokeTemplate("OpenDirectumLink", url);
+        } catch (e) {
+            tcmDlinkMsg("Ошибка: " + (e.message || e), "err");
+            return;
+        }
+        res = String(res);
+        if (res === "OK") {
+            tcmDlinkMsg("Открываю в Directum…", "ok");
+            setTimeout(function () { tcmDlinkMsg("", ""); }, 2500);
+        } else if (res === "ERROR:NoAssoc" || res === "ERROR:FetchFailed") {
+            // Сервер не отдал .isb, либо нет ISBExec — открываем ссылку штатно (старый путь, редко)
+            tcmDlinkMsg("Открываю ссылку напрямую…", "");
+            try { window.open(url, "_blank"); } catch (e2) { }
+        } else if (res === "ERROR:BadLink") {
+            tcmDlinkMsg("Ссылка не распознана. Нужен адрес вида …/job.asp?sys=...&id=...", "err");
+        } else if (res === "ERROR:EmptyLink") {
+            tcmDlinkMsg("Пустая ссылка", "err");
+        } else {
+            tcmDlinkMsg("Не удалось открыть: " + res, "err");
         }
     };
 
@@ -3392,15 +3576,48 @@
         if (overlay) overlay.className = "help-overlay";
     };
 
+    // Кнопка «Что нового» пульсирует, пока пользователь не открыл текущую версию.
+    // «Версия» вычисляется автоматически — это дата верхней (самой свежей) записи в списке
+    // новостей. Добавили новую запись сверху → дата сменилась → кнопка снова пульсирует у всех.
+    // Бампать руками ничего не нужно.
+    // Отметка о просмотре хранится в пользовательском реестре PLM (переживает перезапуск,
+    // в отличие от localStorage встроенного браузера).
+    function kbWhatsNewSignature() {
+        try {
+            var first = document.querySelector("#whatsNewOverlay .help-body > div");
+            if (!first) return "0";
+            var m = (first.textContent || "").match(/\d{2}\.\d{2}\.\d{4}/);
+            return m ? m[0] : "0";
+        } catch (e) { return "0"; }
+    }
+    function kbWhatsNewStopPulse() {
+        var btn = document.querySelector(".kb-nav-btn-news");
+        if (btn) btn.className = btn.className.replace(/\s*kb-news-pulse/g, "");
+    }
+    function kbInitWhatsNewPulse() {
+        var btn = document.querySelector(".kb-nav-btn-news");
+        if (!btn) return;
+        var seen = null;
+        try { seen = String(window.external.InvokeTemplate("GetWhatsNewSeen", "")); } catch (e) { seen = null; }
+        // Уже видел текущую версию — не пульсируем. Нет связи (seen===null) — пульсируем (заметнее).
+        if (seen !== null && seen === kbWhatsNewSignature()) return;
+        if (btn.className.indexOf("kb-news-pulse") < 0) btn.className += " kb-news-pulse";
+    }
+
     window.openWhatsNew = function () {
         var overlay = document.getElementById("whatsNewOverlay");
         if (overlay) overlay.className = "help-overlay visible";
+        try { window.external.InvokeTemplate("SetWhatsNewSeen", kbWhatsNewSignature()); } catch (e) { }
+        kbWhatsNewStopPulse();
     };
 
     window.closeWhatsNew = function () {
         var overlay = document.getElementById("whatsNewOverlay");
         if (overlay) overlay.className = "help-overlay";
     };
+
+    // Включить пульсацию после прогрузки DOM (если текущая версия ещё не просмотрена).
+    if (window.setTimeout) { setTimeout(kbInitWhatsNewPulse, 0); }
 
     window.tcmSwitchTab = function (tabId) {
         var contents = document.querySelectorAll('.tcm-tab-content');

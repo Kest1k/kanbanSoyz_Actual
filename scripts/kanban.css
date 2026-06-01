@@ -954,6 +954,40 @@
 .kb-nav-btn-primary:hover { background: #3b5998; border-color: #3b5998; }
 .kb-nav-btn-news { border-color: #bbf7d0; background: #f0fdf4; color: #15803d; }
 .kb-nav-btn-news:hover { background: #dcfce7; border-color: #86efac; }
+
+/* Пульсация кнопки «Что нового», пока юзер не открыл текущую версию */
+@-webkit-keyframes kbNewsPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(237, 125, 26, 0.55); }
+    50%      { box-shadow: 0 0 0 6px rgba(237, 125, 26, 0); }
+}
+@keyframes kbNewsPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(237, 125, 26, 0.55); }
+    50%      { box-shadow: 0 0 0 6px rgba(237, 125, 26, 0); }
+}
+@-webkit-keyframes kbNewsWiggle {
+    0%, 90%, 100% { -webkit-transform: rotate(0); }
+    93% { -webkit-transform: rotate(-14deg); }
+    96% { -webkit-transform: rotate(12deg); }
+    98% { -webkit-transform: rotate(-7deg); }
+}
+@keyframes kbNewsWiggle {
+    0%, 90%, 100% { transform: rotate(0); }
+    93% { transform: rotate(-14deg); }
+    96% { transform: rotate(12deg); }
+    98% { transform: rotate(-7deg); }
+}
+.kb-nav-btn-news.kb-news-pulse {
+    border-color: #f7b267;
+    background: #fff7ed;
+    color: #c2620a;
+    -webkit-animation: kbNewsPulse 1.8s ease-out infinite;
+    animation: kbNewsPulse 1.8s ease-out infinite;
+}
+.kb-nav-btn-news.kb-news-pulse i {
+    display: inline-block;
+    -webkit-animation: kbNewsWiggle 2.2s ease-in-out infinite;
+    animation: kbNewsWiggle 2.2s ease-in-out infinite;
+}
 .kb-nav-btn-help { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
 .kb-nav-btn-help:hover { background: #dbeafe; border-color: #93c5fd; }
 
@@ -1374,7 +1408,7 @@
         margin-right: 0;
     }
 
-    .tcm-fg { margin-bottom: 8px; }
+    .tcm-fg { margin-bottom: 6px; }
 
     .tcm-row {
         display: -ms-flexbox;
@@ -1413,9 +1447,12 @@
 
     .tcm-meta {
         font-size: 11px;
-        color: #78909c;
-        padding: 4px 0 2px;
+        color: #9aa7b0;
+        margin-top: 10px;
+        padding: 8px 0 2px;
+        border-top: 1px solid #eef1f5;
     }
+    .tcm-meta:empty { display: none; }
     .tcm-meta span { margin-right: 10px; }
 
     .tcm-private-toggle {
@@ -1558,6 +1595,92 @@
     .tcm-tag-suggestions .kb-tag:hover {
         opacity: 1;
     }
+
+/* ССЫЛКИ DIRECTUM */
+    .tcm-dlinks {
+        margin-top: 10px;
+        border-top: 1px solid #eef1f5;
+        padding-top: 8px;
+    }
+    .tcm-dlinks-list {
+        display: -webkit-flex;
+        display: flex;
+        -webkit-flex-wrap: wrap;
+        flex-wrap: wrap;
+        margin: 4px 0 2px;
+    }
+    .tcm-dlinks-empty {
+        font-size: 12px;
+        color: #9ca3af;
+        padding: 2px 0;
+    }
+    .tcm-dlink-chip {
+        display: -webkit-inline-flex;
+        display: inline-flex;
+        -webkit-align-items: center;
+        align-items: center;
+        background: #fff3e6;
+        border: 1px solid #fbd9ae;
+        border-radius: 4px;
+        overflow: hidden;
+        max-width: 100%;
+        margin: 0 6px 6px 0;
+        vertical-align: top;
+    }
+    .tcm-dlink-chip-ico {
+        background: #ed7d1a;
+        color: #fff;
+        font-weight: 700;
+        font-size: 11px;
+        line-height: 1;
+        padding: 4px 6px;
+        -webkit-flex: 0 0 auto;
+        flex: 0 0 auto;
+    }
+    .tcm-dlink-chip-open {
+        padding: 3px 7px;
+        font-size: 12px;
+        color: #b5610a;
+        cursor: pointer;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .tcm-dlink-chip-open:hover { text-decoration: underline; }
+    .tcm-dlink-chip-open i { font-size: 10px; opacity: 0.7; }
+    .tcm-dlink-chip-del {
+        border: 0;
+        border-left: 1px solid #fbd9ae;
+        background: transparent;
+        color: #b5610a;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        padding: 4px 7px;
+        -webkit-flex: 0 0 auto;
+        flex: 0 0 auto;
+    }
+    .tcm-dlink-chip-del:hover { color: #dc2626; background: #ffe6cc; }
+    .tcm-dlink-add {
+        display: -webkit-flex;
+        display: flex;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+    .tcm-dlink-add > input {
+        -webkit-flex: 1 1 auto;
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 12px;
+    }
+    .tcm-dlink-msg {
+        margin-top: 4px;
+        font-size: 11px;
+        color: #6b7280;
+        min-height: 14px;
+    }
+    .tcm-dlink-msg-ok  { color: #16a34a; }
+    .tcm-dlink-msg-err { color: #dc2626; }
 
 /* ВЛОЖЕНИЯ (Attachments) */
     .tcm-att {
@@ -1707,6 +1830,19 @@
         color: #9ca3af;
         font-size: 11px;
         margin-left: 6px;
+    }
+
+    .kb-dlink-badge {
+        display: inline-block;
+        background: #ed7d1a;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        padding: 2px 5px;
+        border-radius: 3px;
+        margin-left: 6px;
+        vertical-align: middle;
     }
 
 /* ЧАТ / КОММЕНТАРИИ */
@@ -1891,7 +2027,12 @@
         display: flex;
         -ms-flex-align: center;
         align-items: center;
-        margin-top: 10px;
+        margin-top: 0;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eef1f5;
+        -ms-flex-negative: 0;
+        flex-shrink: 0;
     }
 
     .tcm-chat-input .tcm-area {
