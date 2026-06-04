@@ -97,8 +97,6 @@ scripts/
 docs/                                        # Detailed modular documentation
 FULL_CONTEXT_OF_PROJECT.md
 KANBAN_IMPROVEMENTS_BACKLOG.md
-AGENTS.md
-CLAUDE.md
 ```
 
 ## Deployment
@@ -146,8 +144,6 @@ Enterprise integration + security-sensitive code means:
 - All changes must be tested on a non-production server
 - Security and RBAC logic require extra care
 - Please open an issue before large changes
-
-Guidelines in `AGENTS.md` and `CLAUDE.md`.
 
 ## License
 
