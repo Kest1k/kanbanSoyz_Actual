@@ -2440,7 +2440,7 @@ private object DoGetAttachments( object inputParams )
                     var lockBy = "";
                     try
                     {
-                        var fd = io.GetValue<FileDesc>( "Body" );
+                        var fd = IsKanbanLocalFile( io ) ? io.GetValue<FileDesc>( "Body" ) : null;
                         if( fd != null && fd.IsFileBodyExists )
                         {
                             isFile = "1";
@@ -2663,14 +2663,12 @@ private object DoOpenObject( object inputParams )
             var ioKey = string.IsNullOrEmpty( io.NameKey ) ? io.Id.ToString() : io.NameKey;
             if( ioKey == objKey )
             {
-                // Локальный файл (Простой документ без версий) хранит тело прямо
-                // в Body на самом объекте - открываем файл сразу в ассоциированном
-                // приложении, минуя карточку свойств. У Технического документа
-                // Body лежит на версии (ActualVersion), не на главном объекте, -
-                // для него остаётся штатное открытие карточки.
+                // Локальный файл канбана (Простой документ без версий) открываем
+                // сразу в ассоциированном приложении, минуя карточку свойств.
+                // Технический документ и прочие ИО - в отдельной вкладке дерева.
                 try
                 {
-                    var fd = io.GetValue<FileDesc>( "Body" );
+                    var fd = IsKanbanLocalFile( io ) ? io.GetValue<FileDesc>( "Body" ) : null;
                     if( fd != null && fd.IsFileBodyExists )
                     {
                         var name = fd.OriginalName;
@@ -2685,9 +2683,19 @@ private object DoOpenObject( object inputParams )
                         return "OK";
                     }
                 }
-                catch { /* не вышло открыть файлом - падаем на карточку */ }
+                catch { /* не вышло открыть файлом - падаем на дерево/карточку */ }
 
-                Service.UI.OpenPropertiesPane( io );
+                // Обычный ИО (Технический документ и пр.) - в отдельной вкладке
+                // дерева хранилища с выделением объекта (startFromRoot=true -
+                // полное дерево от корня). Фолбэк на карточку свойств.
+                try
+                {
+                    Service.UI.OpenInNewTabPage( io, true );
+                }
+                catch
+                {
+                    Service.UI.OpenPropertiesPane( io );
+                }
                 return "OK";
             }
         }
@@ -2701,6 +2709,20 @@ private object DoOpenObject( object inputParams )
 // %TEMP%\KanbanEdit\<id>\<name>, открывается в ассоциированном приложении,
 // объект блокируется долговременной блокировкой. По кнопке "Сохранить в PLM"
 // изменённый файл заливается обратно в Body и блокировка снимается.
+
+// Признак: объект - это локальный файл канбана (Простой документ без версий),
+// созданный режимом "Внутри задачи". Только для таких разрешены прямое
+// открытие файлом и редактирование (check-out/check-in). Технический документ
+// и прочие ИО открываются штатной карточкой свойств PLM.
+private bool IsKanbanLocalFile( InfoObject io )
+{
+    try
+    {
+        if( io == null || io.Template == null ) return false;
+        return io.Template.NameKey == "SimpleDocumentKanban";
+    }
+    catch { return false; }
+}
 
 // Находит вложенный ИО задачи по ключу
 private InfoObject FindAttachedObject( InfoObject task, string objKey )
@@ -3243,7 +3265,18 @@ private object DoOpenContainer( object inputParams )
         {
             if( dc.Id.ToString() == contIdStr )
             {
-                Service.UI.OpenPropertiesPane( dc );
+                // Открываем папку/проект в отдельной вкладке дерева хранилища
+                // (как команда "Открыть в отдельной вкладке"). startFromRoot=true -
+                // полное дерево от корня с выделением контейнера.
+                try
+                {
+                    Service.UI.OpenInNewTabPage( dc, true );
+                }
+                catch
+                {
+                    // Фолбэк на штатную панель свойств, если метод недоступен
+                    Service.UI.OpenPropertiesPane( dc );
+                }
                 return "OK";
             }
         }
