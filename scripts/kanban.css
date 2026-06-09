@@ -3038,3 +3038,31 @@ button.kb-btn-localfile:hover {
 .tcm-att-locked {
     font-size: 11px; color: #b45309; margin-left: 6px; vertical-align: middle;
 }
+
+/* ░░ Умный фильтр (фича 01) ░░ */
+.kb-filter-bar{display:flex;align-items:center;flex-wrap:wrap;
+    padding:8px 14px;border-bottom:1px solid #e3e3e3;background:#fafafa;font-size:12px;}
+.kb-filter-bar > *{margin-right:12px;margin-bottom:4px;}
+.kb-filter-bar > *:last-child{margin-right:0;}
+.kb-filter-lbl{font-weight:600;color:#555;}
+.kb-filter-prio{display:inline-flex;flex-wrap:wrap;}
+.kb-filter-prio .kb-fp{margin-right:8px;}
+.kb-filter-prio .kb-fp:last-child{margin-right:0;}
+.kb-fp{padding:4px 13px;border:1px solid #ccc;border-radius:14px;cursor:pointer;
+    user-select:none;background:#fff;color:#444;line-height:1.45;white-space:nowrap;}
+.kb-fp:hover{border-color:#2d7ff9;color:#2d7ff9;}
+.kb-fp-on{background:#2d7ff9;border-color:#2d7ff9;color:#fff;}
+.kb-fp-on:hover{color:#fff;}
+.kb-filter-tag{height:30px;border:1px solid #ccc;border-radius:6px;
+    padding:0 30px 0 12px;font-size:12px;background-color:#fff;color:#444;cursor:pointer;
+    -webkit-appearance:none;-moz-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%23888' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center;}
+.kb-filter-tag::-ms-expand{display:none;}
+.kb-filter-tag:hover{border-color:#2d7ff9;}
+.kb-filter-text{height:30px;border:1px solid #ccc;border-radius:6px;
+    padding:0 12px;font-size:12px;min-width:230px;box-sizing:border-box;}
+.kb-filter-text:focus,.kb-filter-tag:focus{outline:none;border-color:#2d7ff9;
+    box-shadow:0 0 0 2px rgba(45,127,249,.15);}
+.kb-filter-reset{color:#2d7ff9;text-decoration:none;font-weight:500;}
+.kb-filter-reset:hover{text-decoration:underline;}

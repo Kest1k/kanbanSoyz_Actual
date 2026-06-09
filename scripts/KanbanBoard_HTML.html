@@ -288,6 +288,23 @@
     </table>
 </div>
 
+<!-- ░░ Умный фильтр (фича 01) ░░ -->
+<div id="kb-filter-bar" class="kb-filter-bar">
+    <span class="kb-filter-lbl">Фильтр:</span>
+    <div class="kb-filter-prio" id="kb-filter-prio">
+        <span class="kb-fp" data-p="urgent" onclick="kbFltTogglePrio('urgent')">Сверхсрочная</span>
+        <span class="kb-fp" data-p="high"   onclick="kbFltTogglePrio('high')">Высокий</span>
+        <span class="kb-fp" data-p="medium" onclick="kbFltTogglePrio('medium')">Средний</span>
+        <span class="kb-fp" data-p="low"    onclick="kbFltTogglePrio('low')">Низкий</span>
+    </div>
+    <select id="kb-filter-tag" class="kb-filter-tag" onchange="kbFltApply()">
+        <option value="">Все теги</option>
+    </select>
+    <input type="text" id="kb-filter-text" class="kb-filter-text"
+           placeholder="&#128269; По названию и описанию..." onkeyup="kbFltApply()">
+    <a href="#" class="kb-filter-reset" onclick="kbFltReset(); return false;">Сбросить</a>
+</div>
+
 <!-- Board -->
 <div class="kb-board" id="kb-board">
 
@@ -306,7 +323,7 @@
         <div class="kb-col-body" id="kb-body-0">
             {% for t in col_0 %}
             <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}{% if t.isPrivate == '1' %} kb-card-private-bg{% endif %}" id="kbc_{{ t.id }}"
-                data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
+                data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" data-priority="{{ t.priority }}" data-tags="{{ t.tags }}" data-title="{{ t.title }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
                 ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.isNew == "1" %}
                 <span class="kb-new-badge">НОВАЯ</span>
@@ -393,7 +410,7 @@
         <div class="kb-col-body" id="kb-body-1">
             {% for t in col_1 %}
             <div class="kb-card pri-{{ t.priority }}{% if t.isNew == '1' %} kb-card-new{% endif %}{% if t.isPrivate == '1' %} kb-card-private-bg{% endif %}" id="kbc_{{ t.id }}"
-                data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
+                data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" data-priority="{{ t.priority }}" data-tags="{{ t.tags }}" data-title="{{ t.title }}" draggable="true" ondragstart="kbDragStart(event, '{{ t.id }}')"
                 ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.isNew == "1" %}
                 <span class="kb-new-badge">НОВАЯ</span>
@@ -479,7 +496,7 @@
         </div>
         <div class="kb-col-body" id="kb-body-2">
             {% for t in col_2 %}
-            <div class="kb-card pri-{{ t.priority }}{% if t.isPrivate == '1' %} kb-card-private-bg{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" draggable="true"
+            <div class="kb-card pri-{{ t.priority }}{% if t.isPrivate == '1' %} kb-card-private-bg{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" data-priority="{{ t.priority }}" data-tags="{{ t.tags }}" data-title="{{ t.title }}" draggable="true"
                 ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>
@@ -560,7 +577,7 @@
         </div>
         <div class="kb-col-body" id="kb-body-3">
             {% for t in col_3 %}
-            <div class="kb-card pri-{{ t.priority }}{% if t.isPrivate == '1' %} kb-card-private-bg{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" draggable="true"
+            <div class="kb-card pri-{{ t.priority }}{% if t.isPrivate == '1' %} kb-card-private-bg{% endif %}" id="kbc_{{ t.id }}" data-owner="{{ t.isOwner }}" data-self-created="{{ t.isSelfCreated }}" data-due="{{ t.dueDate }}" data-priority="{{ t.priority }}" data-tags="{{ t.tags }}" data-title="{{ t.title }}" draggable="true"
                 ondragstart="kbDragStart(event, '{{ t.id }}')" ondblclick="kbOpenTask('{{ t.id }}')">
                 {% if t.priority == "urgent" %}
                 <span class="kb-urgent-badge">СРОЧНО</span>

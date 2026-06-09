@@ -256,7 +256,11 @@
                 }
                 var result = window.external.InvokeTemplate("MoveTask", param);
                 if (result === "OK") {
-                    kbRefreshBoard();
+                    if (typeof kbFltActive === "function" && kbFltActive()) {
+                        kbMoveCardDom(taskId, newStatus);   // фильтр активен → двигаем карточку без перезагрузки доски
+                    } else {
+                        kbRefreshBoard();
+                    }
                 } else if (result && result.indexOf("ERROR") === 0) {
                     alert(kbMoveErrorText(result));
                 }
@@ -3644,8 +3648,163 @@
         }
     };
 
+    /* ░░ Умный фильтр (фича 01) ░░ */
+    var _kbFltPrio = {};
+    var _kbFltKey  = "kbFilterState";
+
+    window.kbFltTogglePrio = function (p) {
+        if (_kbFltPrio[p]) { delete _kbFltPrio[p]; } else { _kbFltPrio[p] = true; }
+        var el = document.querySelector('#kb-filter-prio .kb-fp[data-p="' + p + '"]');
+        if (el) el.className = "kb-fp" + (_kbFltPrio[p] ? " kb-fp-on" : "");
+        kbFltApply();
+    };
+
+    function kbFltCollectTags() {
+        var sel = document.getElementById("kb-filter-tag");
+        if (!sel) return;
+        var seen = {}, cards = document.querySelectorAll(".kb-card"), i, j, raw, arr;
+        for (i = 0; i < cards.length; i++) {
+            raw = cards[i].getAttribute("data-tags") || "";
+            if (!raw) continue;
+            arr = raw.split(",");
+            for (j = 0; j < arr.length; j++) {
+                var t = arr[j].replace(/^\s+|\s+$/g, "");
+                if (t) seen[t] = true;
+            }
+        }
+        var cur = sel.value;
+        sel.options.length = 1;
+        var keys = [], k;
+        for (k in seen) { if (seen.hasOwnProperty(k)) keys.push(k); }
+        keys.sort();
+        for (i = 0; i < keys.length; i++) {
+            var o = document.createElement("option");
+            o.value = keys[i]; o.text = keys[i];
+            sel.appendChild(o);
+        }
+        sel.value = cur;
+    }
+
+    window.kbFltApply = function () {
+        var tagSel = document.getElementById("kb-filter-tag");
+        var txtEl  = document.getElementById("kb-filter-text");
+        var tag = tagSel ? tagSel.value : "";
+        var txt = txtEl ? txtEl.value.replace(/^\s+|\s+$/g, "").toLowerCase() : "";
+
+        var anyPrio = false, p;
+        for (p in _kbFltPrio) { if (_kbFltPrio.hasOwnProperty(p)) { anyPrio = true; break; } }
+
+        var cards = document.querySelectorAll(".kb-card");
+        var shown = 0, total = cards.length, i;
+        for (i = 0; i < cards.length; i++) {
+            var c = cards[i];
+            var ok = true;
+
+            if (anyPrio) {
+                var cp = c.getAttribute("data-priority") || "";
+                if (!_kbFltPrio[cp]) ok = false;
+            }
+            if (ok && tag) {
+                var tparts = (c.getAttribute("data-tags") || "").split(","), thit = false, z;
+                for (z = 0; z < tparts.length; z++) {
+                    if (tparts[z].replace(/^\s+|\s+$/g, "") === tag) { thit = true; break; }
+                }
+                if (!thit) ok = false;
+            }
+            if (ok && txt) {
+                var hay = (c.getAttribute("data-title") || "");
+                var titEl = c.querySelector(".kb-card-title");
+                if (titEl) hay += " " + (titEl.textContent || titEl.innerText || "");
+                var detEl = c.querySelector(".kb-card-details");
+                if (detEl) hay += " " + (detEl.getAttribute("data-full") || detEl.textContent || detEl.innerText || "");
+                if (hay.toLowerCase().indexOf(txt) < 0) ok = false;
+            }
+
+            c.style.display = ok ? "" : "none";
+            if (ok) shown++;
+        }
+
+        kbFltSave();
+    };
+
+    window.kbFltReset = function () {
+        _kbFltPrio = {};
+        var chips = document.querySelectorAll("#kb-filter-prio .kb-fp"), i;
+        for (i = 0; i < chips.length; i++) chips[i].className = "kb-fp";
+        var tagSel = document.getElementById("kb-filter-tag"); if (tagSel) tagSel.value = "";
+        var txtEl  = document.getElementById("kb-filter-text"); if (txtEl) txtEl.value = "";
+        kbFltApply();
+    };
+
+    function kbFltSave() {
+        try {
+            var tagSel = document.getElementById("kb-filter-tag");
+            var txtEl  = document.getElementById("kb-filter-text");
+            var st = { prio: _kbFltPrio, tag: tagSel ? tagSel.value : "", txt: txtEl ? txtEl.value : "" };
+            if (window.sessionStorage) sessionStorage.setItem(_kbFltKey, JSON.stringify(st));
+        } catch (e) {}
+    }
+
+    function kbFltInit() {
+        kbFltCollectTags();
+        try {
+            if (window.sessionStorage) {
+                var s = sessionStorage.getItem(_kbFltKey);
+                if (s) {
+                    var st = JSON.parse(s);
+                    _kbFltPrio = st.prio || {};
+                    var p;
+                    for (p in _kbFltPrio) {
+                        if (!_kbFltPrio.hasOwnProperty(p)) continue;
+                        var el = document.querySelector('#kb-filter-prio .kb-fp[data-p="' + p + '"]');
+                        if (el) el.className = "kb-fp kb-fp-on";
+                    }
+                    var tagSel = document.getElementById("kb-filter-tag");
+                    if (tagSel && st.tag) tagSel.value = st.tag;
+                    var txtEl = document.getElementById("kb-filter-text");
+                    if (txtEl && st.txt) txtEl.value = st.txt;
+                }
+            }
+        } catch (e) {}
+        kbFltApply();
+    }
+
+    /* ░░ Перемещение без перезагрузки в режиме фильтра (фича 01) ░░ */
+    function kbFltActive() {
+        var anyPrio = false, p;
+        for (p in _kbFltPrio) { if (_kbFltPrio.hasOwnProperty(p)) { anyPrio = true; break; } }
+        var tagSel = document.getElementById("kb-filter-tag");
+        var txtEl  = document.getElementById("kb-filter-text");
+        var tag = tagSel ? tagSel.value : "";
+        var txt = txtEl ? txtEl.value.replace(/^\s+|\s+$/g, "") : "";
+        return anyPrio || (tag !== "") || (txt !== "");
+    }
+
+    function kbUpdateColCounts() {
+        var x;
+        for (x = 0; x < 4; x++) {
+            var body  = document.getElementById("kb-body-" + x);
+            var colEl = document.getElementById("kb-col-" + x);
+            if (!body || !colEl) continue;
+            var cnt = colEl.querySelector(".kb-cnt");
+            if (cnt) cnt.innerHTML = body.querySelectorAll(".kb-card").length;
+        }
+    }
+
+    // Оптимистичный перенос карточки в целевую колонку без RefreshBoard:
+    // статус уже сохранён на сервере (MoveTask вернул OK), фильтр остаётся активным.
+    window.kbMoveCardDom = function (taskId, newStatus) {
+        var card = document.getElementById("kbc_" + taskId);
+        var body = document.getElementById("kb-body-" + newStatus);
+        if (!card || !body) { kbRefreshBoard(); return; }   // не нашли узел → безопасный фолбэк
+        body.appendChild(card);
+        kbUpdateColCounts();
+        if (typeof kbFltApply === "function") kbFltApply();
+    };
+
     // Вызов после того, как все функции определены
     kbInitHierarchy();
+    if (typeof kbFltInit === "function") kbFltInit();
 
     // Инициализация фильтра периода – отдельно от kbInitHierarchy,
     // потому что та делает ранний return для роли "regular".
