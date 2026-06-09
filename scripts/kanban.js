@@ -1664,6 +1664,7 @@
     };
 
     window.kbSetMyMode = function () {
+        _kbH.myCreated = false;   // фича 02
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
@@ -1677,6 +1678,7 @@
     };
 
     function kbApplyMode() {
+        if (_kbH.myCreated) { kbSendMyCreatedMode(); return; }   // фича 02
         var deptKey = kbSelVal("kb-sel-dept");
         var sectorKey = kbSelVal("kb-sel-sector");
         var userKey = kbSelVal("kb-sel-user");
@@ -1701,7 +1703,21 @@
     function kbRestoreViewMode(mode) {
         if (!mode || mode === "my") { kbUpdateMyBtn(true); return; }
         if (mode === "all" || mode === "dept" || mode === "sector") { kbUpdateAllBtn(true); return; }
-        if (mode === "myCreated") { kbUpdateMyCreatedBtn(true); return; }
+        if (mode === "myCreated" || mode.indexOf("myCreated:") === 0) {
+            _kbH.myCreated = true;                       // фича 02
+            kbUpdateMyCreatedBtn(true);
+            // Переиспользуем каскадное восстановление селекторов из режимов user:/group:,
+            // чтобы отдел/сектор/сотрудник сохранялись в селекторах, а не сбрасывались.
+            var miU = mode.indexOf(":user:");
+            var miG = mode.indexOf(":group:");
+            if (miU >= 0) {
+                kbRestoreViewMode("user:" + mode.substring(miU + 6));
+            } else if (miG >= 0) {
+                kbRestoreViewMode("group:" + mode.substring(miG + 7));
+            }
+            kbUpdateMyCreatedBtn(true);   // вернуть подсветку «Выданные мной» (user:/group: трогают другие кнопки)
+            return;
+        }
 
         if (mode.indexOf("user:") === 0) {
             var userKey = mode.substring(5);
@@ -1805,6 +1821,7 @@
 
     // Кнопка «Все задачи» / «Всё отделение» / «Весь сектор»
     window.kbSetAllMode = function () {
+        _kbH.myCreated = false;   // фича 02
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
@@ -1821,17 +1838,26 @@
     };
 
     window.kbSetMyCreatedMode = function () {
-        kbSetSelVal("kb-sel-dept", "");
-        kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
         kbClearSelSearch();
+        _kbH.myCreated = true;                 // фича 02: включаем режим «выданные мной»
         if (_kbH.role === "admin" || _kbH.role === "headOfDept") {
-            kbFillSectors(null);
+            kbFillSectors(kbSelVal("kb-sel-dept") || null);   // оставляем доступным выбор сектора
             kbFillUsers(null, null, "");
         }
         kbUpdateMyCreatedBtn(true);
-        kbSendMode("myCreated");
+        kbSendMyCreatedMode();                  // фича 02: учитываем выбранный сектор
     };
+
+    // Фича 02: собрать режим myCreated с учётом выбранного сотрудника/сектора/отделения
+    function kbSendMyCreatedMode() {
+        var userKey   = kbSelVal("kb-sel-user");
+        var sectorKey = kbSelVal("kb-sel-sector");
+        var deptKey   = kbSelVal("kb-sel-dept");
+        if (userKey) { kbSendMode("myCreated:user:" + userKey); return; }
+        var ctx = sectorKey || deptKey || "";
+        kbSendMode(ctx ? ("myCreated:group:" + ctx) : "myCreated");
+    }
 
     // Независимые каскадные селекторы в форме создания задачи
     // Не привязаны к панели иерархии → не вызывают RefreshBoard.

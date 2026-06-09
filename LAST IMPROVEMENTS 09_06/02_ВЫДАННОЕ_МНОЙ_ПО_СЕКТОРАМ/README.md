@@ -230,6 +230,25 @@ if (mode === "myCreated" || mode.indexOf("myCreated:") === 0) {
 
 ---
 
+## 6а. Дополнение – фильтр по конкретному сотруднику
+
+Помимо сектора/отделения, «Выданное мной» сужается до одного исполнителя через существующий селектор `kb-sel-user`. Клиент шлёт режим `myCreated:user:<key>`.
+
+- **Клиент** (`kbSendMyCreatedMode`): приоритет выбора – сотрудник → сектор → отделение → все:
+  ```javascript
+  function kbSendMyCreatedMode() {
+      var userKey   = kbSelVal("kb-sel-user");
+      var sectorKey = kbSelVal("kb-sel-sector");
+      var deptKey   = kbSelVal("kb-sel-dept");
+      if (userKey) { kbSendMode("myCreated:user:" + userKey); return; }
+      var ctx = sectorKey || deptKey || "";
+      kbSendMode(ctx ? ("myCreated:group:" + ctx) : "myCreated");
+  }
+  ```
+  В `kbRestoreViewMode` добавлено восстановление селектора сотрудника из суффикса `:user:`.
+- **Сервер** (`BeforeRender` и `DoExportToExcel`): парсится `myCreatedUser` из `:user:`; в цикле, если задан – фильтр `if( !UserKeyMatches( assignee, myCreatedUser ) ) continue;` (иначе ветка по сектору). Помощник `UserKeyMatches(User, key)` сверяет `NameKey` / `AccountId` / `Id` и добавлен рядом с `FindUserByKeyOrNull`.
+- `GetAllowedUserIdSet` уже возвращает `null` для любого `myCreated*`, поэтому отдельной правки не требует.
+
 ## 7. Смок-тест
 
 Подготовка: пользователь-руководитель, выдавший задачи минимум двум исполнителям из **разных** секторов (напр. `610кт` и `620кт`).
@@ -243,6 +262,10 @@ if (mode === "myCreated" || mode.indexOf("myCreated:") === 0) {
 - [ ] F5 / refresh: режим и выбранный сектор восстановились.
 - [ ] Переключение на «Мои» / «Все» сбрасывает флаг myCreated (сектор больше не сужает «Выданное мной» после возврата без выбора).
 - [ ] Обычный пользователь: «Выданное мной» работает по-старому, без ошибок.
+- [ ] «Выданное мной» + выбрать конкретного **сотрудника** – остаются только задачи, выданные мной этому сотруднику.
+- [ ] Сброс сотрудника – снова все выданные (или по сектору, если он выбран).
+- [ ] **Excel-экспорт** «Выданное мной» уважает выбранные сектор/отдел/сотрудника (паритет с доской).
+- [ ] F5: режим `myCreated:user:<key>` восстанавливает выбранного сотрудника в селекторе.
 
 ---
 

@@ -40,8 +40,20 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 var viewMode    = (obj.PropertyBag["KbViewMode"] as string) ?? "my";
                 var allowedIds  = GetAllowedUserIdSet( currentUser, role, viewMode );
 
+                // Фича 02: режим "myCreated", "myCreated:group:<ctx>" или "myCreated:user:<key>"
+                bool   isMyCreated   = viewMode == "myCreated" || viewMode.StartsWith( "myCreated:" );
+                string myCreatedCtx  = "";   // целевой сектор/отделение, пусто = все
+                string myCreatedUser = "";   // целевой исполнитель (stable key), пусто = все
+                if( isMyCreated )
+                {
+                    int gi = viewMode.IndexOf( ":group:" );
+                    if( gi >= 0 ) myCreatedCtx = viewMode.Substring( gi + ":group:".Length ).Trim();
+                    int ui = viewMode.IndexOf( ":user:" );
+                    if( ui >= 0 ) myCreatedUser = viewMode.Substring( ui + ":user:".Length ).Trim();
+                }
+
                 string myCreatorKey = "";
-                if( viewMode == "myCreated" && currentUser != null )
+                if( isMyCreated && currentUser != null )
                 {
                     myCreatorKey = !string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.NameKey
                                  : !string.IsNullOrEmpty( currentUser.AccountId ) ? currentUser.AccountId
@@ -82,12 +94,25 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                     if( !CanUserSeeTask( task, currentUser ) )
                         continue;
 
-                    if( viewMode == "myCreated" )
+                    if( isMyCreated )
                     {
                         var taskCreator = "";
                         try { taskCreator = task.GetString( "Creator" ) ?? ""; } catch { }
                         if( taskCreator != myCreatorKey ) continue;
                         if( assignee.Id.ToString() == currentUser.Id.ToString() ) continue;
+
+                        // Фича 02: доп. фильтр по конкретному исполнителю
+                        if( !string.IsNullOrEmpty( myCreatedUser ) )
+                        {
+                            if( !UserKeyMatches( assignee, myCreatedUser ) ) continue;
+                        }
+                        // Фича 02: либо по сектору/отделению исполнителя
+                        else if( !string.IsNullOrEmpty( myCreatedCtx ) )
+                        {
+                            var asgCtx = GetUserContext( assignee );
+                            if( string.IsNullOrEmpty( asgCtx ) ) continue;
+                            if( asgCtx != myCreatedCtx && !IsWithinContext( asgCtx, myCreatedCtx ) ) continue;
+                        }
                     }
 
                     int status = GetStatusIndex( task );
@@ -1203,6 +1228,15 @@ private bool CanUserSeeTask( InfoObject task, User currentUser )
         || ( !string.IsNullOrEmpty( assigneeKey ) && curKey == assigneeKey );
 }
 
+// Фича 02: совпадает ли пользователь с переданным ключом (NameKey / AccountId / Id)
+private bool UserKeyMatches( User u, string key )
+{
+    if( u == null || string.IsNullOrEmpty( key ) ) return false;
+    if( !string.IsNullOrEmpty( u.NameKey )   && u.NameKey   == key ) return true;
+    if( !string.IsNullOrEmpty( u.AccountId ) && u.AccountId == key ) return true;
+    return u.Id.ToString() == key;
+}
+
 private User FindUserByKeyOrNull( string userKey )
 {
     if( string.IsNullOrEmpty( userKey ) ) return null;
@@ -1597,7 +1631,7 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
         return myOnly;
     }
 
-    if( viewMode == "myCreated" ) return null;
+    if( viewMode == "myCreated" || viewMode.StartsWith( "myCreated:" ) ) return null;
 
     if( viewMode == "all" && role == "admin" ) return null;
 
@@ -4467,8 +4501,18 @@ private object DoExportToExcel( InfoObject obj, object inputParams )
 
     var allowedIds = GetAllowedUserIdSet( currentUser, role, viewMode );
 
+    // Фича 02: режим "myCreated", "myCreated:group:<ctx>" или "myCreated:user:<key>"
+    bool   isMyCreated   = viewMode == "myCreated" || viewMode.StartsWith( "myCreated:" );
+    string myCreatedCtx  = "";
+    string myCreatedUser = "";
+    {
+        int gi = viewMode.IndexOf( ":group:" );
+        if( gi >= 0 ) myCreatedCtx = viewMode.Substring( gi + ":group:".Length ).Trim();
+        int ui = viewMode.IndexOf( ":user:" );
+        if( ui >= 0 ) myCreatedUser = viewMode.Substring( ui + ":user:".Length ).Trim();
+    }
     string myCreatorKey = "";
-    if( viewMode == "myCreated" && currentUser != null )
+    if( isMyCreated && currentUser != null )
     {
         myCreatorKey = !string.IsNullOrEmpty( currentUser.NameKey ) ? currentUser.NameKey
                      : !string.IsNullOrEmpty( currentUser.AccountId ) ? currentUser.AccountId
@@ -4508,12 +4552,25 @@ private object DoExportToExcel( InfoObject obj, object inputParams )
             continue;
         if( IsTaskPrivate( task ) ) continue;
 
-        if( viewMode == "myCreated" )
+        if( isMyCreated )
         {
             var taskCreator = "";
             try { taskCreator = task.GetString( "Creator" ) ?? ""; } catch { }
             if( taskCreator != myCreatorKey ) continue;
             if( assignee.Id.ToString() == currentUser.Id.ToString() ) continue;
+
+            // Фича 02: доп. фильтр по конкретному исполнителю
+            if( !string.IsNullOrEmpty( myCreatedUser ) )
+            {
+                if( !UserKeyMatches( assignee, myCreatedUser ) ) continue;
+            }
+            // Фича 02: либо по сектору/отделению исполнителя
+            else if( !string.IsNullOrEmpty( myCreatedCtx ) )
+            {
+                var asgCtx = GetUserContext( assignee );
+                if( string.IsNullOrEmpty( asgCtx ) ) continue;
+                if( asgCtx != myCreatedCtx && !IsWithinContext( asgCtx, myCreatedCtx ) ) continue;
+            }
         }
 
         int status = GetStatusIndex( task );
