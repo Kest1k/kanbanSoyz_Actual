@@ -3066,3 +3066,54 @@ button.kb-btn-localfile:hover {
     box-shadow:0 0 0 2px rgba(45,127,249,.15);}
 .kb-filter-reset{color:#2d7ff9;text-decoration:none;font-weight:500;}
 .kb-filter-reset:hover{text-decoration:underline;}
+
+/* ░░ Поиск по задачам (фича 03) ░░ */
+.kb-search{position:relative;display:inline-block;margin-left:8px;}
+.kb-search-input{height:26px;width:260px;border:1px solid #ccc;border-radius:4px;padding:0 24px 0 8px;font-size:12px;}
+.kb-search-clear{position:absolute;right:6px;top:3px;color:#999;text-decoration:none;font-size:16px;line-height:20px;}
+.kb-search-results{position:absolute;z-index:9999;top:30px;left:0;width:380px;max-height:360px;overflow:auto;
+    background:#fff;border:1px solid #bbb;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);}
+.kb-sr-item{padding:7px 10px;border-bottom:1px solid #f0f0f0;cursor:pointer;}
+.kb-sr-item:hover{background:#f3f8ff;}
+.kb-sr-title{font-size:13px;color:#222;font-weight:600;}
+.kb-sr-meta{font-size:11px;color:#777;margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.kb-sr-col{padding:1px 6px;border-radius:8px;color:#fff;}
+.kb-sr-col-0{background:#9aa0a6;}.kb-sr-col-1{background:#2d7ff9;}.kb-sr-col-2{background:#e8a33d;}.kb-sr-col-3{background:#3fae5a;}
+.kb-sr-where{font-style:italic;color:#999;}
+.kb-sr-empty{padding:10px;color:#888;font-size:12px;}
+
+/* ░░ Разделение фильтра и глобального поиска (фича 03) ░░ */
+.kb-bar-sep{width:1px;align-self:stretch;min-height:24px;background:#d7d7d7;margin:0 2px;}
+.kb-search{display:inline-flex;align-items:center;background:#eef4ff;border:1px solid #cfe0ff;
+    border-radius:8px;padding:3px 8px;position:relative;}
+.kb-search-lbl{font-size:11px;color:#2d7ff9;font-weight:600;margin-right:6px;white-space:nowrap;}
+.kb-search-input{height:26px;width:240px;border:1px solid #b9d2ff;border-radius:6px;
+    padding:0 24px 0 8px;font-size:12px;background:#fff;}
+.kb-search-clear{position:absolute;right:10px;color:#999;text-decoration:none;font-size:15px;line-height:20px;}
+.kb-search-results{position:absolute;z-index:9999;top:36px;left:0;width:400px;max-height:360px;overflow:auto;
+    background:#fff;border:1px solid #bbb;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);}
+
+/* ░░ Поиск: правки визуала (фича 03, v2) ░░ */
+.kb-sr-meta{display:block;}
+.kb-sr-col{display:inline-block;margin-right:10px;}
+.kb-sr-asg{margin-right:10px;color:#555;}
+.kb-sr-where{font-style:italic;color:#999;}
+.kb-filter-reset{display:inline-block;padding:5px 12px;border:1px solid #cfe0ff;border-radius:8px;
+    background:#fff;color:#2d7ff9;font-weight:600;text-decoration:none;line-height:1.4;}
+.kb-filter-reset:hover{background:#2d7ff9;color:#fff;border-color:#2d7ff9;text-decoration:none;}
+
+/* ░░ Поиск: один аккуратный крестик, без лейбла (фича 03, v3) ░░ */
+.kb-search-lbl{display:none;}
+.kb-search-input::-ms-clear{display:none;width:0;height:0;}
+.kb-search-input{width:220px;padding-right:26px;}
+.kb-search-clear{position:absolute;top:6px;right:9px;font-size:14px;line-height:20px;
+    color:#9aa3af;text-decoration:none;}
+.kb-search-clear:hover{color:#e25555;}
+
+/* ░░ Поиск: крестик как flex-элемент справа (фича 03, v4 — финал) ░░ */
+.kb-search{display:inline-flex;align-items:center;position:relative;}
+.kb-search-input{width:210px;padding-right:8px;}
+.kb-search-input::-ms-clear{display:none;width:0;height:0;}
+.kb-search-clear{position:static;margin:0 2px 0 6px;font-size:16px;line-height:1;
+    color:#9aa3af;text-decoration:none;cursor:pointer;}
+.kb-search-clear:hover{color:#e25555;}

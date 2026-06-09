@@ -212,6 +212,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 return "OK";
             }
             case "GetReport":        return DoGetReport( inputParams );
+            case "SearchTasks":      return DoSearchTasks( inputParams );
             case "ExportToExcel":    return DoExportToExcel( obj, inputParams );
             case "GetTaskDetails":   return DoGetTaskDetails( inputParams );
             case "SaveTask":         return DoSaveTask( inputParams );
@@ -1689,6 +1690,123 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
     }
 
     return ids;
+}
+
+// ░░ Фича 03: поиск по задачам ░░
+// inputParams: строка запроса. Возвращает JSON-массив совпадений (макс. 100).
+private object DoSearchTasks( object inputParams )
+{
+    var q = ( GetParamStr( inputParams ) ?? "" ).Trim();
+    if( q.Length < 2 ) return "[]";                 // не ищем по 1 символу
+    var ql = q.ToLowerInvariant();
+
+    var container = Service.GetDataContainer( "All_Kanban_Tasks_Folder" );
+    if( container == null ) return "[]";
+
+    var me    = Service.GetCurrentUser();
+    var role  = GetUserRole( me );
+    var myCtx = GetUserContext( me );
+
+    var sb = new System.Text.StringBuilder();
+    sb.Append( "[" );
+    bool first = true;
+    int  found = 0;
+    const int LIMIT = 100;
+
+    foreach( var task in container.RootInfoObjects )
+    {
+        if( found >= LIMIT ) break;
+        if( !CanUserSeeTask( task, me ) )          continue;   // приватность
+        if( !SearchInScope( task, me, role, myCtx ) ) continue; // scope
+
+        string title    = task.GetString( "TaskName" )    ?? "";
+        string details  = task.GetString( "TaskDetails" ) ?? "";
+        string tags     = ""; try { tags     = task.GetString( "Tags" )         ?? ""; } catch { }
+        string comments = ""; try { comments = task.GetString( "CommentsJSON" ) ?? ""; } catch { }
+        string subtasks = ""; try { subtasks = task.GetString( "SubtasksJSON" ) ?? ""; } catch { }
+
+        // where = где нашли (для подписи), tab = какую вкладку открыть в карточке
+        string where = null;
+        string tab   = "main";
+        if     ( title.ToLowerInvariant().IndexOf( ql )    >= 0 ) { where = "название";    tab = "main"; }
+        else if( details.ToLowerInvariant().IndexOf( ql )  >= 0 ) { where = "описание";    tab = "main"; }
+        else if( tags.ToLowerInvariant().IndexOf( ql )     >= 0 ) { where = "теги";        tab = "main"; }
+        else if( subtasks.ToLowerInvariant().IndexOf( ql ) >= 0 ) { where = "чек-лист";    tab = "subt"; }
+        else if( comments.ToLowerInvariant().IndexOf( ql ) >= 0 ) { where = "комментарии"; tab = "chat"; }
+        else
+        {
+            var attName = MatchAttachmentName( task, ql );      // вложения
+            if( attName != null ) { where = "вложение: " + attName; tab = "main"; }
+            else continue;                                      // нигде не нашли
+        }
+
+        var key    = string.IsNullOrEmpty( task.NameKey ) ? task.Id.ToString() : task.NameKey;
+        int status = GetStatusIndex( task );
+        if( status < 0 || status > 3 ) status = 0;
+        string asg = "";
+        try { var a = task.GetUser( "Assignee" ); if( a != null ) asg = a.ToString() ?? ""; } catch { }
+
+        if( !first ) sb.Append( "," );
+        sb.Append( "{\"id\":\""        + JsonEscape( key )   + "\","
+                 + "\"title\":\""      + JsonEscape( title ) + "\","
+                 + "\"status\":"       + status              + ","
+                 + "\"assignee\":\""   + JsonEscape( asg )   + "\","
+                 + "\"tab\":\""        + tab                 + "\","
+                 + "\"where\":\""      + JsonEscape( where ) + "\"}" );
+        first = false;
+        found++;
+    }
+
+    sb.Append( "]" );
+    return sb.ToString();
+}
+
+// Видимость задачи в поиске = та же логика, что и scope доски.
+private bool SearchInScope( InfoObject task, User me, string role, string myCtx )
+{
+    if( me == null ) return false;
+    if( role == "admin" ) return true;
+    try
+    {
+        var asg = task.GetUser( "Assignee" );
+        if( asg != null && asg.Id == me.Id ) return true;              // я исполнитель
+
+        var creatorKey = task.GetString( "Creator" ) ?? "";
+        var myKey      = GetUserStableKey( me );
+        if( !string.IsNullOrEmpty( creatorKey ) && creatorKey == myKey ) return true; // я автор
+
+        if( asg != null && ( role == "headOfDept" || HasSectorScopeRole( role ) ) )
+        {
+            var asgCtx = GetUserContext( asg );
+            if( role == "headOfDept" ) return IsWithinContext( asgCtx, myCtx );
+            return asgCtx == myCtx;                                    // сектор
+        }
+    }
+    catch { }
+    return false;
+}
+
+// Поиск подстроки в именах вложений. Перечисление AttachedObjects –
+// тем же способом, что в DoGetAttachments (LinkedInfoObjects.SafeToSet()).
+private string MatchAttachmentName( InfoObject task, string ql )
+{
+    try
+    {
+        var objAttr = task.GetAttribute( "AttachedObjects" );
+        if( objAttr != null )
+        {
+            var set = objAttr.LinkedInfoObjects.SafeToSet();
+            if( set != null )
+                foreach( InfoObject io in set )
+                {
+                    var nm = io.ToString() ?? ( io.NameKey ?? "" );
+                    if( !string.IsNullOrEmpty( nm ) && nm.ToLowerInvariant().IndexOf( ql ) >= 0 )
+                        return nm;
+                }
+        }
+    }
+    catch { }
+    return null;
 }
 
 // GetTaskDetails

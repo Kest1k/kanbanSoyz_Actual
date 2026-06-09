@@ -303,6 +303,17 @@
     <input type="text" id="kb-filter-text" class="kb-filter-text"
            placeholder="&#128269; По названию и описанию..." onkeyup="kbFltApply()">
     <a href="#" class="kb-filter-reset" onclick="kbFltReset(); return false;">Сбросить</a>
+    <span class="kb-bar-sep"></span>
+    <!-- ░░ Поиск по всем задачам (фича 03) ░░ -->
+    <div id="kb-search" class="kb-search">
+        <input type="text" id="kb-search-input" class="kb-search-input" autocomplete="off"
+               placeholder="&#128269; Поиск по всему"
+               title="Поиск по всем задачам: название, описание, теги, чек-лист, комментарии, имена вложений"
+               onkeydown="kbSearchKey(event)" onkeyup="kbSearchDebounce()">
+        <a href="#" id="kb-search-clear" class="kb-search-clear" style="display:none;"
+           onclick="kbSearchClear(); return false;">&times;</a>
+        <div id="kb-search-results" class="kb-search-results" style="display:none;"></div>
+    </div>
 </div>
 
 <!-- Board -->

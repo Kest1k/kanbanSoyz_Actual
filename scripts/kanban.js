@@ -3759,6 +3759,7 @@
         for (i = 0; i < chips.length; i++) chips[i].className = "kb-fp";
         var tagSel = document.getElementById("kb-filter-tag"); if (tagSel) tagSel.value = "";
         var txtEl  = document.getElementById("kb-filter-text"); if (txtEl) txtEl.value = "";
+        if (typeof kbSearchClear === "function") kbSearchClear();   // фича 03: сброс чистит и поиск
         kbFltApply();
     };
 
@@ -3952,5 +3953,96 @@
         document.addEventListener("keydown", kbOnGlobalKeydown, false);
     } else if (document.attachEvent) {
         document.attachEvent("onkeydown", kbOnGlobalKeydown);
+    }
+
+    /* ░░ Поиск по задачам (фича 03) ░░ */
+    var _kbSearchTimer = null;
+    var _kbSearchStNames = ["Надо сделать", "В работе", "Ожидание", "Готово"];
+
+    window.kbSearchKey = function (ev) {
+        var e = ev || window.event;
+        if (e && e.keyCode === 13) { kbSearchRun(); return; }      // Enter
+        if (e && e.keyCode === 27) { kbSearchClear(); return; }    // Esc
+    };
+
+    window.kbSearchDebounce = function () {
+        if (_kbSearchTimer) { clearTimeout(_kbSearchTimer); }
+        var inp = document.getElementById("kb-search-input");
+        var clr = document.getElementById("kb-search-clear");
+        if (clr) clr.style.display = (inp && inp.value) ? "" : "none";
+        _kbSearchTimer = setTimeout(kbSearchRun, 400);
+    };
+
+    window.kbSearchRun = function () {
+        var inp = document.getElementById("kb-search-input");
+        var box = document.getElementById("kb-search-results");
+        if (!inp || !box) return;
+        var q = inp.value.replace(/^\s+|\s+$/g, "");
+        if (q.length < 2) { box.style.display = "none"; box.innerHTML = ""; return; }
+
+        var json = "[]";
+        try { json = window.external.InvokeTemplate("SearchTasks", q); } catch (e) { json = "[]"; }
+
+        var list;
+        try { list = JSON.parse(json); } catch (e2) { list = []; }
+
+        if (!list || !list.length) {
+            box.innerHTML = '<div class="kb-sr-empty">Ничего не найдено</div>';
+            box.style.display = "";
+            return;
+        }
+
+        var html = "", i;
+        for (i = 0; i < list.length; i++) {
+            var r = list[i];
+            var st = (typeof r.status === "number") ? r.status : 0;
+            var rtab = r.tab || "main";
+            html += '<div class="kb-sr-item" onclick="kbSearchOpen(\'' +
+                    String(r.id).replace(/'/g, "\\'") + '\',\'' + rtab + '\')">' +
+                    '<div class="kb-sr-title">' + kbSearchEsc(r.title) + '</div>' +
+                    '<div class="kb-sr-meta">' +
+                        '<span class="kb-sr-col kb-sr-col-' + st + '">' + (_kbSearchStNames[st] || "") + '</span>' +
+                        (r.assignee ? '<span class="kb-sr-asg">' + kbSearchEsc(r.assignee) + '</span>' : '') +
+                        '<span class="kb-sr-where">' + kbSearchEsc(r.where) + '</span>' +
+                    '</div></div>';
+        }
+        box.innerHTML = html;
+        box.style.display = "";
+    };
+
+    window.kbSearchOpen = function (id, tab) {
+        kbSearchClear();
+        if (typeof tcmOpen === "function") tcmOpen(id, tab || "main");
+    };
+
+    window.kbSearchClear = function () {
+        var inp = document.getElementById("kb-search-input");
+        var box = document.getElementById("kb-search-results");
+        var clr = document.getElementById("kb-search-clear");
+        if (inp) inp.value = "";
+        if (box) { box.style.display = "none"; box.innerHTML = ""; }
+        if (clr) clr.style.display = "none";
+    };
+
+    function kbSearchEsc(s) {
+        s = String(s == null ? "" : s);
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    // Скрыть выпадашку по клику вне поиска (IE11-safe: addEventListener || attachEvent)
+    function kbSearchDocClick(e) {
+        var ev = e || window.event;
+        var wrap = document.getElementById("kb-search");
+        var box = document.getElementById("kb-search-results");
+        if (!wrap || !box) return;
+        var t = ev && (ev.target || ev.srcElement);
+        var inside = false;
+        while (t) { if (t === wrap) { inside = true; break; } t = t.parentNode; }
+        if (!inside) box.style.display = "none";
+    }
+    if (document.addEventListener) {
+        document.addEventListener("click", kbSearchDocClick, false);
+    } else if (document.attachEvent) {
+        document.attachEvent("onclick", kbSearchDocClick);
     }
 
