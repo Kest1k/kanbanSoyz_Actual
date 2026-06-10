@@ -839,6 +839,10 @@
             <div id="tcm-tab-chat" class="tcm-tab-content">
                 <div class="tcm-chat" id="tcm-chat">
                     <div class="tcm-chat-input">
+                        <div id="tcm-notify-toggle" class="tcm-notify-icon active" onclick="tcmToggleMute()"
+                            title="Уведомления о новых комментариях по этой задаче">
+                            <i class="fa fa-bell"></i>
+                        </div>
                         <textarea id="tcm-chat-text" class="tcm-area" placeholder="Написать комментарий..."
                             onkeydown="tcmChatKeydown(event)"></textarea>
                         <button type="button" class="tcm-btn tcm-btn-primary" onclick="tcmSendComment()"

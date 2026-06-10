@@ -3395,6 +3395,38 @@
 
     // (кнопка «во весь экран» убрана — редактор растягивается на всю высоту карточки через CSS flex)
 
+    /* ░░ Фича 05: mute уведомлений обсуждения ░░ */
+    window.tcmToggleMute = function () {
+        var keyEl = document.getElementById("tcm-key");
+        if (!keyEl || !keyEl.value) return;
+        var res = "";
+        try { res = window.external.InvokeTemplate("ToggleCommentMute", keyEl.value); } catch (e) { return; }
+        if (String(res).indexOf("ERROR") === 0) {
+            if (typeof tcmShowMsg === "function") tcmShowMsg("err", String(res));
+            return;
+        }
+        tcmRenderMute(res === "1");
+    };
+
+    function tcmRenderMute(muted) {
+        var el = document.getElementById("tcm-notify-toggle");
+        if (!el) return;
+        el.className = "tcm-notify-icon" + (muted ? "" : " active");
+        el.title = muted
+            ? "Уведомления о новых комментариях ВЫКЛ – нажмите, чтобы включить"
+            : "Уведомления о новых комментариях ВКЛ – нажмите, чтобы выключить";
+        var ic = el.getElementsByTagName("i")[0];
+        if (ic) ic.className = muted ? "fa fa-bell-slash" : "fa fa-bell";
+    }
+
+    window.tcmLoadMute = function () {
+        var keyEl = document.getElementById("tcm-key");
+        if (!keyEl || !keyEl.value) return;
+        var res = "0";
+        try { res = window.external.InvokeTemplate("GetCommentMute", keyEl.value); } catch (e) { res = "0"; }
+        tcmRenderMute(res === "1");
+    };
+
     window.tcmSave = function (opts) {
         opts = opts || {};
         var closeAfter   = opts.closeAfter   !== false;
@@ -3783,6 +3815,7 @@
         if (tabId === 'chat') {
             var list = document.getElementById("tcm-chat-list");
             if (list) list.scrollTop = list.scrollHeight;
+            if (typeof tcmLoadMute === "function") tcmLoadMute();   // фича 05
         }
         if (tabId === 'hist' && !_tcmRevsLoaded) {
             _tcmRevsLoaded = true;

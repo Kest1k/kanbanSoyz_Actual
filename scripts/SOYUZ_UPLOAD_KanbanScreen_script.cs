@@ -246,6 +246,8 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "DeleteComment": return DoDeleteComment( inputParams );
             case "EditComment":   return DoEditComment( inputParams );
             case "GetCardCommentCount": return DoGetCardCommentCount( inputParams );
+            case "ToggleCommentMute": return DoToggleCommentMute( inputParams );
+            case "GetCommentMute":    return DoGetCommentMute( inputParams );
             case "AddSubtask":    return DoAddSubtask( inputParams );
             case "ToggleSubtask": return DoToggleSubtask( inputParams );
             case "DeleteSubtask": return DoDeleteSubtask( inputParams );
@@ -4583,7 +4585,63 @@ private void SendCommentNotification( InfoObject task, User author, string text 
     var subject  = "Новый комментарий в задаче «" + taskName + "»: " + preview;
 
     foreach( var u in recipients )
+    {
+        if( IsCommentsMutedBy( task, u ) ) continue;   // фича 05: пользователь заглушил эту задачу
         SendWorkItemNotify( tmpl, u, subject, preview, task.NameKey );
+    }
+}
+
+// ░░ Фича 05 ░░ проверка «заглушено ли обсуждение задачи пользователем»
+private bool IsCommentsMutedBy( InfoObject task, User user )
+{
+    if( task == null || user == null ) return false;
+    string list = "";
+    try { list = task.GetString( "CommentMutedBy" ) ?? ""; } catch { }
+    if( string.IsNullOrEmpty( list ) ) return false;
+    var key = GetUserStableKey( user );
+    if( string.IsNullOrEmpty( key ) ) return false;
+    foreach( var k in list.Split( new char[]{ ',' }, StringSplitOptions.RemoveEmptyEntries ) )
+        if( k.Trim() == key ) return true;
+    return false;
+}
+
+// ░░ Фича 05 ░░ переключить mute обсуждения текущим пользователем. "1"=замьючено / "0".
+private object DoToggleCommentMute( object inputParams )
+{
+    var taskKey = GetParamStr( inputParams );
+    if( string.IsNullOrEmpty( taskKey ) ) return "ERROR:EmptyId";
+    var task = GetTaskByKeyOrNull( taskKey );
+    if( task == null ) return "ERROR:TaskNotFound";
+    var me = Service.GetCurrentUser();
+    if( !CanUserSeeTask( task, me ) ) return "ERROR:Forbidden";
+    var key = GetUserStableKey( me );
+    if( string.IsNullOrEmpty( key ) ) return "ERROR:NoUser";
+
+    string list = "";
+    try { list = task.GetString( "CommentMutedBy" ) ?? ""; } catch { }
+    var set = new System.Collections.Generic.List<string>();
+    if( !string.IsNullOrEmpty( list ) )
+        foreach( var k in list.Split( new char[]{ ',' }, StringSplitOptions.RemoveEmptyEntries ) )
+        { var kk = k.Trim(); if( kk.Length > 0 && !set.Contains( kk ) ) set.Add( kk ); }
+
+    bool nowMuted;
+    if( set.Contains( key ) ) { set.Remove( key ); nowMuted = false; }
+    else                      { set.Add( key );    nowMuted = true;  }
+
+    var ed = task.GetEditable();
+    try { ed["CommentMutedBy"] = string.Join( ",", set.ToArray() ); } catch { }
+    ed.Save();
+    return nowMuted ? "1" : "0";
+}
+
+// ░░ Фича 05 ░░ текущее состояние mute для текущего пользователя. "1"/"0".
+private object DoGetCommentMute( object inputParams )
+{
+    var taskKey = GetParamStr( inputParams );
+    if( string.IsNullOrEmpty( taskKey ) ) return "0";
+    var task = GetTaskByKeyOrNull( taskKey );
+    if( task == null ) return "0";
+    return IsCommentsMutedBy( task, Service.GetCurrentUser() ) ? "1" : "0";
 }
 
 private User TryFindUserByKey( string key )

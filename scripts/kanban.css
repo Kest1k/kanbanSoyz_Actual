@@ -3192,3 +3192,11 @@ button.kb-btn-localfile:hover {
 .kb-nav-spacer { margin: 0 !important; }
 .kb-nav-right > * { margin-right: 10px; }
 .kb-nav-right > *:last-child { margin-right: 0; }
+
+/* ░░ Mute: иконка-колокольчик слева от кнопки «Отправить» (фича 05) ░░ */
+.tcm-notify-icon{width:34px;height:34px;display:-ms-flexbox;display:flex;
+    -ms-flex-align:center;align-items:center;-ms-flex-pack:center;justify-content:center;
+    border-radius:6px;color:#9ca3af;cursor:pointer;font-size:16px;
+    -ms-flex-negative:0;flex-shrink:0;margin-right:8px;transition:all .15s ease;}
+.tcm-notify-icon:hover{background:#f3f4f6;color:#4b5563;}
+.tcm-notify-icon.active{color:#4a6fa5;background:#e0edff;}
