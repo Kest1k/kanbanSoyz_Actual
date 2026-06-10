@@ -1,7 +1,7 @@
 private static System.Collections.Generic.HashSet<ulong> _notifiedItems = null;
 private static readonly object _notifyLock = new object();
 
-// Файл для персистентного dedup. Переживает рестарт клиента и cache eviction.
+// Локальный файл с уже показанными уведомлениями. Нужен, чтобы не открыть то же окно после рестарта клиента.
 private static string GetNotifiedFilePath()
 {
     var dir = System.IO.Path.Combine(
@@ -11,7 +11,7 @@ private static string GetNotifiedFilePath()
     return System.IO.Path.Combine( dir, "notified.txt" );
 }
 
-// Lazy-load + автообрезка старых записей (>30 дней по mtime).
+// Загружаем при первом обращении и заодно выкидываем записи старше 30 дней.
 // Формат файла: <id>\t<unixTime>\n
 private static System.Collections.Generic.HashSet<ulong> GetNotifiedSet()
 {
@@ -63,7 +63,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
 {
     if( !isFirst ) return;
 
-    // Guard: если нет Subject – это не наш WorkItem (пустые оповещения кэша).
+    // Без Subject это не наше уведомление, а пустой WorkItem из кэша.
     var subject = "";
     try { subject = ( obj.GetValue<string>( "Subject" ) ?? "" ).Trim(); } catch { }
     if( string.IsNullOrEmpty( subject ) ) return;
@@ -72,15 +72,14 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         || Math.Abs( ( obj.DateActivated - DateTime.Now ).TotalMinutes ) >= 180.0 )
         return;
 
-    // Primary guard: серверный флаг новизны. Если уже viewed на сервере
-    // (предыдущая сессия / другой клиент уже показал popup) – не показываем.
-    // Покрывает: рестарт клиента, cache eviction, параллельные сессии.
+    // Сначала верим серверному флагу новизны. Если другой клиент уже показал popup,
+    // повторно окно не открываем. Это закрывает рестарт, кэш и параллельные сессии.
     bool isNew = true;
     try { isNew = obj.IsNewForCurrentUser; } catch { }
     if( !isNew ) return;
 
-    // Secondary guard: persistent file dedup. Защита если MarkAsViewedByCurrentUser
-    // тихо упал и серверный флаг новизны остался true.
+    // Второй предохранитель – локальный список уже показанных WorkItem на случай, если
+    // MarkAsViewedByCurrentUser упал, а сервер всё ещё считает WorkItem новым.
     lock( _notifyLock )
     {
         var set = GetNotifiedSet();
@@ -89,9 +88,8 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         PersistNotified( obj.Id );
     }
 
-    // НЕ маркируем viewed до показа – иначе IsNewForCurrentUser=false и при
-    // случайном повторном OnUpdated в этом же процессе сработает фильтр выше.
-    // Маркируем после закрытия формы (см. ниже).
+    // Viewed ставим только после показа. Иначе повторный OnUpdated в этом же
+    // процессе увидит IsNewForCurrentUser=false и отрежет уведомление раньше времени.
 
     System.Console.Beep( 250, 500 );
 
@@ -177,7 +175,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         sb.Append( @"\par}" );
         var rtfText = sb.ToString();
 
-        // Замер МАКСИМАЛЬНОЙ ширины строк (без переноса)
+        // Меряем самую длинную строку без переноса
         const int sidePadding = 18;
         const int topPadding  = 18;
         const int botPadding  = 12;
@@ -314,8 +312,8 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         }
 
         // Сбрасываем бейдж "Новое" в папке оповещений после показа popup.
-        // IsNewForCurrentUser → false на сервере → следующий OnUpdated этого
-        // WorkItem (рестарт / cache eviction) скипнет первый guard.
+        // После этого IsNewForCurrentUser станет false на сервере, и следующий
+        // OnUpdated для этого WorkItem уже не покажет окно повторно.
         try { obj.MarkAsViewedByCurrentUser(); } catch
         {
             try { Service.WriteToServerLog( "KanbanExclamation", "MarkAsViewedByCurrentUser failed post-show for WorkItem " + obj.Id ); } catch { }
@@ -325,7 +323,7 @@ public override void OnUpdated( WorkItem obj, bool isFirst )
         {
             try
             {
-                // Проверяем тему письма для определения вкладки (надежно через IndexOf)
+                // Вкладку выбираем по теме письма. IndexOf здесь самый надёжный вариант.
                 bool isComm = subject.IndexOf("Новый комментарий", StringComparison.OrdinalIgnoreCase) >= 0;
                 string targetTab = isComm ? "chat" : "main";
 
@@ -388,7 +386,7 @@ private void OpenBoardFromNotification( string taskKey, string targetTab )
                     {
                         try
                         {
-                            // Fallback: если Refresh недоступен, хотя бы открыть карточку.
+                            // Если Refresh не прошёл, хотя бы открываем карточку.
                             web.Document.InvokeScript( "tcmOpen", new object[] { taskKey, targetTab } );
                         }
                         catch( Exception ex )
@@ -411,10 +409,9 @@ private void OpenBoardFromNotification( string taskKey, string targetTab )
 
 public override void ManageMailShortcuts( WorkItem obj, UserItemLink creatorLink, UserItemLink[] recipientLinks )
 {
-    // НЕ обнуляем recipientLinks – WorkItem должен попасть в стандартную папку
-    // оповещений PLM (как было до 5 мая).
-    // Штатный popup-toast подавляется через OnPostTrayNotification (KanbanTrayFilter).
-    // Кастомный RTF popup показывается через OnUpdated в этом файле.
+    // recipientLinks не обнуляем: WorkItem должен попасть в стандартную папку
+    // оповещений PLM, как было до 5 мая.
+    // Штатный popup-toast гасит KanbanTrayFilter, а RTF-окно показывает OnUpdated.
     try { obj[ "SilentMode" ] = true; } catch { }
 }
 

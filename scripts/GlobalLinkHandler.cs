@@ -73,8 +73,7 @@ private void RefreshBoardWithDelay( InfoObject page )
 
         ctrl.BeginInvoke( (Action)( () =>
         {
-            // Мы убрали мгновенный RefreshBoardNow( page ); отсюда, 
-            // чтобы не было двойного моргания.
+            // Мгновенный RefreshBoardNow отсюда убран: иначе вкладка заметно моргает два раза.
 
             var timer = new System.Windows.Forms.Timer();
             timer.Interval = 300; // 300 мс вполне достаточно для прогрузки UI
@@ -95,21 +94,21 @@ private void RefreshBoardWithDelay( InfoObject page )
 
 private void RefreshBoardNow( InfoObject page )
 {
-    // 1. Подтягиваем свежие данные (новые задачи) с сервера
+    // Берём свежие данные с сервера
     try { Service.UI.LoadChangesFromServer( true ); } catch { }
     try { Service.UI.DoUIEventsDispatching(); } catch { }
     
-    // 2. Ставим флаг, который обычно слушают HTML-экраны в PLM
+    // HTML-экраны в PLM обычно смотрят на этот флаг
     try { page.PropertyBag["RefreshRequested"] = true; } catch { }
     
-    // 3. Системная команда ядру PLM: "Сбрось кэш отрисовки этого объекта"
+    // Просим ядро PLM сбросить кэш отрисовки объекта
     try { Service.UI.RefreshObject( page ); } catch { }
     
-    // 4. Ваши кастомные методы (оставляем как было)
+    // Старые кастомные refresh-вызовы тоже оставляем
     try { page.Invoke( "RefreshBoard", null ); } catch { }
     try { page.Invoke( "Refresh", null ); } catch { }
 
-    // 5. БРОНЕБОЙНЫЙ РЕБИЛД ОТКРЫТОЙ ВКЛАДКИ (UI)
+    // Если вкладка уже открыта, перестраиваем её напрямую
     try
     {
         var allPanels = Service.UI.GetBrowserPanelsFromAllGroups();
@@ -132,7 +131,7 @@ private void RefreshBoardNow( InfoObject page )
 
             if (existingTab != null)
             {
-                // Вытаскиваем IPropertySheetCallback и принудительно перестраиваем интерфейс
+                // Через IPropertySheetCallback можно добить перерисовку открытой вкладки
                 var propSheet = existingTab.TargetPanel as ProgramSoyuz.PLM.Scripting.IPropertySheetCallback;
                 if (propSheet != null)
                 {

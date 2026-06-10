@@ -1,28 +1,27 @@
 /// <summary>
-/// Проверка применимости данного автоматического действия в текущем окружении
+/// Кнопку Канбана можно показывать всегда: это просто вход на экран доски.
 /// </summary>
-/// <returns>Возвращает true, если автоматическое действие может работать в текущем окружении</returns>
+/// <returns>true, если команду оставляем доступной.</returns>
 public override bool IsValid()
 {
     return true;
 }
 
 /// <summary>
-/// Обновление состояния элементов интерфейса
+/// Держим кнопку активной в меню/панели.
 /// </summary>
-/// <param name="cmdUI">Объект для управления контролом вызова команды</param>
+/// <param name="cmdUI">Контрол команды в интерфейсе PLM.</param>
 public override void UpdateState( ICmdUI cmdUI )
 {
     cmdUI.Enabled = true;
 }
 
 /// <summary>
-/// Вызов метода, реализованного скриптовой функцией
+/// Открывает доску или активирует уже открытую вкладку.
 /// </summary>
-/// <param name="session">Пользовательская сессия, инициировавшая вызов
-/// (может быть null, если вызов инициировал серверный скрипт без указания сессии)</param>
-/// <param name="inputParams">Сериализуемые входные данные для метода</param>
-/// <returns>Результат работы метода</returns>
+/// <param name="session">Сессия пользователя. Может быть null при серверном вызове.</param>
+/// <param name="inputParams">Параметры здесь не используются.</param>
+/// <returns>Всегда null: команда только открывает UI.</returns>
 public override Object Invoke( UserSession session, Object inputParams )
 {
     var root = Service.GetDataContainer( @"APSsServiceDataRootDirectory\UI" );

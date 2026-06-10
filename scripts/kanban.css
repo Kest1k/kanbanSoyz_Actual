@@ -2918,8 +2918,8 @@
 /* DnD: перетаскиваемый элемент */
 .kb-subt-item.kb-subt-dragging { opacity: 0.35; }
 
-/* ── DnD: pointer-events:none на дочерних во время drag
-   устраняет мигание (ondragleave не стреляет при въезде в дочерний элемент) ── */
+/* DnD: во время drag отключаем pointer-events у дочерних,
+   иначе ondragleave дёргается при въезде в текст/иконки. */
 .kb-subt-list.kb-dnd-active .kb-subt-item * {
     pointer-events: none;
     -ms-pointer-events: none;
@@ -3039,7 +3039,7 @@ button.kb-btn-localfile:hover {
     font-size: 11px; color: #b45309; margin-left: 6px; vertical-align: middle;
 }
 
-/* ░░ Умный фильтр (фича 01) ░░ */
+/* Умный фильтр */
 .kb-filter-bar{display:flex;align-items:center;flex-wrap:wrap;
     padding:8px 14px;border-bottom:1px solid #e3e3e3;background:#fafafa;font-size:12px;}
 .kb-filter-bar > *{margin-right:12px;margin-bottom:4px;}
@@ -3067,7 +3067,7 @@ button.kb-btn-localfile:hover {
 .kb-filter-reset{color:#2d7ff9;text-decoration:none;font-weight:500;}
 .kb-filter-reset:hover{text-decoration:underline;}
 
-/* ░░ Поиск по задачам (фича 03) ░░ */
+/* Поиск по задачам */
 .kb-search{position:relative;display:inline-block;margin-left:8px;}
 .kb-search-input{height:26px;width:260px;border:1px solid #ccc;border-radius:4px;padding:0 24px 0 8px;font-size:12px;}
 .kb-search-clear{position:absolute;right:6px;top:3px;color:#999;text-decoration:none;font-size:16px;line-height:20px;}
@@ -3082,7 +3082,7 @@ button.kb-btn-localfile:hover {
 .kb-sr-where{font-style:italic;color:#999;}
 .kb-sr-empty{padding:10px;color:#888;font-size:12px;}
 
-/* ░░ Разделение фильтра и глобального поиска (фича 03) ░░ */
+/* Фильтр и глобальный поиск разнесены визуально */
 .kb-bar-sep{width:1px;align-self:stretch;min-height:24px;background:#d7d7d7;margin:0 2px;}
 .kb-search{display:inline-flex;align-items:center;background:#eef4ff;border:1px solid #cfe0ff;
     border-radius:8px;padding:3px 8px;position:relative;}
@@ -3093,7 +3093,7 @@ button.kb-btn-localfile:hover {
 .kb-search-results{position:absolute;z-index:9999;top:36px;left:0;width:400px;max-height:360px;overflow:auto;
     background:#fff;border:1px solid #bbb;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);}
 
-/* ░░ Поиск: правки визуала (фича 03, v2) ░░ */
+/* Поиск: правки визуала */
 .kb-sr-meta{display:block;}
 .kb-sr-col{display:inline-block;margin-right:10px;}
 .kb-sr-asg{margin-right:10px;color:#555;}
@@ -3102,7 +3102,7 @@ button.kb-btn-localfile:hover {
     background:#fff;color:#2d7ff9;font-weight:600;text-decoration:none;line-height:1.4;}
 .kb-filter-reset:hover{background:#2d7ff9;color:#fff;border-color:#2d7ff9;text-decoration:none;}
 
-/* ░░ Поиск: один аккуратный крестик, без лейбла (фича 03, v3) ░░ */
+/* Поиск: один аккуратный крестик, без лейбла */
 .kb-search-lbl{display:none;}
 .kb-search-input::-ms-clear{display:none;width:0;height:0;}
 .kb-search-input{width:220px;padding-right:26px;}
@@ -3110,7 +3110,7 @@ button.kb-btn-localfile:hover {
     color:#9aa3af;text-decoration:none;}
 .kb-search-clear:hover{color:#e25555;}
 
-/* ░░ Поиск: крестик как flex-элемент справа (фича 03, v4 — финал) ░░ */
+/* Поиск: крестик как flex-элемент справа */
 .kb-search{display:inline-flex;align-items:center;position:relative;}
 .kb-search-input{width:210px;padding-right:8px;}
 .kb-search-input::-ms-clear{display:none;width:0;height:0;}
@@ -3118,12 +3118,12 @@ button.kb-btn-localfile:hover {
     color:#9aa3af;text-decoration:none;cursor:pointer;}
 .kb-search-clear:hover{color:#e25555;}
 
-/* ░░ Вкладка Заметки (фича 04) ░░ */
+/* Вкладка «Заметки» */
 .tcm-notes-wrap{display:flex;flex-direction:column;height:100%;}
 .tcm-notes-area{width:100%;min-height:260px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.5;}
 .tcm-notes-hint{color:#999;font-size:11px;margin-top:6px;}
 
-/* ░░ Умные заметки: rich-HTML редактор (фича 04+) ░░ */
+/* Умные заметки: rich-HTML редактор */
 .tcm-notes-toolbar{display:flex;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
 .tcm-note-btn{margin-right:6px;margin-bottom:4px;padding:3px 9px;border:1px solid #ccc;border-radius:6px;
     background:#fff;cursor:pointer;font-size:12px;line-height:1.4;}
@@ -3135,14 +3135,14 @@ button.kb-btn-localfile:hover {
 .tcm-notes-edit img{max-width:100%;height:auto;display:block;margin:6px 0;}
 .tcm-notes-hint{color:#999;font-size:11px;margin-top:6px;}
 
-/* ░░ Заметки v2: Ctrl+V вставка + во весь экран (фича 04+) ░░ */
+/* Заметки: Ctrl+V вставка и полноэкранный режим */
 .tcm-note-tip{color:#9aa3af;font-size:11px;margin-left:8px;margin-bottom:4px;}
 .tcm-notes-edit{min-height:280px;}
 .tcm-notes-fs-on{position:fixed;left:0;top:0;right:0;bottom:0;z-index:100000;background:#fff;
     margin:0;padding:14px;overflow:auto;box-sizing:border-box;}
 .tcm-notes-fs-on .tcm-note-fs{background:#2d7ff9;border-color:#2d7ff9;color:#fff;}
 
-/* ░░ Заметки v3: редактор на всю высоту карточки (фича 04+) ░░ */
+/* Заметки: редактор на всю высоту карточки */
 #tcm-tab-notes.tcm-tab-content.active { overflow: hidden; }
 .tcm-notes-toolbar { -ms-flex-negative: 0; flex-shrink: 0; }
 .tcm-notes-edit {
@@ -3155,12 +3155,12 @@ button.kb-btn-localfile:hover {
 
 /* ░░ Адаптив тулбара при сжатии окна (особенно у руководителей) ░░ */
 @media (max-width: 1240px) {
-    /* Период — в общий поток, без float */
+    /* Период – в общий поток, без float */
     .kb-period-wrap { float: none; margin-left: 0; margin-top: 4px; }
     .kb-nav-left > * { margin: 4px 10px 4px 0; }
     /* Селекторы «Вид» сохраняют читаемую ширину, переносятся при нехватке места (не обрезаются) */
     .kb-hier-select { min-width: 128px !important; width: auto !important; }
-    /* Поля фильтра и поиска гибкие — равномерно делят строку, не выталкивают её */
+    /* Поля фильтра и поиска гибкие – делят строку и не выталкивают её */
     .kb-filter-text { min-width: 0; -ms-flex: 1 1 200px; flex: 1 1 200px; }
     .kb-search { -ms-flex: 1 1 240px; flex: 1 1 240px; }
     .kb-search-input { width: auto; -ms-flex: 1 1 auto; flex: 1 1 auto; }
@@ -3179,8 +3179,8 @@ button.kb-btn-localfile:hover {
 .kb-nav-spacer { -ms-flex: 1 1 0px; flex: 1 1 0px; min-width: 0; height: 0; margin: 0; padding: 0; border: 0; }
 .kb-nav-right { margin-left: 0; margin-top: 4px; margin-bottom: 4px; }
 
-/* На узком окне спейсер схлопывается: всё пакуется вплотную (без пустого зазора),
-   на широком (>1240) — спейсер тянет «Что нового/Справка» вправо. */
+/* На узком окне спейсер схлопывается без пустого зазора.
+   На широком (>1240) он тянет «Что нового/Справка» вправо. */
 @media (max-width: 1240px) {
     .kb-nav-spacer { -ms-flex: 0 0 0px; flex: 0 0 0px; min-width: 0; width: 0; }
     .kb-nav-right { margin-left: 0; }
@@ -3193,10 +3193,51 @@ button.kb-btn-localfile:hover {
 .kb-nav-right > * { margin-right: 10px; }
 .kb-nav-right > *:last-child { margin-right: 0; }
 
-/* ░░ Mute: иконка-колокольчик слева от кнопки «Отправить» (фича 05) ░░ */
+/* Mute: колокольчик слева от кнопки «Отправить» */
 .tcm-notify-icon{width:34px;height:34px;display:-ms-flexbox;display:flex;
     -ms-flex-align:center;align-items:center;-ms-flex-pack:center;justify-content:center;
     border-radius:6px;color:#9ca3af;cursor:pointer;font-size:16px;
     -ms-flex-negative:0;flex-shrink:0;margin-right:8px;transition:all .15s ease;}
 .tcm-notify-icon:hover{background:#f3f4f6;color:#4b5563;}
 .tcm-notify-icon.active{color:#4a6fa5;background:#e0edff;}
+
+/* Уведомления исполнителя (фича 08) */
+.kb-notif-wrap{position:relative;display:inline-block;}
+.kb-notif-badge{display:inline-block;min-width:16px;height:16px;line-height:16px;padding:0 4px;
+    margin-left:4px;border-radius:8px;background:#dc2626;color:#fff;font-size:11px;font-weight:700;text-align:center;}
+.kb-notif-panel{position:absolute;z-index:9999;top:34px;right:0;width:440px;max-height:440px;overflow-y:auto;overflow-x:hidden;
+    background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);
+    scrollbar-face-color:#d7dde6;scrollbar-track-color:#f8fafc;scrollbar-arrow-color:#f8fafc;
+    scrollbar-shadow-color:#d7dde6;scrollbar-highlight-color:#d7dde6;
+    scrollbar-3dlight-color:#f8fafc;scrollbar-darkshadow-color:#f8fafc;}
+.kb-notif-panel::-webkit-scrollbar{width:5px;}
+.kb-notif-panel::-webkit-scrollbar-track{background:#f8fafc;}
+.kb-notif-panel::-webkit-scrollbar-thumb{background:#d7dde6;border-radius:10px;}
+.kb-notif-panel::-webkit-scrollbar-thumb:hover{background:#c4ccd8;}
+.kb-notif-head{display:-ms-flexbox;display:flex;-ms-flex-pack:justify;justify-content:space-between;
+    -ms-flex-align:center;align-items:center;padding:8px 12px;border-bottom:1px solid #eef2f7;font-weight:600;color:#334155;font-size:13px;}
+.kb-notif-readall{font-size:12px;color:#2563eb;text-decoration:none;font-weight:500;}
+.kb-notif-readall:hover{text-decoration:underline;}
+.kb-notif-list{padding:2px 0;}
+.kb-notif-item{display:-ms-flexbox;display:flex;-ms-flex-align:start;align-items:flex-start;padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;max-width:100%;overflow:hidden;text-align:left;}
+.kb-notif-item:hover{background:#f3f8ff;}
+.kb-notif-unread{background:#eff6ff;}
+.kb-notif-unread .kb-notif-title{font-weight:700;}
+.kb-notif-ico{-ms-flex:0 0 auto;flex:0 0 auto;font-size:15px;line-height:18px;margin-right:8px;}
+.kb-notif-body{display:-ms-flexbox;display:flex;-ms-flex:1 1 auto;flex:1 1 auto;-ms-flex-direction:column;flex-direction:column;min-width:0;max-width:100%;text-align:left;}
+.kb-notif-title{font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kb-notif-text{font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+.kb-notif-date{display:block;width:100%;font-size:11px;color:#94a3b8;margin-top:3px;text-align:left;}
+.kb-notif-empty{padding:16px 12px;color:#94a3b8;font-size:13px;text-align:center;}
+
+/* Уведомления: бейдж типа + строка (фича 08, дизайн) */
+.kb-notif-badge2{display:inline-block;-ms-flex:0 0 94px;flex:0 0 94px;width:94px;-ms-flex-item-align:start;align-self:flex-start;
+    box-sizing:border-box;margin-right:10px;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;text-align:center;}
+.kb-nk-comment{background:#e0edff;color:#2563eb;}
+.kb-nk-new{background:#e7f7ec;color:#15803d;}
+.kb-nk-done{background:#e6f9f0;color:#0f9d6e;}
+.kb-nk-return{background:#fdecdc;color:#c2620a;}
+.kb-nk-other{background:#eef1f5;color:#555;}
+.kb-notif-subject{display:block;width:100%;max-width:100%;font-size:13px;color:#1e293b;line-height:1.35;white-space:pre-wrap;text-align:left;
+    word-wrap:break-word;overflow-wrap:break-word;word-break:break-word;}
+.kb-notif-unread .kb-notif-subject{font-weight:600;}

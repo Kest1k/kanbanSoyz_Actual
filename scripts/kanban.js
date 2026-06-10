@@ -318,29 +318,10 @@
 
             var ctx = _kbDoneReportCtx;
 
-            // Сначала комментарий, потом перенос. Если коммент упал – не переносим.
-            var addRes = "";
-            try {
-                addRes = window.external.InvokeTemplate("AddComment", ctx.taskId + "|" + text);
-            } catch (e) {
-                if (err) {
-                    err.innerHTML = "Ошибка отправки комментария: " + (e.message || e);
-                    err.style.display = "block";
-                }
-                return;
-            }
-            var addStr = String(addRes || "");
-            if (addStr.indexOf("ERROR") === 0) {
-                if (err) {
-                    err.innerHTML = "Ошибка отправки комментария: " + addStr;
-                    err.style.display = "block";
-                }
-                return;
-            }
-
-            // Коммент ушёл – закрываем модалку и переносим задачу
+            // Отчёт передаём прямо в MoveTask: сервер сохранит его комментарием
+            // обсуждения и пошлёт автору ОДНО осмысленное уведомление (без дубля).
             kbDoneReportCancel();
-            kbDoMoveTask(ctx.taskId, ctx.newStatus);
+            kbDoMoveTask(ctx.taskId, ctx.newStatus, text);
         };
 
         // Модалка возврата задачи из «Готово»
@@ -416,7 +397,7 @@
         };
 
 
-        // ── Авто-обновление при возврате фокуса после редактирования задачи ─
+        // Автообновление после возврата фокуса из карточки PLM
         var _taskWasOpened = false;
 
         window.onfocus = function () {
@@ -758,11 +739,10 @@
             kbPeriodApply();
         };
 
-        // Восстановление состояния фильтра периода после Refresh.
-        // ВАЖНО: вызывается отдельно от kbInitHierarchy, потому что
-        // kbInitHierarchy делает ранний return для роли "regular" и
-        // период не успеет инициализироваться. Кнопки Применить/Сбросить
-        // используют inline onclick – биндинг здесь не нужен.
+        // Восстанавливаем фильтр периода после Refresh.
+        // Держим отдельно от kbInitHierarchy: для роли "regular" там ранний return,
+        // и период иначе не успевает инициализироваться. Кнопки Применить/Сбросить
+        // используют inline onclick, отдельный биндинг не нужен.
         window.kbPeriodFilterInit = function () {
             var inFrom = document.getElementById("kb-period-from");
             var inTo   = document.getElementById("kb-period-to");
@@ -800,8 +780,8 @@
             var safeTo   = String(sTo).replace(/\|/g, "");
 
             try {
-                // SetPeriodFilter на сервере сам триггерит Refresh – отдельный
-                // kbRefreshBoard НЕ нужен. Это устраняет гонку PropertyBag.
+                // SetPeriodFilter сам запускает Refresh на сервере.
+                // Отдельный kbRefreshBoard не нужен: так не ловим гонку PropertyBag.
                 var res = window.external.InvokeTemplate("SetPeriodFilter", safeFrom + "|" + safeTo);
                 if (String(res || "").indexOf("ERROR") === 0) {
                     alert("Ошибка установки фильтра: " + res);
@@ -813,7 +793,7 @@
                 // Закрываем панель после применения
                 var p = document.getElementById("kb-period-panel");
                 if (p) p.style.display = "none";
-            } catch (e) { /* no-op */ }
+            } catch (e) { /* тихо игнорируем */ }
         };
 
         window.kbPeriodReset = function () {
@@ -828,7 +808,7 @@
                 kbPeriodUpdateLabel("", "");
                 var p = document.getElementById("kb-period-panel");
                 if (p) p.style.display = "none";
-            } catch (e) { /* no-op */ }
+            } catch (e) { /* тихо игнорируем */ }
         };
 
     }());
@@ -863,7 +843,7 @@
                 return;
             }
 
-            // Новые комментарии — сверху (строка ввода тоже сверху)
+            // Новые комментарии – сверху, строка ввода тоже сверху
             for (var i = items.length - 1; i >= 0; i--) {
                 list.appendChild(tcmRenderComment(items[i]));
             }
@@ -1111,7 +1091,7 @@
     var _tcmSubtasks = { taskKey: "", items: [] };
 
     // Канонический порядок: невыполненные (в своём порядке) сверху,
-    // затем выполненные — последние отмеченные выше (по doneAt ↓).
+    // затем выполненные – последние отмеченные выше (по doneAt ↓).
     function tcmSubtNormalize(items) {
         items = items || [];
         var undone = [], done = [];
@@ -1239,7 +1219,7 @@
             var s = String(raw || "");
             if (s.indexOf("ERROR") === 0) { alert("Ошибка добавления: " + s); return; }
             var obj = JSON.parse(s);
-            _tcmSubtasks.items.unshift(obj);   // новый пункт — наверх
+            _tcmSubtasks.items.unshift(obj);   // новый пункт – наверх
             inp.value = "";
             tcmSubtasksRender();
             tcmSubtPersistOrder();             // зафиксировать порядок на сервере
@@ -1247,7 +1227,7 @@
             _tcmRevsLoaded = false;
             var rb = document.getElementById("tcm-revs-body");
             if (rb) rb.innerHTML = "Загрузка...";
-        } catch (e) { /* no-op */ }
+        } catch (e) { /* тихо игнорируем */ }
     };
 
     window.tcmSubtasksToggle = function (subtaskId) {
@@ -1271,7 +1251,7 @@
             _tcmRevsLoaded = false;
             var rb = document.getElementById("tcm-revs-body");
             if (rb) rb.innerHTML = "Загрузка...";
-        } catch (e) { /* no-op */ }
+        } catch (e) { /* тихо игнорируем */ }
     };
 
     window.tcmSubtasksDelete = function (subtaskId) {
@@ -1292,7 +1272,7 @@
             _tcmRevsLoaded = false;
             var rb = document.getElementById("tcm-revs-body");
             if (rb) rb.innerHTML = "Загрузка...";
-        } catch (e) { /* no-op */ }
+        } catch (e) { /* тихо игнорируем */ }
     };
 
     window.tcmSubtasksKeydown = function (e) {
@@ -1309,7 +1289,7 @@
         try {
             event.dataTransfer.setData("text", subtaskId);
             event.dataTransfer.effectAllowed = "move";
-        } catch (e) { /* IE11 quirk */ }
+        } catch (e) { /* IE11 иногда падает на dataTransfer */ }
         // Помечаем перетаскиваемую строку + активируем режим DnD на контейнере
         // (pointer-events:none на дочерних элементах – устраняет мигание)
         var row = document.querySelector('.kb-subt-item[data-id="' + tcmChatEsc(subtaskId) + '"]');
@@ -1664,7 +1644,7 @@
     };
 
     window.kbSetMyMode = function () {
-        _kbH.myCreated = false;   // фича 02
+        _kbH.myCreated = false;   // выходим из режима «Выданные мной»
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
@@ -1678,7 +1658,7 @@
     };
 
     function kbApplyMode() {
-        if (_kbH.myCreated) { kbSendMyCreatedMode(); return; }   // фича 02
+        if (_kbH.myCreated) { kbSendMyCreatedMode(); return; }   // режим «Выданные мной»
         var deptKey = kbSelVal("kb-sel-dept");
         var sectorKey = kbSelVal("kb-sel-sector");
         var userKey = kbSelVal("kb-sel-user");
@@ -1704,7 +1684,7 @@
         if (!mode || mode === "my") { kbUpdateMyBtn(true); return; }
         if (mode === "all" || mode === "dept" || mode === "sector") { kbUpdateAllBtn(true); return; }
         if (mode === "myCreated" || mode.indexOf("myCreated:") === 0) {
-            _kbH.myCreated = true;                       // фича 02
+            _kbH.myCreated = true;                       // режим «Выданные мной»
             kbUpdateMyCreatedBtn(true);
             // Переиспользуем каскадное восстановление селекторов из режимов user:/group:,
             // чтобы отдел/сектор/сотрудник сохранялись в селекторах, а не сбрасывались.
@@ -1821,7 +1801,7 @@
 
     // Кнопка «Все задачи» / «Всё отделение» / «Весь сектор»
     window.kbSetAllMode = function () {
-        _kbH.myCreated = false;   // фича 02
+        _kbH.myCreated = false;   // выходим из режима «Выданные мной»
         kbSetSelVal("kb-sel-dept", "");
         kbSetSelVal("kb-sel-sector", "");
         kbSetSelVal("kb-sel-user", "");
@@ -1840,16 +1820,16 @@
     window.kbSetMyCreatedMode = function () {
         kbSetSelVal("kb-sel-user", "");
         kbClearSelSearch();
-        _kbH.myCreated = true;                 // фича 02: включаем режим «выданные мной»
+        _kbH.myCreated = true;                 // включаем режим «Выданные мной»
         if (_kbH.role === "admin" || _kbH.role === "headOfDept") {
             kbFillSectors(kbSelVal("kb-sel-dept") || null);   // оставляем доступным выбор сектора
             kbFillUsers(null, null, "");
         }
         kbUpdateMyCreatedBtn(true);
-        kbSendMyCreatedMode();                  // фича 02: учитываем выбранный сектор
+        kbSendMyCreatedMode();                  // учитываем выбранный сектор
     };
 
-    // Фича 02: собрать режим myCreated с учётом выбранного сотрудника/сектора/отделения
+    // Собираем myCreated с учётом выбранного сотрудника, сектора или отделения
     function kbSendMyCreatedMode() {
         var userKey   = kbSelVal("kb-sel-user");
         var sectorKey = kbSelVal("kb-sel-sector");
@@ -2581,7 +2561,7 @@
         if (origDueGroup) origDueGroup.style.display = d.originalDueDate ? "" : "none";
         document.getElementById("tcm-details").value = d.details || "";
         var _nEl = document.getElementById("tcm-notes");
-        if (_nEl) _nEl.innerHTML = d.notes || "";   // фича 04: rich-HTML заметки
+        if (_nEl) _nEl.innerHTML = d.notes || "";   // rich-HTML заметки
         tcmAutoSizeDetails();   // FIX-05
 
         // Просроченность
@@ -3277,7 +3257,7 @@
     // Без аргументов (кнопка «Сохранить», Ctrl+S, tcmDelete) – закрыть и обновить.
     // Enter из tcmHotkey передаёт {closeAfter:false, refreshAfter:false} –
     // классическое «сохранить, продолжить редактирование».
-    /* ░░ Фича 04: умные заметки (rich-HTML + картинки/скриншоты) ░░ */
+    /* Умные заметки: rich-HTML, картинки и скриншоты */
     var _tcmNotesTimer = null;
 
     window.tcmNotesScheduleSave = function () {
@@ -3338,7 +3318,7 @@
         tcmNotesInsertHtml('<img src="' + res + '" style="max-width:100%;" /><br>');
     };
 
-    // Вставка переноса строки в редакторе заметок — делаем сами, чтобы Enter
+    // Вставку переноса строки в редакторе заметок делаем сами, чтобы Enter
     // работал одинаково во всех режимах IE и не плодил пункты списка.
     function tcmNotesInsertBr() {
         var ed = document.getElementById("tcm-notes");
@@ -3393,9 +3373,9 @@
         return true;        // нет картинки – обычная вставка текста
     };
 
-    // (кнопка «во весь экран» убрана — редактор растягивается на всю высоту карточки через CSS flex)
+    // Кнопку «во весь экран» убрали: редактор и так растягивается на всю высоту карточки через CSS flex.
 
-    /* ░░ Фича 05: mute уведомлений обсуждения ░░ */
+    /* Mute уведомлений обсуждения */
     window.tcmToggleMute = function () {
         var keyEl = document.getElementById("tcm-key");
         if (!keyEl || !keyEl.value) return;
@@ -3500,7 +3480,7 @@
         }
     };
 
-    // ── Ссылки Directum (список) ─────────────────────────────────────
+    // Ссылки Directum в карточке
     var _tcmDlinks = [];
     var _tcmDlinksCanEdit = true;
 
@@ -3611,7 +3591,7 @@
             tcmDlinkMsg("Открываю в Directum…", "ok");
             setTimeout(function () { tcmDlinkMsg("", ""); }, 2500);
         } else if (res === "ERROR:NoAssoc" || res === "ERROR:FetchFailed") {
-            // Сервер не отдал .isb, либо нет ISBExec — открываем ссылку штатно (старый путь, редко)
+            // Сервер не отдал .isb или нет ISBExec, открываем ссылку штатно (старый путь, редко)
             tcmDlinkMsg("Открываю ссылку напрямую…", "");
             try { window.open(url, "_blank"); } catch (e2) { }
         } else if (res === "ERROR:BadLink") {
@@ -3759,7 +3739,7 @@
     };
 
     // Кнопка «Что нового» пульсирует, пока пользователь не открыл текущую версию.
-    // «Версия» вычисляется автоматически — это дата верхней (самой свежей) записи в списке
+    // «Версия» вычисляется автоматически: это дата верхней (самой свежей) записи в списке
     // новостей. Добавили новую запись сверху → дата сменилась → кнопка снова пульсирует у всех.
     // Бампать руками ничего не нужно.
     // Отметка о просмотре хранится в пользовательском реестре PLM (переживает перезапуск,
@@ -3781,7 +3761,7 @@
         if (!btn) return;
         var seen = null;
         try { seen = String(window.external.InvokeTemplate("GetWhatsNewSeen", "")); } catch (e) { seen = null; }
-        // Уже видел текущую версию — не пульсируем. Нет связи (seen===null) — пульсируем (заметнее).
+        // Текущую версию уже видел – не пульсируем. Нет связи (seen===null) – пульсируем, так заметнее.
         if (seen !== null && seen === kbWhatsNewSignature()) return;
         if (btn.className.indexOf("kb-news-pulse") < 0) btn.className += " kb-news-pulse";
     }
@@ -3815,7 +3795,7 @@
         if (tabId === 'chat') {
             var list = document.getElementById("tcm-chat-list");
             if (list) list.scrollTop = list.scrollHeight;
-            if (typeof tcmLoadMute === "function") tcmLoadMute();   // фича 05
+            if (typeof tcmLoadMute === "function") tcmLoadMute();   // обновить колокольчик mute
         }
         if (tabId === 'hist' && !_tcmRevsLoaded) {
             _tcmRevsLoaded = true;
@@ -3827,7 +3807,7 @@
         }
     };
 
-    /* ░░ Умный фильтр (фича 01) ░░ */
+    /* Умный фильтр */
     var _kbFltPrio = {};
     var _kbFltKey  = "kbFilterState";
 
@@ -3912,7 +3892,7 @@
         for (i = 0; i < chips.length; i++) chips[i].className = "kb-fp";
         var tagSel = document.getElementById("kb-filter-tag"); if (tagSel) tagSel.value = "";
         var txtEl  = document.getElementById("kb-filter-text"); if (txtEl) txtEl.value = "";
-        if (typeof kbSearchClear === "function") kbSearchClear();   // фича 03: сброс чистит и поиск
+        if (typeof kbSearchClear === "function") kbSearchClear();   // сброс чистит и поиск
         kbFltApply();
     };
 
@@ -3949,7 +3929,7 @@
         kbFltApply();
     }
 
-    /* ░░ Перемещение без перезагрузки в режиме фильтра (фича 01) ░░ */
+    /* Перемещение без перезагрузки, когда включён фильтр */
     function kbFltActive() {
         var anyPrio = false, p;
         for (p in _kbFltPrio) { if (_kbFltPrio.hasOwnProperty(p)) { anyPrio = true; break; } }
@@ -3986,6 +3966,167 @@
     kbInitHierarchy();
     if (typeof kbFltInit === "function") kbFltInit();
 
+    /* Уведомления исполнителя (фича 08) */
+    var _kbNotifOpen   = false;
+    var _kbNotifPollTm = null;
+
+    function kbNotifEsc(s) {
+        s = String(s == null ? "" : s);
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function kbNotifBadge(n) {
+        var b = document.getElementById("kb-notif-badge");
+        if (!b) return;
+        if (n > 0) { b.innerHTML = (n > 99 ? "99+" : String(n)); b.style.display = ""; }
+        else { b.style.display = "none"; }
+    }
+
+    function kbNotifKindClass(kind) {
+        if (kind === "Комментарий") return "kb-nk-comment";
+        if (kind === "Новая задача") return "kb-nk-new";
+        if (kind === "Выполнено") return "kb-nk-done";
+        if (kind === "Возврат") return "kb-nk-return";
+        return "kb-nk-other";
+    }
+
+    function kbNotifTrim(s) {
+        return String(s == null ? "" : s).replace(/^\s+|\s+$/g, "");
+    }
+
+    function kbNotifDisplayText(r) {
+        var subject = kbNotifTrim(r && r.subject);
+        var kind = r && r.kind ? String(r.kind) : "";
+
+        if (kind === "Комментарий" || subject.indexOf("Новый комментарий") === 0) {
+            var q1 = subject.indexOf("\u00ab");
+            var q2 = subject.indexOf("\u00bb", q1 + 1);
+            var colon = q2 >= 0 ? subject.indexOf(":", q2 + 1) : -1;
+            if (q1 >= 0 && q2 > q1 && colon >= 0) {
+                var taskName = subject.substring(q1 + 1, q2);
+                var comment = kbNotifTrim(subject.substring(colon + 1));
+                comment = comment.replace(/\s+Новый срок/g, "\nНовый срок");
+                return 'В задаче \u00ab' + taskName + '\u00bb: "' + comment + '"';
+            }
+            return subject.replace(/^Новый комментарий\s*/i, "");
+        }
+
+        if (kind === "Новая задача" || subject.indexOf("Новая задача") === 0) {
+            var pipe = subject.indexOf(" | ");
+            var main = pipe >= 0 ? subject.substring(0, pipe) : subject;
+            var extra = pipe >= 0 ? subject.substring(pipe) : "";
+            var qn = main.indexOf("\u00ab");
+            if (qn >= 0) return kbNotifTrim(main.substring(qn) + extra);
+            return kbNotifTrim(main.replace(/^Новая задача[:\s]*/i, "") + extra);
+        }
+
+        return subject;
+    }
+
+    function kbNotifRender(list) {
+        var box = document.getElementById("kb-notif-list");
+        if (!box) return;
+        if (!list.length) { box.innerHTML = '<div class="kb-notif-empty">Уведомлений нет</div>'; return; }
+        var html = "", i;
+        for (i = 0; i < list.length; i++) {
+            var r = list[i]; if (!r) continue;
+            var cls = "kb-notif-item" + (r.seen ? "" : " kb-notif-unread");
+            var key = String(r.taskKey).replace(/'/g, "\\'");
+            var id  = String(r.id).replace(/'/g, "\\'");
+            var tab = (r.type === "comment") ? "chat" : "main";
+            var kind = r.kind || "Уведомление";
+            html += '<div class="' + cls + '" onclick="kbNotifOpen(\'' + id + '\',\'' + key + '\',\'' + tab + '\')">' +
+                        '<span class="kb-notif-badge2 ' + kbNotifKindClass(kind) + '">' + kbNotifEsc(kind) + '</span>' +
+                        '<span class="kb-notif-body">' +
+                            '<span class="kb-notif-subject">' + kbNotifEsc(kbNotifDisplayText(r)) + '</span>' +
+                            '<span class="kb-notif-date">' + kbNotifEsc(r.date) + '</span>' +
+                        '</span>' +
+                    '</div>';
+        }
+        box.innerHTML = html;
+    }
+
+    window.kbNotifLoad = function (renderList) {
+        var json = "[]";
+        try { json = window.external.InvokeTemplate("GetMyNotifications", ""); } catch (e) { json = "[]"; }
+        var list;
+        try { list = JSON.parse(json); } catch (e2) { list = []; }
+        if (!list) list = [];
+        var unread = 0, i;
+        for (i = 0; i < list.length; i++) { if (list[i] && !list[i].seen) unread++; }
+        kbNotifBadge(unread);
+        if (renderList) kbNotifRender(list);
+        return list;
+    };
+
+    function kbNotifPosition(panel) {
+        try {
+            var btn = document.getElementById("kb-notif-btn");
+            if (!btn || !btn.getBoundingClientRect) return;
+            var r = btn.getBoundingClientRect();
+            var vw = document.documentElement.clientWidth || 1024;
+            var pw = 440;
+            if (vw < pw + 16) pw = vw - 16;
+            if (pw < 300) pw = Math.max(220, vw - 16);
+            panel.style.width = pw + "px";
+            var left = r.left;
+            if (left + pw > vw - 8) left = vw - pw - 8;
+            if (left < 8) left = 8;
+            panel.style.position = "fixed";
+            panel.style.left = left + "px";
+            panel.style.right = "auto";
+            panel.style.top = (r.bottom + 4) + "px";
+        } catch (e) {}
+    }
+
+    window.kbNotifToggle = function () {
+        var panel = document.getElementById("kb-notif-panel");
+        if (!panel) return;
+        _kbNotifOpen = (panel.style.display === "none" || panel.style.display === "");
+        if (_kbNotifOpen) { kbNotifLoad(true); kbNotifPosition(panel); panel.style.display = "block"; }
+        else { panel.style.display = "none"; }
+    };
+
+    window.kbNotifOpen = function (id, taskKey, tab) {
+        try { window.external.InvokeTemplate("MarkNotifRead", String(id)); } catch (e) {}
+        var panel = document.getElementById("kb-notif-panel");
+        if (panel) panel.style.display = "none";
+        _kbNotifOpen = false;
+        kbNotifLoad(false);
+        if (typeof tcmOpen === "function" && taskKey) tcmOpen(taskKey, tab || "main");
+    };
+
+    window.kbNotifReadAll = function () {
+        try { window.external.InvokeTemplate("MarkAllNotifRead", ""); } catch (e) {}
+        kbNotifLoad(true);
+    };
+
+    function kbNotifStartPoll() {
+        if (_kbNotifPollTm) return;
+        kbNotifLoad(false);
+        _kbNotifPollTm = setInterval(function () { kbNotifLoad(_kbNotifOpen); }, 60000);
+    }
+
+    // Закрытие панели по клику вне неё (IE legacy: attachEvent-фоллбек)
+    function kbNotifBindOutside() {
+        var handler = function (e) {
+            var panel = document.getElementById("kb-notif-panel");
+            if (!panel || panel.style.display === "none") return;
+            var t = e.target || e.srcElement, inside = false;
+            while (t) { if (t.id === "kb-notif-wrap") { inside = true; break; } t = t.parentNode; }
+            if (!inside) { panel.style.display = "none"; _kbNotifOpen = false; }
+        };
+        if (document.addEventListener) document.addEventListener("click", handler, false);
+        else if (document.attachEvent) document.attachEvent("onclick", handler);
+    }
+
+    window.kbNotifInit = function () {
+        kbNotifBindOutside();
+        kbNotifStartPoll();
+    };
+
+    if (typeof kbNotifInit === "function") kbNotifInit();
+
     // Инициализация фильтра периода – отдельно от kbInitHierarchy,
     // потому что та делает ранний return для роли "regular".
     if (typeof kbPeriodFilterInit === "function") kbPeriodFilterInit();
@@ -4020,7 +4161,7 @@
         return String(target.tagName).toLowerCase() === "textarea";
     }
 
-    // фича 04: курсор внутри редактора заметок? (обход по предкам — надёжно в IE)
+    // Проверяем, что курсор внутри редактора заметок. Обход по предкам надёжнее в IE.
     function kbInNotesEditor(node) {
         while (node) {
             if (node.id === "tcm-notes") return true;
@@ -4084,7 +4225,7 @@
             return;
         }
 
-        // фича 04: Enter в редакторе заметок — сами вставляем <br> (детерминированно в IE),
+        // Enter в редакторе заметок: сами вставляем <br> (так стабильнее в IE),
         // чтобы не сохранялась карточка и не плодились пункты списка.
         if (code === 13 && (kbInNotesEditor(target) || kbInNotesEditor(document.activeElement))) {
             if (!e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
@@ -4093,13 +4234,13 @@
                 e.returnValue = false;
                 return false;
             }
-            return;   // Shift+Enter — оставляем браузеру
+            return;   // Shift+Enter – оставляем браузеру
         }
 
         if (code === 13 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
             if (kbIsOverlayVisible("tcmOverlay") && !kbIsTextareaTarget(target)) {
                 if (target && target.id === "tcm-chat-text") return;
-                // фича 04: Enter в редакторе заметок = перенос строки, не сохранение карточки
+                // Enter в редакторе заметок – перенос строки, а не сохранение карточки
                 if (kbInNotesEditor(target) || kbInNotesEditor(document.activeElement)) return;
                 // Enter – «сохранить, не закрывая, без рефреша доски» (быстрая правка нескольких полей)
                 if (typeof tcmSave === "function") tcmSave({ closeAfter: false, refreshAfter: false });
@@ -4132,7 +4273,7 @@
         document.attachEvent("onkeydown", kbOnGlobalKeydown);
     }
 
-    /* ░░ Поиск по задачам (фича 03) ░░ */
+    /* Поиск по задачам */
     var _kbSearchTimer = null;
     var _kbSearchStNames = ["Надо сделать", "В работе", "Ожидание", "Готово"];
 

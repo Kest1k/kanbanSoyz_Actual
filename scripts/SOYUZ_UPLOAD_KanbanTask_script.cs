@@ -1,4 +1,4 @@
-// Функция: уведомление исполнителю при назначении задачи другим человеком.
+// Уведомляем исполнителя, когда задачу назначил кто-то другой.
 // Используется WorkLoad-тип «Всплывающее сообщение» (Exclamation).
 // Формат уведомления: «Новая задача «TaskName» от Иванова С.А.»
 //
@@ -15,18 +15,18 @@ public override void OnBeforeSave( InfoObject obj )
     }
     catch( Exception ex )
     {
-        // Не прерываем сохранение из-за ошибки уведомления
+        // Уведомление не должно ломать сохранение задачи
         Service.HandleException( ex, "KanbanTask.OnBeforeSave: " + ex.Message );
     }
 }
 
-// Проверка смены исполнителя
+// Проверяем, сменился ли исполнитель
 private void CheckAssigneeChanged( InfoObject obj )
 {
     var taskId = "?";
     try { taskId = obj.NameKey ?? obj.Id.ToString(); } catch { }
 
-    // Получаем нового исполнителя рекомендованным способом (не через .Value.GetValue)
+    // Исполнителя берём штатным GetUser, без прямого .Value.GetValue
     User newAssignee = null;
     try { newAssignee = obj.GetUser( "Assignee" ); }
     catch( Exception getEx )
@@ -40,9 +40,9 @@ private void CheckAssigneeChanged( InfoObject obj )
         return;
     }
 
-    // Сравниваем с сохранённым значением (защита от повторных уведомлений).
-    // PersistedValue – низкоуровневый API, используем только здесь.
-    // PersistedValue == null → объект новый (никогда не сохранялся) → продолжаем.
+    // Сверяемся с сохранённым значением, чтобы не слать одно и то же уведомление.
+    // PersistedValue – низкоуровневый API, поэтому держим его только здесь.
+    // null означает новый объект: старого исполнителя ещё нет, продолжаем.
     try
     {
         var assigneeAttr = obj.GetAttribute( "Assignee" );
@@ -80,13 +80,13 @@ private void CheckAssigneeChanged( InfoObject obj )
     var taskName   = obj.GetString( "TaskName" ) ?? obj.ToString();
     var senderName = FormatSenderName( currentUser );
 
-    // Собираем информативную строку: только приоритет
+    // В уведомление добавляем только важный приоритет
     var extra = "";
     var prio = ( obj.GetString( "Priority" ) ?? "" ).Trim();
     if( prio == "urgent" )      extra += " | \u26a0 \u0421\u0440\u043e\u0447\u043d\u0430\u044f";
     else if( prio == "high" )   extra += " | \u0412\u044b\u0441\u043e\u043a\u0438\u0439 \u043f\u0440\u0438\u043e\u0440\u0438\u0442\u0435\u0442";
 
-    // Сбросить список «видевших» – новый исполнитель увидит бейдж «НОВАЯ»
+    // Новый исполнитель должен увидеть бейдж «НОВАЯ»
     try { obj["SeenByList"] = ""; } catch { }
 
     try {
@@ -95,13 +95,13 @@ private void CheckAssigneeChanged( InfoObject obj )
         ? "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430: " + taskName + extra
         : "\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u0434\u0430\u0447\u0430 \u00ab" + taskName + "\u00bb \u043e\u0442 " + senderName + extra;
 
-    // SilentMode оставляем (кастомный атрибут – не влияет на routing).
-    // Штатный toast подавляется через OnPostTrayNotification (KanbanTrayFilter).
+    // SilentMode оставляем: это наш атрибут, на routing он не влияет.
+    // Штатный toast гасит OnPostTrayNotification в KanbanTrayFilter.
     try { w[ "SilentMode" ] = true; } catch { }
     w.Params = obj.NameKey;
     w.StatusOperation = WorkItemBase.StatusEnum.Sent;
-    // НЕ пре-маркируем viewed – запись должна появиться в папке оповещений как "Новая".
-    // Сброс бейджа – после показа custom popup в ExclamationKanban.OnUpdated.
+    // Viewed заранее не ставим: запись должна попасть в папку оповещений как "Новая".
+    // Бейдж снимается уже после показа popup в ExclamationKanban.OnUpdated.
 
     try { Service.WriteToServerLog( "KanbanTaskNotify", "WorkItem queued OK for task " + taskId + " -> recipient id=" + newAssignee.Id + " (" + ( newAssignee.ToString() ?? "?" ) + ")" ); } catch { }
     }
@@ -112,7 +112,7 @@ private void CheckAssigneeChanged( InfoObject obj )
     }
 }
 
-// Форматирование имени отправителя: «Иванова С.А.»
+// Имя отправителя в формате «Иванова С.А.»
 // Ключи атрибутов User: GivenName=Фамилия, FirstName=Имя, SecondName=Отчество
 private string FormatSenderName( User user )
 {
@@ -133,9 +133,8 @@ private string FormatSenderName( User user )
     return genitSurname + " " + initials;
 }
 
-// Склонение фамилии в родительный падеж
-// Покрывает типичные русские фамилии. Порядок проверок важен: более
-// конкретные окончания проверяются раньше.
+// Родительный падеж для типичных русских фамилий.
+// Порядок важен: сначала более конкретные окончания.
 //
 // Примеры:
 //   Иванов    → Иванова      Иванова    → Ивановой
@@ -202,6 +201,6 @@ private string DeclineSurnameGenitive( string s )
     if( lo.EndsWith( "а" ) )
         return s.Substring( 0, s.Length - 1 ) + "ы";
 
-    // Остальные (согласный, иностранные) ─ без изменений
+    // Остальные (согласный, иностранные) – без изменений
     return s;
 }

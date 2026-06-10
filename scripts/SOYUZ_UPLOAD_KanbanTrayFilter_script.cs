@@ -1,4 +1,4 @@
-// Функция: убрать Kanban-нагрузки ExclamationKanban из штатных Windows/PLM toast-уведомлений.
+// Убираем Kanban-нагрузки ExclamationKanban из штатных Windows/PLM toast-уведомлений.
 // Тип скрипта в PLM: ClientAutomation / OnPostTrayNotification.
 // Наше окно всё равно показывается в ExclamationKanban.OnUpdated.
 
@@ -13,9 +13,8 @@ public override bool OnPostTrayNotification( System.Collections.Generic.List<Att
         var workItem = objects[i] as WorkItem;
         if( !IsKanbanExclamation( workItem ) ) continue;
 
-        // НЕ маркаем viewed здесь – иначе IsNewForCurrentUser=false на момент
-        // OnUpdated, и кастомный popup в ExclamationKanban будет пропущен.
-        // Маркируем только после показа кастомного popup в OnUpdated.
+        // Viewed здесь не ставим: иначе OnUpdated увидит IsNewForCurrentUser=false
+        // и пропустит наш popup. Помечаем только после показа окна.
         objects.RemoveAt( i );
     }
 

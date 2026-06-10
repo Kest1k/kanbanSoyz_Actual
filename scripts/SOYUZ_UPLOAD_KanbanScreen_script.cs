@@ -4,7 +4,7 @@
 //   CreateTask        (title|status|priority|dueDate|details) → создаёт KanbanTask
 //   OpenTask          (nameKey) → открывает карточку PLM
 //   DeleteTask        (nameKey) → удаляет (только создатель)
-//   RefreshBoard      → перерендеривает доску
+//   RefreshBoard      → перерисовывает доску
 //   GetHierarchyInfo  → JSON {role, myContext, divisions[], sectors[], users[]}
 //   SetViewMode       (mode) → сохраняет режим просмотра в PropertyBag
 private const int STATUS_DONE = 3;
@@ -40,7 +40,7 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                 var viewMode    = (obj.PropertyBag["KbViewMode"] as string) ?? "my";
                 var allowedIds  = GetAllowedUserIdSet( currentUser, role, viewMode );
 
-                // Фича 02: режим "myCreated", "myCreated:group:<ctx>" или "myCreated:user:<key>"
+                // Режим «Выданные мной»: все, группа или конкретный исполнитель
                 bool   isMyCreated   = viewMode == "myCreated" || viewMode.StartsWith( "myCreated:" );
                 string myCreatedCtx  = "";   // целевой сектор/отделение, пусто = все
                 string myCreatedUser = "";   // целевой исполнитель (stable key), пусто = все
@@ -101,12 +101,12 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
                         if( taskCreator != myCreatorKey ) continue;
                         if( assignee.Id.ToString() == currentUser.Id.ToString() ) continue;
 
-                        // Фича 02: доп. фильтр по конкретному исполнителю
+                        // Ещё режем по конкретному исполнителю
                         if( !string.IsNullOrEmpty( myCreatedUser ) )
                         {
                             if( !UserKeyMatches( assignee, myCreatedUser ) ) continue;
                         }
-                        // Фича 02: либо по сектору/отделению исполнителя
+                        // Или по сектору/отделению исполнителя
                         else if( !string.IsNullOrEmpty( myCreatedCtx ) )
                         {
                             var asgCtx = GetUserContext( assignee );
@@ -201,10 +201,9 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "SetViewMode":      return DoSetViewMode( obj, inputParams );
             case "SetPeriodFilter":
             {
-                // 1) Записываем PropertyBag (sync). 2) Сразу триггерим Refresh
-                //    в одном Invoke, чтобы BeforeRender гарантированно увидел
-                //    свежие KbPeriodFrom/KbPeriodTo. Раздельные вызовы из JS
-                //    давали гонку на некоторых стендах.
+                // Пишем PropertyBag и сразу запускаем Refresh в одном Invoke.
+                // На некоторых стендах два отдельных JS-вызова давали гонку,
+                // и BeforeRender видел старые KbPeriodFrom/KbPeriodTo.
                 var result = DoSetPeriodFilter( obj, inputParams );
                 var s = result as string;
                 if( s != null && s.IndexOf( "ERROR" ) == 0 ) return s;
@@ -256,6 +255,9 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "ReorderSubtasks": return DoReorderSubtasks( inputParams );
             case "ClearAutoOpen": obj.PropertyBag.Remove( "AutoOpenTask" ); return "OK";
             case "GetWhatsNewSeen": return DoGetWhatsNewSeen();
+            case "GetMyNotifications": return DoGetMyNotifications( inputParams );
+            case "MarkNotifRead":      return DoMarkNotifRead( inputParams );
+            case "MarkAllNotifRead":   return DoMarkAllNotifRead();
             case "SetWhatsNewSeen": return DoSetWhatsNewSeen( inputParams );
         }
     }
@@ -406,6 +408,50 @@ private object DoMoveTask( object inputParams )
             task["ChangeLog"] = newLog;
         }
         catch { /* ChangeLog не критичен */ }
+    }
+
+    // Фича 08: уведомления о ключевых перемещениях выданной задачи
+    if( oldStatus != newStatus )
+    {
+        try
+        {
+            var ntmpl   = Service.GetTemplate( COMMENT_MSG_TEMPLATE_PATH );
+            var taskNm  = task.GetString( "TaskName" ) ?? "";
+            var moverNm = currentUser != null ? ( currentUser.ToString() ?? "" ) : "";
+
+            if( newStatus == STATUS_DONE && oldStatus != STATUS_DONE )
+            {
+                // Отчёт исполнителя (если был) сохраняем комментарием обсуждения,
+                // без отдельного уведомления - оно уйдёт одно, ниже.
+                if( !string.IsNullOrEmpty( comment ) )
+                {
+                    System.Collections.Generic.Dictionary<string, string> _ni;
+                    try { AppendCommentToTask( task, currentUser, comment, false, out _ni ); } catch { }
+                }
+                // Одно осмысленное уведомление автору поручения, если завершал не он сам
+                var ck = task.GetString( "Creator" ) ?? "";
+                var creatorUser = TryFindUserByKey( ck );
+                if( ntmpl != null && creatorUser != null && currentUser != null && creatorUser.Id != currentUser.Id )
+                {
+                    var subj = moverNm + " завершил(а) задачу «" + taskNm + "»";
+                    if( !string.IsNullOrEmpty( comment ) )
+                    {
+                        var prev = comment.Length > 200 ? comment.Substring( 0, 200 ) + "…" : comment;
+                        subj += ". Комментарий: " + prev;
+                    }
+                    SendWorkItemNotify( ntmpl, creatorUser, subj, comment, task.NameKey );
+                }
+            }
+            else if( ntmpl != null && isReturnFromDone )
+            {
+                // Возврат из «Готово»: уведомляем исполнителя, если возвращал не он сам
+                var asg = task.GetUser( "Assignee" );
+                if( asg != null && currentUser != null && asg.Id != currentUser.Id )
+                    SendWorkItemNotify( ntmpl, asg,
+                        "Задача «" + taskNm + "» возвращена из «Готово»", "", task.NameKey );
+            }
+        }
+        catch { }
     }
 
     // Единственный Save
@@ -948,8 +994,8 @@ private object BuildCardData( InfoObject task, int status )
         ? ("__id_" + task.Id.ToString())
         : task.NameKey;
 
-    // Проверяем право на удаление: только создатель может удалить задачу
-    // Инициалы скрываем если текущий пользователь является исполнителем (isSelf)
+    // Удалять задачу может только создатель.
+    // Если текущий пользователь сам исполнитель, инициалы на карточке не показываем.
     var isOwner  = "0";
     var initials = GetInitials( assigneeName );
     string assigneeShort = "";
@@ -1234,7 +1280,7 @@ private bool CanUserSeeTask( InfoObject task, User currentUser )
         || ( !string.IsNullOrEmpty( assigneeKey ) && curKey == assigneeKey );
 }
 
-// Фича 02: совпадает ли пользователь с переданным ключом (NameKey / AccountId / Id)
+// Сравнение пользователя с ключом из UI: NameKey, AccountId или Id
 private bool UserKeyMatches( User u, string key )
 {
     if( u == null || string.IsNullOrEmpty( key ) ) return false;
@@ -1353,10 +1399,9 @@ private object DoSetViewMode( InfoObject obj, object inputParams )
     return "OK";
 }
 
-// «Что нового»: персональная отметка о просмотренной версии хранится в пользовательском
-// реестре PLM (per-user, переживает перезапуск, у пользователя есть права на свою ветку).
-// Сигнатура версии вычисляется на клиенте по верхней записи списка (её дате) – ручной
-// "бамп" не нужен: добавили новую запись сверху → сигнатура сменилась → кнопка снова пульсирует.
+// «Что нового»: отметка о просмотренной версии лежит в пользовательском реестре PLM.
+// Сигнатуру клиент берёт из даты верхней записи, поэтому руками версию не бампим:
+// добавили новую запись сверху – кнопка снова пульсирует.
 private object DoGetWhatsNewSeen()
 {
     try { return Service.GetUserRegistryValue<string>( @"KanbanScreen\WhatsNewSeen", "" ) ?? ""; }
@@ -1411,8 +1456,8 @@ private object DoGetHierarchyInfo( InfoObject obj, object inputParams )
             }
             else
             {
-                // ctx сам является отделением (500кт, 600кт...)
-                // только в divisionsSet, иначе в секторном селекторе появляется
+                // ctx уже отделение (500кт, 600кт...). Кладём его только в divisionsSet,
+                // иначе в секторном селекторе появляется
                 // дублирующий пункт «Отделение 500кт»
                 divisionsSet[ctx] = true;
             }
@@ -1697,7 +1742,7 @@ private System.Collections.Generic.HashSet<string> GetAllowedUserIdSet(
     return ids;
 }
 
-// ░░ Фича 03: поиск по задачам ░░
+// Поиск по задачам
 // inputParams: строка запроса. Возвращает JSON-массив совпадений (макс. 100).
 private object DoSearchTasks( object inputParams )
 {
@@ -2129,7 +2174,7 @@ private object DoGetTaskDetails( object inputParams )
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 11 );          // фича 04: +поле notes
+    var parts = ParsePipeArgs( raw, 11 );          // новый формат: добавилось поле notes
 
     var nameKey       = parts.Length > 0 ? parts[0].Trim() : "";
     var title         = parts.Length > 1 ? parts[1].Trim() : "";
@@ -2144,7 +2189,7 @@ private object DoSaveTask( object inputParams )
     var detailsStr     = "";
     if( parts.Length > 10 )
     {
-        // Новый формат (фича 04): …|isPrivate|directumLink|notes|details
+        // Новый формат: …|isPrivate|directumLink|notes|details
         isPrivateIn    = parts[7].Trim();
         directumLinkIn = parts[8].Trim();
         notesStr       = parts[9];     // блокнот; пробелы/переносы важны – без Trim
@@ -2267,10 +2312,10 @@ private object DoSaveTask( object inputParams )
     }
 
     // Ссылки Directum может добавлять/менять любой, кто видит задачу (как вложения и
-    // комментарии), а не только автор — поэтому пишем вне блока canFullEdit.
+    // комментарии), а не только автор – поэтому пишем вне блока canFullEdit.
     task["DirectumLink"] = directumLinkIn;
-    // Фича 04: заметки сохраняются отдельной командой SaveNotes (rich-HTML + картинки),
-    // здесь НЕ трогаем Notes, чтобы обычное сохранение карточки их не затирало.
+    // Заметки сохраняются отдельной командой SaveNotes (rich-HTML + картинки).
+    // Здесь Notes не трогаем, чтобы обычное сохранение карточки их не затирало.
 
     if( oldStatus == STATUS_DONE && newStatus != STATUS_DONE )
         return "ERROR:ReturnReasonRequired";
@@ -2500,7 +2545,7 @@ private object DoOpenDirectumLink( object inputParams )
 // GetTaskHistory
 // inputParams: nameKey
 // Возвращает ChangeLog (JSON-массив записей изменений).
-// Fallback: если ChangeLog пуст – показывает системные ревизии PLM (дата без деталей).
+// Если ChangeLog пустой, показываем системные ревизии PLM (дата без деталей).
 private object DoGetTaskHistory( object inputParams )
 {
     var nameKey = GetParamStr( inputParams );
@@ -2519,7 +2564,7 @@ private object DoGetTaskHistory( object inputParams )
     }
     catch { }
 
-    // Fallback: системные ревизии PLM (если ChangeLog ещё не настроен)
+    // Запасной путь: системные ревизии PLM, если ChangeLog ещё не настроен
     try
     {
         var revisions = task.Revisions;
@@ -2875,15 +2920,15 @@ private object DoOpenObject( object inputParams )
     catch( Exception ex ) { return "ERROR:" + ex.Message; }
 }
 
-// ─── Редактирование локального файла (check-out / check-in) ───
+// Редактирование локального файла (check-out / check-in)
 // Файл (Простой документ без версий) скачивается в стабильную папку
 // %TEMP%\KanbanEdit\<id>\<name>, открывается в ассоциированном приложении,
 // объект блокируется долговременной блокировкой. По кнопке "Сохранить в PLM"
 // изменённый файл заливается обратно в Body и блокировка снимается.
 
-// Признак: объект - это локальный файл канбана (Простой документ без версий),
-// созданный режимом "Внутри задачи". Только для таких разрешены прямое
-// открытие файлом и редактирование (check-out/check-in). Технический документ
+// Проверяем, что объект – локальный файл канбана (Простой документ без версий),
+// созданный режимом "Внутри задачи". Только такие файлы можно открывать
+// напрямую и редактировать через check-out/check-in. Технические документы
 // и прочие ИО открываются штатной карточкой свойств PLM.
 private bool IsKanbanLocalFile( InfoObject io )
 {
@@ -3498,9 +3543,9 @@ private object DoPickLocalFiles( object inputParams )
     }
 }
 
-// ░░ Фича 04+: умные заметки (rich-HTML + картинки/скриншоты) ░░
+// Умные заметки: rich-HTML, картинки и скриншоты
 
-// Сохранение HTML заметок. inputParams: "taskKey|<html>" – split по ПЕРВОМУ '|',
+// Сохраняем HTML заметок. inputParams: "taskKey|<html>" – split по первому '|',
 // чтобы html мог содержать любые символы (включая '|').
 private object DoSaveNotes( object inputParams )
 {
@@ -3757,7 +3802,7 @@ private object DoAttachLocalFile( object inputParams )
             mainDoc = td;
         }
 
-        // Линкуем созданный документ в AttachedObjects задачи
+        // Привязываем созданный документ к AttachedObjects задачи
         var editTask = task.GetEditable();
         var attr     = editTask.GetAttribute( "AttachedObjects" );
         var set      = attr.LinkedInfoObjects.SafeToSet();
@@ -3779,7 +3824,7 @@ private object DoAttachLocalFile( object inputParams )
     }
 }
 
-// ─── Вспомогательный поиск InfoObject по NameKey (для DoAddAttachment) ─
+// Поиск InfoObject по NameKey для DoAddAttachment
 private InfoObject FindInfoObjectByKey( string key )
 {
     if( string.IsNullOrEmpty( key ) ) return null;
@@ -4098,7 +4143,7 @@ private object DoEditComment( object inputParams )
     int index;
     if( !int.TryParse( parts[1].Trim(), out index ) ) return "ERROR:BadIndex";
 
-    // ВНИМАНИЕ: текст НЕ Trim() – пользователь мог намеренно оставить
+    // Не делаем Trim(): пользователь мог специально оставить
     // переносы / пробелы в начале и конце.
     var newText = parts[2];
     if( string.IsNullOrEmpty( newText ) || newText.Trim().Length == 0 )
@@ -4419,7 +4464,7 @@ private object DoEditSubtask( object inputParams )
 // ReorderSubtasks
 // inputParams: "taskKey|id1,id2,id3,..."
 // Принимает новый порядок ID и переупорядочивает массив. Возвращает "OK" или ERROR.
-// Если переданный набор ID не совпадает с текущим – возвращает ERROR:Mismatch.
+// Если переданный набор ID не совпадает с текущим – возвращаем ERROR:Mismatch.
 private object DoReorderSubtasks( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
@@ -4586,12 +4631,12 @@ private void SendCommentNotification( InfoObject task, User author, string text 
 
     foreach( var u in recipients )
     {
-        if( IsCommentsMutedBy( task, u ) ) continue;   // фича 05: пользователь заглушил эту задачу
+        if( IsCommentsMutedBy( task, u ) ) continue;   // пользователь заглушил обсуждение этой задачи
         SendWorkItemNotify( tmpl, u, subject, preview, task.NameKey );
     }
 }
 
-// ░░ Фича 05 ░░ проверка «заглушено ли обсуждение задачи пользователем»
+// Проверяем, заглушил ли пользователь обсуждение этой задачи
 private bool IsCommentsMutedBy( InfoObject task, User user )
 {
     if( task == null || user == null ) return false;
@@ -4605,7 +4650,7 @@ private bool IsCommentsMutedBy( InfoObject task, User user )
     return false;
 }
 
-// ░░ Фича 05 ░░ переключить mute обсуждения текущим пользователем. "1"=замьючено / "0".
+// Переключаем mute обсуждения для текущего пользователя. "1"=замьючено / "0".
 private object DoToggleCommentMute( object inputParams )
 {
     var taskKey = GetParamStr( inputParams );
@@ -4634,7 +4679,7 @@ private object DoToggleCommentMute( object inputParams )
     return nowMuted ? "1" : "0";
 }
 
-// ░░ Фича 05 ░░ текущее состояние mute для текущего пользователя. "1"/"0".
+// Текущее состояние mute для текущего пользователя: "1" или "0".
 private object DoGetCommentMute( object inputParams )
 {
     var taskKey = GetParamStr( inputParams );
@@ -4642,6 +4687,172 @@ private object DoGetCommentMute( object inputParams )
     var task = GetTaskByKeyOrNull( taskKey );
     if( task == null ) return "0";
     return IsCommentsMutedBy( task, Service.GetCurrentUser() ) ? "1" : "0";
+}
+
+// Фича 08: входящие уведомления исполнителя.
+// Источник - системные папки рабочего стола текущего пользователя
+// (Оповещения и Входящие). GetWorkItems(active=true) отдаёт только активные
+// задачи-процессы, а наши сообщения уходят со статусом Sent и в него не попадают.
+
+// Собрать наши нагрузки (ExclamationKanban) из папок Оповещения + Входящие,
+// без дублей, новые сверху.
+private System.Collections.Generic.List<WorkItem> CollectMyKanbanNotifs()
+{
+    var result  = new System.Collections.Generic.List<WorkItem>();
+    var seenIds = new System.Collections.Generic.HashSet<string>();
+    Template tmpl = null;
+    try { tmpl = Service.GetTemplate( COMMENT_MSG_TEMPLATE_PATH ); } catch { }
+
+    AddNotifFolder( result, seenIds, tmpl, SystemItemEnum.NotificationsFolder );
+    AddNotifFolder( result, seenIds, tmpl, SystemItemEnum.MailInbox );
+
+    result.Sort( delegate( WorkItem a, WorkItem b )
+    {
+        DateTime da = DateTime.MinValue, db = DateTime.MinValue;
+        try { da = a.DateCreated; } catch { }
+        try { db = b.DateCreated; } catch { }
+        return db.CompareTo( da );
+    } );
+    return result;
+}
+
+private void AddNotifFolder( System.Collections.Generic.List<WorkItem> outList,
+                             System.Collections.Generic.HashSet<string> seenIds,
+                             Template tmpl, SystemItemEnum folderId )
+{
+    try
+    {
+        var folder = Service.GetUserItem( folderId );
+        if( folder == null ) return;
+        foreach( var sc in folder.Shortcuts )
+        {
+            try
+            {
+                var w = sc.Target as WorkItem;
+                if( w == null ) continue;
+                if( tmpl != null ) { try { if( w.Template != tmpl ) continue; } catch { continue; } }
+                var id = w.Id.ToString();
+                if( seenIds.Contains( id ) ) continue;
+                seenIds.Add( id );
+                outList.Add( w );
+            }
+            catch { }
+        }
+    }
+    catch { }
+}
+
+// Возвращает JSON-массив уведомлений текущего пользователя, новые сверху, не более LIMIT.
+// Запись: { id, type, taskKey, title, text, date, seen }
+private object DoGetMyNotifications( object inputParams )
+{
+    const int LIMIT = 50;
+    var me = Service.GetCurrentUser();
+    if( me == null ) return "[]";
+
+    var list = CollectMyKanbanNotifs();
+    if( list.Count == 0 ) return "[]";
+
+    var sb = new System.Text.StringBuilder();
+    sb.Append( "[" );
+    bool first = true;
+    int  count = 0;
+    foreach( var w in list )
+    {
+        if( count >= LIMIT ) break;
+
+        string subject = "";
+        try { subject = w.GetValue<string>( "Subject" ) ?? ""; } catch { }
+
+        string rawParams = "";
+        try { rawParams = ( w.Params ?? "" ).Trim(); } catch { }
+
+        string taskKey = rawParams;
+        string type    = "task";
+        int pipe = rawParams.IndexOf( '|' );
+        if( pipe >= 0 )
+        {
+            taskKey  = rawParams.Substring( 0, pipe );
+            var tail = rawParams.Substring( pipe + 1 ).ToLowerInvariant();
+            type = ( tail.IndexOf( "comment" ) >= 0 ) ? "comment" : "task";
+        }
+        else
+        {
+            // Старые нагрузки без маркера: тип по тексту темы, как в ExclamationKanban
+            type = subject.StartsWith( "Новый комментарий", StringComparison.OrdinalIgnoreCase )
+                 ? "comment" : "task";
+        }
+        if( string.IsNullOrEmpty( taskKey ) ) continue;
+
+        // Метка типа для бейджа в списке
+        string kind = "Уведомление";
+        if( subject.StartsWith( "Новый комментарий", StringComparison.OrdinalIgnoreCase ) ) kind = "Комментарий";
+        else if( subject.StartsWith( "Новая задача", StringComparison.OrdinalIgnoreCase ) ) kind = "Новая задача";
+        else if( subject.IndexOf( "возвращена", StringComparison.OrdinalIgnoreCase ) >= 0 ) kind = "Возврат";
+        else if( subject.IndexOf( "завершил", StringComparison.OrdinalIgnoreCase ) >= 0
+              || subject.IndexOf( "выполнена", StringComparison.OrdinalIgnoreCase ) >= 0 ) kind = "Выполнено";
+
+        bool seen = true;
+        try { seen = !w.IsNewForCurrentUser; } catch { seen = true; }
+
+        string date = "";
+        try { date = w.DateCreated.ToString( "dd.MM.yyyy HH:mm" ); } catch { }
+
+        string id = "";
+        try { id = w.Id.ToString(); } catch { }
+
+        if( !first ) sb.Append( "," );
+        sb.Append( "{\"id\":\""      + JsonEscape( id )      + "\","
+                 + "\"type\":\""     + JsonEscape( type )    + "\","
+                 + "\"taskKey\":\""  + JsonEscape( taskKey ) + "\","
+                 + "\"kind\":\""     + JsonEscape( kind )    + "\","
+                 + "\"subject\":\""  + JsonEscape( subject ) + "\","
+                 + "\"date\":\""     + JsonEscape( date )    + "\","
+                 + "\"seen\":"       + ( seen ? "true" : "false" ) + "}" );
+        first = false;
+        count++;
+    }
+    sb.Append( "]" );
+    return sb.ToString();
+}
+
+// Пометить одно уведомление прочитанным. inputParams = WorkItem.Id.
+// Ищем только среди своих нагрузок, поэтому чужое пометить нельзя.
+private object DoMarkNotifRead( object inputParams )
+{
+    var idStr = ( GetParamStr( inputParams ) ?? "" ).Trim();
+    if( idStr.Length == 0 ) return "0";
+
+    foreach( var w in CollectMyKanbanNotifs() )
+    {
+        string wid = "";
+        try { wid = w.Id.ToString(); } catch { continue; }
+        if( wid == idStr )
+        {
+            try { w.MarkAsViewedByCurrentUser(); } catch { return "0"; }
+            return "1";
+        }
+    }
+    return "0";
+}
+
+// Пометить прочитанными все уведомления текущего пользователя.
+private object DoMarkAllNotifRead()
+{
+    int n = 0;
+    foreach( var w in CollectMyKanbanNotifs() )
+    {
+        try
+        {
+            if( w.IsNewForCurrentUser )
+            {
+                w.MarkAsViewedByCurrentUser();
+                n++;
+            }
+        }
+        catch { }
+    }
+    return n.ToString();
 }
 
 private User TryFindUserByKey( string key )
@@ -4671,8 +4882,8 @@ private void SendWorkItemNotify( Template tmpl, User recipient, string subject, 
         w.Params     = taskKey;
         w.IsBySystem = true;
         w.Send();
-        // НЕ пре-маркируем viewed – запись должна появиться в папке оповещений как "Новая".
-        // Сброс бейджа – после показа custom popup в ExclamationKanban.OnUpdated.
+        // Viewed заранее не ставим: запись должна появиться в папке оповещений как "Новая".
+        // Бейдж снимается после popup в ExclamationKanban.OnUpdated.
     }
     catch( Exception ex )
     {
@@ -4792,7 +5003,7 @@ private object DoExportToExcel( InfoObject obj, object inputParams )
 
     var allowedIds = GetAllowedUserIdSet( currentUser, role, viewMode );
 
-    // Фича 02: режим "myCreated", "myCreated:group:<ctx>" или "myCreated:user:<key>"
+    // Режим «Выданные мной»: все, группа или конкретный исполнитель
     bool   isMyCreated   = viewMode == "myCreated" || viewMode.StartsWith( "myCreated:" );
     string myCreatedCtx  = "";
     string myCreatedUser = "";
@@ -4850,12 +5061,12 @@ private object DoExportToExcel( InfoObject obj, object inputParams )
             if( taskCreator != myCreatorKey ) continue;
             if( assignee.Id.ToString() == currentUser.Id.ToString() ) continue;
 
-            // Фича 02: доп. фильтр по конкретному исполнителю
+            // Ещё режем по конкретному исполнителю
             if( !string.IsNullOrEmpty( myCreatedUser ) )
             {
                 if( !UserKeyMatches( assignee, myCreatedUser ) ) continue;
             }
-            // Фича 02: либо по сектору/отделению исполнителя
+            // Или по сектору/отделению исполнителя
             else if( !string.IsNullOrEmpty( myCreatedCtx ) )
             {
                 var asgCtx = GetUserContext( assignee );
