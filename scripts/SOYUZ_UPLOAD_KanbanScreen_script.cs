@@ -232,6 +232,9 @@ public override Object Invoke( String methodName, InfoObject obj, Object inputPa
             case "RemoveContainer":         return DoRemoveContainer( inputParams );
             case "OpenContainer":           return DoOpenContainer( inputParams );
             case "PickLocalFiles":          return DoPickLocalFiles( inputParams );
+            case "PickNoteImage":           return DoPickNoteImage( inputParams );
+            case "PasteNoteImage":          return DoPasteNoteImage( inputParams );
+            case "SaveNotes":               return DoSaveNotes( inputParams );
             case "PickStorageContainer":    return DoPickStorageContainer( inputParams );
             case "AttachLocalFile":         return DoAttachLocalFile( inputParams );
             case "EditLocalFile":           return DoEditLocalFile( inputParams );
@@ -1826,6 +1829,8 @@ private object DoGetTaskDetails( object inputParams )
     string details      = task.GetString( "TaskDetails" ) ?? "";
     string tags         = "";
     try { tags = task.GetString( "Tags" ) ?? ""; } catch { }
+    string notes        = "";
+    try { notes = task.GetString( "Notes" ) ?? ""; } catch { }
     string directumLink = "";
     try { directumLink = task.GetString( "DirectumLink" ) ?? ""; } catch { }
     string dueDate      = "";
@@ -2049,6 +2054,7 @@ private object DoGetTaskDetails( object inputParams )
     sb.Append( "\"canFullEdit\":"   + (canFullEdit ? "true" : "false") + "," );
     sb.Append( "\"creatorName\":\""  + JsonEscape( creatorName )        + "\"," );
     sb.Append( "\"tags\":\""          + JsonEscape( tags )                + "\"," );
+    sb.Append( "\"notes\":\""         + JsonEscape( notes )               + "\"," );
     sb.Append( "\"isOverdue\":"     + (isOverdue ? "true" : "false")    + "," );
     sb.Append( "\"availableTags\":"  + tSb.ToString()                    + "," );
     sb.Append( "\"priorities\":"     + pSb.ToString()                    + "," );
@@ -2121,7 +2127,7 @@ private object DoGetTaskDetails( object inputParams )
 private object DoSaveTask( object inputParams )
 {
     var raw   = GetParamStr( inputParams );
-    var parts = ParsePipeArgs( raw, 10 );
+    var parts = ParsePipeArgs( raw, 11 );          // фича 04: +поле notes
 
     var nameKey       = parts.Length > 0 ? parts[0].Trim() : "";
     var title         = parts.Length > 1 ? parts[1].Trim() : "";
@@ -2132,13 +2138,22 @@ private object DoSaveTask( object inputParams )
     var assigneeKeyIn = parts.Length > 6 ? parts[6].Trim() : "";
     var isPrivateIn    = "";
     var directumLinkIn = "";
+    var notesStr       = "";
     var detailsStr     = "";
-    if( parts.Length > 9 )
+    if( parts.Length > 10 )
     {
-        // Новый формат: …|isPrivate|directumLink|details
+        // Новый формат (фича 04): …|isPrivate|directumLink|notes|details
         isPrivateIn    = parts[7].Trim();
         directumLinkIn = parts[8].Trim();
-        detailsStr     = parts[9];    // НЕ Trim – пробелы в конце важны
+        notesStr       = parts[9];     // блокнот; пробелы/переносы важны – без Trim
+        detailsStr     = parts[10];    // details всегда последний (может содержать |)
+    }
+    else if( parts.Length > 9 )
+    {
+        // Совместимость со старым клиентом: …|isPrivate|directumLink|details
+        isPrivateIn    = parts[7].Trim();
+        directumLinkIn = parts[8].Trim();
+        detailsStr     = parts[9];
     }
     else if( parts.Length > 8 )
     {
@@ -2252,6 +2267,8 @@ private object DoSaveTask( object inputParams )
     // Ссылки Directum может добавлять/менять любой, кто видит задачу (как вложения и
     // комментарии), а не только автор — поэтому пишем вне блока canFullEdit.
     task["DirectumLink"] = directumLinkIn;
+    // Фича 04: заметки сохраняются отдельной командой SaveNotes (rich-HTML + картинки),
+    // здесь НЕ трогаем Notes, чтобы обычное сохранение карточки их не затирало.
 
     if( oldStatus == STATUS_DONE && newStatus != STATUS_DONE )
         return "ERROR:ReturnReasonRequired";
@@ -3477,6 +3494,104 @@ private object DoPickLocalFiles( object inputParams )
         Service.HandleException( ex, "Ошибка диалога выбора файла" );
         return "ERROR:" + ex.Message;
     }
+}
+
+// ░░ Фича 04+: умные заметки (rich-HTML + картинки/скриншоты) ░░
+
+// Сохранение HTML заметок. inputParams: "taskKey|<html>" – split по ПЕРВОМУ '|',
+// чтобы html мог содержать любые символы (включая '|').
+private object DoSaveNotes( object inputParams )
+{
+    var raw = GetParamStr( inputParams ) ?? "";
+    int p = raw.IndexOf( '|' );
+    if( p < 0 ) return "ERROR:BadParams";
+    var taskKey = raw.Substring( 0, p );
+    var html    = raw.Substring( p + 1 );
+    if( string.IsNullOrEmpty( taskKey ) ) return "ERROR:EmptyId";
+
+    var task = GetTaskByKeyOrNull( taskKey );
+    if( task == null ) return "ERROR:TaskNotFound";
+    if( !CanUserSeeTask( task, Service.GetCurrentUser() ) ) return "ERROR:Forbidden";
+
+    var ed = task.GetEditable();
+    try { ed["Notes"] = html; } catch { }
+    ed.Save();
+    return "OK";
+}
+
+// Выбор картинки из файла → data:image base64 (с даунскейлом).
+private object DoPickNoteImage( object inputParams )
+{
+    try
+    {
+        using( var ofd = new System.Windows.Forms.OpenFileDialog() )
+        {
+            ofd.Title  = "Выберите изображение";
+            ofd.Filter = "Изображения (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp|Все файлы (*.*)|*.*";
+            if( ofd.ShowDialog() != System.Windows.Forms.DialogResult.OK ) return "CANCELLED";
+            using( var img = System.Drawing.Image.FromFile( ofd.FileName ) )
+                return ImageToDataUri( img );
+        }
+    }
+    catch( Exception ex ) { Service.HandleException( ex, "PickNoteImage" ); return "ERROR:" + ex.Message; }
+}
+
+// Вставка скриншота из буфера обмена → data:image base64 (с даунскейлом).
+private object DoPasteNoteImage( object inputParams )
+{
+    try
+    {
+        if( !System.Windows.Forms.Clipboard.ContainsImage() ) return "ERROR:NoImage";
+        using( var img = System.Windows.Forms.Clipboard.GetImage() )
+        {
+            if( img == null ) return "ERROR:NoImage";
+            return ImageToDataUri( img );
+        }
+    }
+    catch( Exception ex ) { Service.HandleException( ex, "PasteNoteImage" ); return "ERROR:" + ex.Message; }
+}
+
+// Даунскейл (макс 1000px по большей стороне) + JPEG q80 → data:image/jpeg;base64,...
+private string ImageToDataUri( System.Drawing.Image src )
+{
+    const int maxDim = 1000;
+    int w = src.Width, h = src.Height;
+    double scale = 1.0;
+    if( w > maxDim || h > maxDim ) scale = (double)maxDim / Math.Max( w, h );
+    int nw = Math.Max( 1, (int)( w * scale ) );
+    int nh = Math.Max( 1, (int)( h * scale ) );
+
+    using( var bmp = new System.Drawing.Bitmap( nw, nh ) )
+    {
+        using( var g = System.Drawing.Graphics.FromImage( bmp ) )
+        {
+            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g.DrawImage( src, 0, 0, nw, nh );
+        }
+        using( var ms = new System.IO.MemoryStream() )
+        {
+            var enc = GetJpegEncoder();
+            if( enc != null )
+            {
+                var ep = new System.Drawing.Imaging.EncoderParameters( 1 );
+                ep.Param[0] = new System.Drawing.Imaging.EncoderParameter(
+                    System.Drawing.Imaging.Encoder.Quality, 80L );
+                bmp.Save( ms, enc, ep );
+            }
+            else
+            {
+                bmp.Save( ms, System.Drawing.Imaging.ImageFormat.Jpeg );
+            }
+            return "data:image/jpeg;base64," + Convert.ToBase64String( ms.ToArray() );
+        }
+    }
+}
+
+private System.Drawing.Imaging.ImageCodecInfo GetJpegEncoder()
+{
+    foreach( var c in System.Drawing.Imaging.ImageCodecInfo.GetImageEncoders() )
+        if( c.FormatID == System.Drawing.Imaging.ImageFormat.Jpeg.Guid ) return c;
+    return null;
 }
 
 // PickStorageContainer

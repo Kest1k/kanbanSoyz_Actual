@@ -830,7 +830,7 @@
     -ms-flex-align: center;
     align-items: center;
     width: 100%;
-    padding: 6px 16px 6px 0;
+    padding: 6px 16px 6px 16px;   /* левый отступ: контролы не липнут к краю при переносе */
     box-sizing: border-box;
     /* row-gap для wrap (gap в flex IE11 не работает, имитируем через
        margin-bottom на дочерних элементах верхнего уровня) */
@@ -858,7 +858,7 @@
     align-items: center;
     -ms-flex: 0 0 auto;
     flex: 0 0 auto;
-    margin-left: auto;          /* всегда прижато вправо: и в одну строку, и при wrap */
+    margin-left: 8px;           /* в общем потоке: садятся сразу после левых контролов, без отдельной правой строки с пустотой */
     margin-top: 4px;
     margin-bottom: 4px;
 }
@@ -871,7 +871,7 @@
     flex: 0 0 auto;
     height: 30px;
     line-height: 30px;
-    padding: 0 4px 0 16px !important;
+    padding: 0 4px 0 0 !important;   /* левый отступ теперь у .kb-nav-row */
     margin: 0 !important;
     font-size: 18px;
     font-weight: 700;
@@ -3117,3 +3117,78 @@ button.kb-btn-localfile:hover {
 .kb-search-clear{position:static;margin:0 2px 0 6px;font-size:16px;line-height:1;
     color:#9aa3af;text-decoration:none;cursor:pointer;}
 .kb-search-clear:hover{color:#e25555;}
+
+/* ░░ Вкладка Заметки (фича 04) ░░ */
+.tcm-notes-wrap{display:flex;flex-direction:column;height:100%;}
+.tcm-notes-area{width:100%;min-height:260px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.5;}
+.tcm-notes-hint{color:#999;font-size:11px;margin-top:6px;}
+
+/* ░░ Умные заметки: rich-HTML редактор (фича 04+) ░░ */
+.tcm-notes-toolbar{display:flex;align-items:center;flex-wrap:wrap;margin-bottom:6px;}
+.tcm-note-btn{margin-right:6px;margin-bottom:4px;padding:3px 9px;border:1px solid #ccc;border-radius:6px;
+    background:#fff;cursor:pointer;font-size:12px;line-height:1.4;}
+.tcm-note-btn:hover{border-color:#2d7ff9;color:#2d7ff9;}
+.tcm-note-sep{display:inline-block;width:1px;height:18px;background:#ddd;margin:0 6px;}
+.tcm-notes-edit{width:100%;min-height:240px;max-height:440px;overflow:auto;box-sizing:border-box;
+    border:1px solid #ccc;border-radius:6px;padding:8px;font-size:13px;line-height:1.5;background:#fff;}
+.tcm-notes-edit:focus{outline:none;border-color:#2d7ff9;box-shadow:0 0 0 2px rgba(45,127,249,.12);}
+.tcm-notes-edit img{max-width:100%;height:auto;display:block;margin:6px 0;}
+.tcm-notes-hint{color:#999;font-size:11px;margin-top:6px;}
+
+/* ░░ Заметки v2: Ctrl+V вставка + во весь экран (фича 04+) ░░ */
+.tcm-note-tip{color:#9aa3af;font-size:11px;margin-left:8px;margin-bottom:4px;}
+.tcm-notes-edit{min-height:280px;}
+.tcm-notes-fs-on{position:fixed;left:0;top:0;right:0;bottom:0;z-index:100000;background:#fff;
+    margin:0;padding:14px;overflow:auto;box-sizing:border-box;}
+.tcm-notes-fs-on .tcm-note-fs{background:#2d7ff9;border-color:#2d7ff9;color:#fff;}
+
+/* ░░ Заметки v3: редактор на всю высоту карточки (фича 04+) ░░ */
+#tcm-tab-notes.tcm-tab-content.active { overflow: hidden; }
+.tcm-notes-toolbar { -ms-flex-negative: 0; flex-shrink: 0; }
+.tcm-notes-edit {
+    -ms-flex: 1 1 auto;
+    flex: 1 1 auto;
+    min-height: 200px;
+    max-height: none;
+    overflow: auto;
+}
+
+/* ░░ Адаптив тулбара при сжатии окна (особенно у руководителей) ░░ */
+@media (max-width: 1240px) {
+    /* Период — в общий поток, без float */
+    .kb-period-wrap { float: none; margin-left: 0; margin-top: 4px; }
+    .kb-nav-left > * { margin: 4px 10px 4px 0; }
+    /* Селекторы «Вид» сохраняют читаемую ширину, переносятся при нехватке места (не обрезаются) */
+    .kb-hier-select { min-width: 128px !important; width: auto !important; }
+    /* Поля фильтра и поиска гибкие — равномерно делят строку, не выталкивают её */
+    .kb-filter-text { min-width: 0; -ms-flex: 1 1 200px; flex: 1 1 200px; }
+    .kb-search { -ms-flex: 1 1 240px; flex: 1 1 240px; }
+    .kb-search-input { width: auto; -ms-flex: 1 1 auto; flex: 1 1 auto; }
+}
+@media (max-width: 940px) {
+    .kb-hier-select { min-width: 120px !important; }
+    .kb-nav-row .kb-nav-links > li > a { padding: 0 8px; }
+    .kb-nav-btn { padding: 0 10px; }
+    .kb-filter-bar { padding: 6px 10px; }
+}
+
+/* ░░ Тулбар: единый ряд + гибкий спейсер (компактное распределение, справа на широком, влево при сжатии) ░░ */
+.kb-nav-row > * { margin: 4px 12px 4px 0; }
+.kb-nav-row > *:last-child { margin-right: 0; }
+.kb-period-wrap { float: none; margin: 4px 12px 4px 0; }
+.kb-nav-spacer { -ms-flex: 1 1 0px; flex: 1 1 0px; min-width: 0; height: 0; margin: 0; padding: 0; border: 0; }
+.kb-nav-right { margin-left: 0; margin-top: 4px; margin-bottom: 4px; }
+
+/* На узком окне спейсер схлопывается: всё пакуется вплотную (без пустого зазора),
+   на широком (>1240) — спейсер тянет «Что нового/Справка» вправо. */
+@media (max-width: 1240px) {
+    .kb-nav-spacer { -ms-flex: 0 0 0px; flex: 0 0 0px; min-width: 0; width: 0; }
+    .kb-nav-right { margin-left: 0; }
+}
+
+/* ░░ Тулбар: ровные отступы между группами (больше воздуха, ничего не липнет) ░░ */
+.kb-nav-row > * { margin: 5px 16px 5px 0; }
+.kb-nav-row > *:last-child { margin-right: 0; }
+.kb-nav-spacer { margin: 0 !important; }
+.kb-nav-right > * { margin-right: 10px; }
+.kb-nav-right > *:last-child { margin-right: 0; }

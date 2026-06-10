@@ -7,7 +7,6 @@
 
 {% block navigationTitle %}
 <div class="kb-nav-row">
-    <div class="kb-nav-left">
         <div class="navbar-brand">Канбан-доска</div>
         <ul class="nav navbar-nav kb-nav-links">
             <li><a href="#" onclick="showCreateTask(); return false;"><i class="fa fa-plus fa-fw"></i> Новая задача</a>
@@ -99,7 +98,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    <div class="kb-nav-spacer"></div>
     <div class="kb-nav-right">
         <button type="button" onclick="openWhatsNew()" class="kb-nav-btn kb-nav-btn-news">
             <i class="fa fa-bullhorn fa-fw"></i> Что нового
@@ -728,6 +727,7 @@
                         id="tcm-tab-subt-badge" class="tcm-tab-badge" style="display:none;">0/0</span></div>
                 <div id="tab-btn-chat" class="tcm-tab" onclick="tcmSwitchTab('chat')">Обсуждение <span
                         id="tcm-tab-chat-badge" class="tcm-tab-badge" style="display:none;">0</span></div>
+                <div id="tab-btn-notes" class="tcm-tab" onclick="tcmSwitchTab('notes')">Заметки</div>
                 <div id="tab-btn-hist" class="tcm-tab" onclick="tcmSwitchTab('hist')">История</div>
             </div>
             <div id="tcm-tab-main" class="tcm-tab-content active">
@@ -851,6 +851,18 @@
                 <div class="tcm-revs">
                     <div class="tcm-revs-body visible" id="tcm-revs-body">Загрузка...</div>
                 </div>
+            </div>
+            <div id="tcm-tab-notes" class="tcm-tab-content">
+                <div class="tcm-notes-toolbar">
+                    <button type="button" class="tcm-note-btn" onclick="tcmNotesFmt('bold')" title="Жирный"><b>Ж</b></button>
+                    <button type="button" class="tcm-note-btn" onclick="tcmNotesFmt('italic')" title="Курсив"><i>К</i></button>
+                    <button type="button" class="tcm-note-btn" onclick="tcmNotesFmt('underline')" title="Подчёркнутый"><u>Ч</u></button>
+                    <button type="button" class="tcm-note-btn" onclick="tcmNotesFmt('removeFormat')" title="Очистить форматирование">&#129529;</button>
+                    <span class="tcm-note-sep"></span>
+                    <span class="tcm-note-tip">Скриншот: PrtScn / Win+Shift+S, затем Ctrl+V прямо сюда</span>
+                </div>
+                <div id="tcm-notes" class="tcm-notes-edit" contenteditable="true"
+                     oninput="tcmNotesScheduleSave()" onpaste="return tcmNotesOnPaste(event)"></div>
             </div>
         </div>
         <div class="tcm-footer">

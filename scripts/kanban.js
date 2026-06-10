@@ -2580,6 +2580,8 @@
         var origDueGroup = document.getElementById("tcm-original-due-group");
         if (origDueGroup) origDueGroup.style.display = d.originalDueDate ? "" : "none";
         document.getElementById("tcm-details").value = d.details || "";
+        var _nEl = document.getElementById("tcm-notes");
+        if (_nEl) _nEl.innerHTML = d.notes || "";   // фича 04: rich-HTML заметки
         tcmAutoSizeDetails();   // FIX-05
 
         // Просроченность
@@ -3275,6 +3277,124 @@
     // Без аргументов (кнопка «Сохранить», Ctrl+S, tcmDelete) – закрыть и обновить.
     // Enter из tcmHotkey передаёт {closeAfter:false, refreshAfter:false} –
     // классическое «сохранить, продолжить редактирование».
+    /* ░░ Фича 04: умные заметки (rich-HTML + картинки/скриншоты) ░░ */
+    var _tcmNotesTimer = null;
+
+    window.tcmNotesScheduleSave = function () {
+        if (_tcmNotesTimer) clearTimeout(_tcmNotesTimer);
+        _tcmNotesTimer = setTimeout(tcmNotesSave, 800);
+    };
+
+    window.tcmNotesSave = function () {
+        var ed = document.getElementById("tcm-notes");
+        var keyEl = document.getElementById("tcm-key");
+        if (!ed || !keyEl || !keyEl.value) return;
+        try { window.external.InvokeTemplate("SaveNotes", keyEl.value + "|" + (ed.innerHTML || "")); } catch (e) {}
+    };
+
+    function tcmNotesInsertHtml(html) {
+        var ed = document.getElementById("tcm-notes");
+        if (!ed) return;
+        try { ed.focus(); } catch (e) {}
+        var ok = false;
+        try {
+            if (document.selection && document.selection.createRange) {
+                document.selection.createRange().pasteHTML(html);   // IE legacy
+                ok = true;
+            }
+        } catch (e1) {}
+        if (!ok) {
+            try {
+                if (window.getSelection && window.getSelection().rangeCount > 0) {
+                    var rng = window.getSelection().getRangeAt(0);
+                    if (rng.createContextualFragment) {
+                        rng.insertNode(rng.createContextualFragment(html));
+                        ok = true;
+                    }
+                }
+            } catch (e2) {}
+        }
+        if (!ok) { ed.innerHTML = (ed.innerHTML || "") + html; }   // фолбэк: добавить в конец
+        tcmNotesScheduleSave();
+    }
+
+    window.tcmNotesPasteShot = function () {
+        var res = "";
+        try { res = window.external.InvokeTemplate("PasteNoteImage", ""); } catch (e) { return; }
+        res = String(res || "");
+        if (res === "ERROR:NoImage") {
+            alert("В буфере обмена нет изображения.\nСделайте скриншот (PrtScn или Win+Shift+S) и нажмите «Скриншот» снова.");
+            return;
+        }
+        if (!res || res.indexOf("ERROR") === 0 || res === "CANCELLED") return;
+        tcmNotesInsertHtml('<img src="' + res + '" style="max-width:100%;" /><br>');
+    };
+
+    window.tcmNotesPickImage = function () {
+        var res = "";
+        try { res = window.external.InvokeTemplate("PickNoteImage", ""); } catch (e) { return; }
+        res = String(res || "");
+        if (!res || res.indexOf("ERROR") === 0 || res === "CANCELLED") return;
+        tcmNotesInsertHtml('<img src="' + res + '" style="max-width:100%;" /><br>');
+    };
+
+    // Вставка переноса строки в редакторе заметок — делаем сами, чтобы Enter
+    // работал одинаково во всех режимах IE и не плодил пункты списка.
+    function tcmNotesInsertBr() {
+        var ed = document.getElementById("tcm-notes");
+        if (!ed) return;
+        try { ed.focus(); } catch (e) {}
+        var done = false;
+        try {
+            if (document.selection && document.selection.createRange) {
+                var r = document.selection.createRange();   // IE legacy
+                r.pasteHTML("<br>");
+                r.collapse(false);
+                r.select();
+                done = true;
+            }
+        } catch (e1) {}
+        if (!done) { try { done = document.execCommand("insertHTML", false, "<br>"); } catch (e2) {} }
+        if (!done) {
+            try {
+                var sel = window.getSelection && window.getSelection();
+                if (sel && sel.rangeCount) {
+                    var rng = sel.getRangeAt(0);
+                    var br = document.createElement("br");
+                    rng.insertNode(br);
+                    rng.setStartAfter(br); rng.collapse(true);
+                    sel.removeAllRanges(); sel.addRange(rng);
+                }
+            } catch (e3) {}
+        }
+        tcmNotesScheduleSave();
+    }
+
+    window.tcmNotesFmt = function (cmd) {
+        var ed = document.getElementById("tcm-notes");
+        if (ed) { try { ed.focus(); } catch (e) {} }
+        try { document.execCommand(cmd, false, null); } catch (e2) {}
+        tcmNotesScheduleSave();
+    };
+
+    // Вставка Ctrl+V: если в буфере картинка – берём её через C# и вставляем как data-URI,
+    // отменяя нативную вставку; если текст – обычная вставка.
+    window.tcmNotesOnPaste = function (e) {
+        var res = "";
+        try { res = window.external.InvokeTemplate("PasteNoteImage", ""); } catch (ex) { res = ""; }
+        res = String(res || "");
+        if (res.indexOf("data:image") === 0) {
+            tcmNotesInsertHtml('<img src="' + res + '" style="max-width:100%;" /><br>');
+            var ev = e || window.event;
+            if (ev && ev.preventDefault) ev.preventDefault();
+            if (ev) ev.returnValue = false;
+            return false;   // отменяем нативную вставку картинки
+        }
+        return true;        // нет картинки – обычная вставка текста
+    };
+
+    // (кнопка «во весь экран» убрана — редактор растягивается на всю высоту карточки через CSS flex)
+
     window.tcmSave = function (opts) {
         opts = opts || {};
         var closeAfter   = opts.closeAfter   !== false;
@@ -3867,6 +3987,16 @@
         return String(target.tagName).toLowerCase() === "textarea";
     }
 
+    // фича 04: курсор внутри редактора заметок? (обход по предкам — надёжно в IE)
+    function kbInNotesEditor(node) {
+        while (node) {
+            if (node.id === "tcm-notes") return true;
+            if (node.className && String(node.className).indexOf("tcm-notes-edit") !== -1) return true;
+            node = node.parentNode;
+        }
+        return false;
+    }
+
     function kbIsOverlayVisible(id) {
         var el = document.getElementById(id);
         return !!(el && el.className && el.className.indexOf("visible") !== -1);
@@ -3921,9 +4051,23 @@
             return;
         }
 
+        // фича 04: Enter в редакторе заметок — сами вставляем <br> (детерминированно в IE),
+        // чтобы не сохранялась карточка и не плодились пункты списка.
+        if (code === 13 && (kbInNotesEditor(target) || kbInNotesEditor(document.activeElement))) {
+            if (!e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                tcmNotesInsertBr();
+                if (e.preventDefault) e.preventDefault();
+                e.returnValue = false;
+                return false;
+            }
+            return;   // Shift+Enter — оставляем браузеру
+        }
+
         if (code === 13 && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
             if (kbIsOverlayVisible("tcmOverlay") && !kbIsTextareaTarget(target)) {
                 if (target && target.id === "tcm-chat-text") return;
+                // фича 04: Enter в редакторе заметок = перенос строки, не сохранение карточки
+                if (kbInNotesEditor(target) || kbInNotesEditor(document.activeElement)) return;
                 // Enter – «сохранить, не закрывая, без рефреша доски» (быстрая правка нескольких полей)
                 if (typeof tcmSave === "function") tcmSave({ closeAfter: false, refreshAfter: false });
                 if (e.preventDefault) e.preventDefault();
